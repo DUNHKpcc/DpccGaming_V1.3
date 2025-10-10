@@ -1,0 +1,159 @@
+<template>
+  <div v-if="isOpen" 
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
+    @click="handleBackdropClick">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
+    <div
+      class="relative bg-white/20 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl w-full max-w-2xl p-8 transform scale-100 transition-transform duration-300"
+      @click.stop>
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-2xl font-bold text-white drop-shadow-lg">添加游戏</h3>
+        <button @click="closeModal" class="text-white/80 hover:text-white text-2xl transition-colors duration-300 drop-shadow-lg">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+
+      <form @submit.prevent="handleSubmit">
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏标题</label>
+          <input v-model="form.title" type="text"
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800 placeholder-gray-500"
+            placeholder="请输入游戏标题" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏类型</label>
+          <select v-model="form.category"
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800"
+            required>
+            <option value="">请选择游戏类型</option>
+            <option value="action">动作</option>
+            <option value="adventure">冒险</option>
+            <option value="puzzle">谜题</option>
+            <option value="racing">赛车</option>
+            <option value="simulation">模拟</option>
+            <option value="strategy">策略</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏描述</label>
+          <textarea v-model="form.description" rows="3"
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800 placeholder-gray-500"
+            placeholder="请描述您的游戏" required></textarea>
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏文件 (HTML5)</label>
+          <input ref="fileInput" type="file" accept=".html,.zip"
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800 file:bg-white/80 file:border-0 file:rounded file:px-3 file:py-1 file:text-sm file:text-gray-700"
+            required>
+          <p class="text-xs text-white/80 mt-1 drop-shadow-sm">上传包含游戏文件的 ZIP 压缩包，并且带有介绍视频或图片</p>
+        </div>
+        <button type="submit"
+          class="w-full bg-primary/90 hover:bg-primary backdrop-blur-sm border border-primary/30 text-white py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl">
+          上传游戏
+        </button>
+      </form>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { useModalStore } from '../stores/modal'
+import { useNotificationStore } from '../stores/notification'
+
+const modalStore = useModalStore()
+const notificationStore = useNotificationStore()
+
+const isOpen = computed(() => modalStore.activeModal === 'addGame')
+const fileInput = ref(null)
+
+const form = ref({
+  title: '',
+  category: '',
+  description: ''
+})
+
+const handleSubmit = async () => {
+  try {
+    // 验证表单
+    if (!form.value.title || !form.value.category || !form.value.description) {
+      notificationStore.error('请填写完整信息', '游戏标题、类型和描述不能为空')
+      return
+    }
+
+    if (!fileInput.value.files || fileInput.value.files.length === 0) {
+      notificationStore.error('请选择文件', '请上传游戏ZIP文件')
+      return
+    }
+
+    // 检查用户是否已登录
+    const token = localStorage.getItem('token')
+    if (!token) {
+      notificationStore.error('未登录', '请先登录后再上传游戏')
+      return
+    }
+
+    // 创建FormData
+    const formData = new FormData()
+    formData.append('title', form.value.title)
+    formData.append('category', form.value.category)
+    formData.append('description', form.value.description)
+    formData.append('gameFile', fileInput.value.files[0])
+
+    // 显示上传中状态
+    notificationStore.info('正在上传...', '请稍候，正在处理您的游戏文件')
+
+    // 发送请求
+    const response = await fetch('/api/games', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    })
+
+    const result = await response.json()
+
+    if (response.ok) {
+      closeModal()
+      notificationStore.success('游戏上传成功！', '您的游戏已提交审核，审核通过后将会上架')
+    } else {
+      // 处理认证错误
+      if (response.status === 401 || response.status === 403) {
+        notificationStore.error('认证失败', '登录已过期，请重新登录')
+        // 清除无效token
+        localStorage.removeItem('token')
+        // 可以触发重新登录
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      } else {
+        notificationStore.error('上传失败', result.error || '上传过程中出现错误')
+      }
+    }
+
+  } catch (error) {
+    console.error('上传游戏错误:', error)
+    notificationStore.error('上传失败', '网络错误，请检查网络连接后重试')
+  }
+}
+
+const closeModal = () => {
+  modalStore.closeModal()
+  // 重置表单
+  form.value = {
+    title: '',
+    category: '',
+    description: ''
+  }
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+const handleBackdropClick = (e) => {
+  if (e.target === e.currentTarget) {
+    closeModal()
+  }
+}
+</script>
