@@ -1,14 +1,10 @@
 import { useAuthStore } from '../stores/auth'
-
-// ⚠️ 重要：部署前必须修改为你的实际服务器地址
-// 选项1: 使用IP地址 - const API_BASE_URL = 'http://你的服务器IP:3000/api'
-// 选项2: 使用域名 - const API_BASE_URL = 'https://你的域名/api'
-const API_BASE_URL = 'http://dpccgaming.xyz/api'
+const API_BASE_URL = 'https://dpccgaming.xyz/api'
 
 export async function apiCall(endpoint, options = {}) {
   const authStore = useAuthStore()
   const url = `${API_BASE_URL}${endpoint}`
-  
+
   const defaultOptions = {
     headers: {
       'Content-Type': 'application/json',

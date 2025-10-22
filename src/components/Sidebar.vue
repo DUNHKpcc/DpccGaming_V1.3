@@ -28,7 +28,7 @@
               :to="item.path"
               :class="[
                 'nav-icon',
-                { 'nav-icon-active': $route.path === item.path }
+{ 'nav-icon-active': $route.path === item.path }
               ]">
               <i :class="item.icon"></i>
             </router-link>
@@ -281,8 +281,27 @@ const openLoginModal = () => {
   closeSidebar()
 }
 
+// 修改checkScreenSize函数，添加特定阈值判断
 const checkScreenSize = () => {
-  isMobile.value = window.innerWidth < 1024
+  const windowWidth = window.innerWidth
+  const windowHeight = window.innerHeight
+  
+  // 判断是否为移动端（保持原逻辑）
+  isMobile.value = windowWidth < 1024
+  
+  // 根据用户指定的尺寸阈值判断是否需要隐藏侧边栏
+  if (windowWidth <= 1253 || windowHeight <= 941) {
+    // 小于阈值时隐藏左侧悬浮侧边栏
+    if (floatingSidebar.value) {
+      floatingSidebar.value.style.display = 'none'
+    }
+  } else {
+    // 大于阈值时显示悬浮侧边栏
+    if (floatingSidebar.value) {
+      floatingSidebar.value.style.display = 'block'
+    }
+  }
+  
   if (!isMobile.value) {
     isOpen.value = false // 桌面端默认隐藏侧边栏
   }
@@ -291,13 +310,12 @@ const checkScreenSize = () => {
 // 初始化悬浮侧边栏动画
 const initFloatingSidebar = () => {
   if (floatingSidebar.value) {
-    // 设置初始状态
+// 设置初始状态
     gsap.set(floatingSidebar.value, {
       x: -60,
       opacity: 0
     })
-    
-    // 进入动画
+// 进入动画
     gsap.to(floatingSidebar.value, {
       x: 0,
       opacity: 1,

@@ -5,8 +5,9 @@
         游戏库
       </h2>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        <!-- 游戏卡片 -->
+      <!-- 修改grid布局，添加响应式调整和边距 -->
+      <div class="grid game-grid gap-8 max-w-6xl mx-auto pl-4 lg:pl-8">
+        <!-- 游戏卡片保持不变 -->
         <div 
           v-for="game in games" 
           :key="game.id"
@@ -75,7 +76,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+// 添加屏幕宽度监听
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 
@@ -90,7 +92,6 @@ const loadGames = async () => {
     games.value = gameStore.games
   } catch (error) {
     console.error('加载游戏失败:', error)
-    // 使用默认游戏数据
     games.value = [{
       id: 'web-mobile-001',
       title: '像素逃生',
@@ -115,7 +116,6 @@ const openAddGameModal = () => {
   modalStore.openModal('addGame')
 }
 
-// 视频播放控制
 const playVideo = (event) => {
   const video = event.target
   if (video && video.paused) {
@@ -132,7 +132,39 @@ const pauseVideo = (event) => {
   }
 }
 
+// 移除之前添加的屏幕宽度监听和动态调整代码
 onMounted(() => {
   loadGames()
+  // 移除 handleResize() 和 resize 事件监听器
+})
+
+onUnmounted(() => {
+  // 移除 resize 事件监听器
 })
 </script>
+
+<style scoped>
+/* 移除之前添加的游戏网格样式 */
+/* 恢复为原始的响应式网格布局 */
+#games .container > div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  max-width: 6xl;
+  margin: 0 auto;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+@media (min-width: 768px) {
+  #games .container > div {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  #games .container > div {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+</style>

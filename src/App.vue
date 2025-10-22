@@ -89,11 +89,14 @@ onMounted(async () => {
   min-height: calc(100vh - 4rem);
 }
 
-/* 桌面端侧边栏布局 - 默认无边距 */
-@media (min-width: 1024px) {
+/* 移除导致左侧空白区域的媒体查询 */
+/* 删除以下代码块 */
+/*
+@media (min-width: 1254px) {
   .main-content {
-    margin-left: 0; /* 默认无边距，侧边栏完全隐藏 */
+    margin-left: 100px;
     transition: margin-left 0.3s ease;
   }
 }
+*/
 </style>
