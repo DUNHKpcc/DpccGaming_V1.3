@@ -67,8 +67,8 @@
             <div class="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
               <i class="fa fa-share-alt text-white text-2xl"></i>
             </div>
-            <h3 class="text-white font-semibold mb-2">轻松分享</h3>
-            <p class="text-white/70 text-sm">一键分享你的游戏作品</p>
+            <h3 class="text-white font-semibold mb-2">学习</h3>
+            <p class="text-white/70 text-sm">学习如何制作游戏</p>
           </div>
           <div class="feature-item text-center">
             <div class="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -113,6 +113,27 @@
               <div class="flex items-start gap-3">
                 <div class="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
                 <div class="flex-1">
+                  <div class="text-sm text-white font-medium">游戏分类升级</div>
+                  <div class="text-xs text-white/70 mt-1">更方便学习如何制作游戏</div>
+                  <div class="text-xs text-white/50 mt-1">2025-10-20</div>
+                </div>
+              </div>
+            </div>
+            <div class="update-item">
+              <div class="flex items-start gap-3">
+                <div class="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                <div class="flex-1">
+                  <div class="text-sm text-white font-medium">网站安全维护</div>
+                  <div class="text-xs text-white/70 mt-1">修复了多个安全漏洞</div>
+                  <div class="text-xs text-white/50 mt-1">2025-10-19</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="update-item">
+              <div class="flex items-start gap-3">
+                <div class="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                <div class="flex-1">
                   <div class="text-sm text-white font-medium">通知系统优化</div>
                   <div class="text-xs text-white/70 mt-1">评论回复通知支持直接跳转和高亮显示</div>
                   <div class="text-xs text-white/50 mt-1">2025-10-01</div>
@@ -153,17 +174,7 @@
               </div>
             </div>
             
-            <div class="update-item">
-              <div class="flex items-start gap-3">
-                <div class="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
-                <div class="flex-1">
-                  <div class="text-sm text-white font-medium">Bug修复</div>
-                  <div class="text-xs text-white/70 mt-1">修复游戏上传和评论系统的已知问题</div>
-                  <div class="text-xs text-white/50 mt-1">2025-9-28</div>
-                </div>
-              </div>
-            </div>
-          </div>
+    
           
           <div class="mt-4 pt-3 border-t border-white/20">
             <button class="w-full text-xs text-white/80 hover:text-white transition-colors duration-300 flex items-center justify-center gap-1">
@@ -173,6 +184,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- 滚动指示器 -->

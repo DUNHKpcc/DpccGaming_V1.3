@@ -1,5 +1,5 @@
 {
-  "apps": [
+  "apps";[
     {
       "name": "dpccgaming-backend",
       "script": "server.js",

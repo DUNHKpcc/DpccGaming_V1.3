@@ -27,12 +27,12 @@ app.set('trust proxy', true);
 // 中间件配置 - 宝塔面板环境
 app.use(cors({
   origin: [
-    'http://localhost:8000', 
+    'http://localhost:8000',
     'http://127.0.0.1:8000',
     'http://localhost:3000',
     'https://localhost:3000',
-    'http://localhost:8080',  // Vue开发服务器端口
-    'http://127.0.0.1:8080', // Vue开发服务器端口
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
     'http://dpccgaming.xyz',
     'https://dpccgaming.xyz'
   ],
@@ -119,7 +119,7 @@ let pool;
 async function initDatabase() {
   try {
     pool = mysql.createPool(dbConfig);
-    
+
     // 测试连接
     const connection = await pool.getConnection();
     console.log('✅ 数据库连接成功');
@@ -136,7 +136,7 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: '访问令牌缺失',
       message: '请先登录后再进行操作'
     });
@@ -145,7 +145,7 @@ function authenticateToken(req, res, next) {
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       console.error('JWT验证失败:', err.message);
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: '无效的访问令牌',
         message: '登录已过期，请重新登录'
       });
@@ -283,7 +283,7 @@ app.get('/api/games', async (req, res) => {
       GROUP BY g.id
       ORDER BY g.created_at DESC
     `);
-    
+
     // 格式化游戏数据
     const formattedGames = games.map(game => ({
       id: game.id,
@@ -298,7 +298,7 @@ app.get('/api/games', async (req, res) => {
       comment_count: game.comment_count,
       play_count: game.play_count || 0
     }));
-    
+
     res.json({ games: formattedGames });
   } catch (error) {
     console.error('获取游戏列表错误:', error);
@@ -324,7 +324,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
 
     // 生成唯一的游戏ID
     const gameId = 'game-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    
+
     // 创建游戏目录
     const gameDir = path.join(__dirname, 'games', gameId);
     await fs.mkdir(gameDir, { recursive: true });
@@ -337,7 +337,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
       // 查找index.html文件
       const extractedFiles = await fs.readdir(gameDir, { recursive: true });
       let indexHtmlPath = null;
-      
+
       // 递归查找index.html
       async function findIndexHtml(dir) {
         const items = await fs.readdir(dir, { withFileTypes: true });
@@ -351,7 +351,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
           }
         }
       }
-      
+
       await findIndexHtml(gameDir);
 
       if (!indexHtmlPath) {
@@ -368,7 +368,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
       // 查找缩略图
       let thumbnailUrl = null;
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-      
+
       async function findThumbnail(dir) {
         const items = await fs.readdir(dir, { withFileTypes: true });
         for (const item of items) {
@@ -384,7 +384,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
           }
         }
       }
-      
+
       await findThumbnail(gameDir);
 
       // 保存游戏信息到数据库
@@ -461,7 +461,7 @@ app.post('/api/admin/games/:gameId/review', authenticateToken, checkAdminPermiss
       const game = gameInfo[0];
       const notificationType = status === 'approved' ? 'game_approved' : 'game_rejected';
       const notificationTitle = status === 'approved' ? '游戏审核通过' : '游戏审核未通过';
-      const notificationContent = status === 'approved' 
+      const notificationContent = status === 'approved'
         ? `您上传的游戏"${game.title}"已通过审核并成功上架！`
         : `您上传的游戏"${game.title}"未通过审核${reviewNotes ? '，原因：' + reviewNotes : ''}`;
 
@@ -523,7 +523,7 @@ app.get('/api/admin/games/all', authenticateToken, checkAdminPermission, async (
       GROUP BY g.id
       ORDER BY g.created_at DESC
     `);
-    
+
     // 格式化游戏数据
     const formattedGames = games.map(game => ({
       id: game.id,
@@ -626,7 +626,7 @@ app.delete('/api/admin/games/:gameId/delete', authenticateToken, checkAdminPermi
 app.get('/api/games/:gameId/comments', async (req, res) => {
   try {
     const { gameId } = req.params;
-    
+
     // 获取主评论
     const [comments] = await pool.execute(`
       SELECT c.*, u.username 
@@ -646,7 +646,7 @@ app.get('/api/games/:gameId/comments', async (req, res) => {
         WHERE c.parent_id = ?
         ORDER BY c.created_at ASC
       `, [comment.id]);
-      
+
       comment.replies = replies;
     }
 
@@ -701,7 +701,7 @@ app.post('/api/games/:gameId/comments', authenticateToken, async (req, res) => {
       'INSERT INTO comments (user_id, game_id, rating, comment_text) VALUES (?, ?, ?, ?)',
       [userId, gameId, rating, commentText.trim()]
     );
-    
+
     const message = '评论发布成功';
     console.log(`用户 ${userId} 为游戏 ${gameId} 创建了新评论`);
 
@@ -710,13 +710,13 @@ app.post('/api/games/:gameId/comments', authenticateToken, async (req, res) => {
       'SELECT AVG(rating) as avg_rating FROM comments WHERE game_id = ? AND rating > 0',
       [gameId]
     );
-    
+
     const avgRating = avgResult[0].avg_rating || 0;
     await pool.execute(
       'UPDATE games SET rating_avg = ? WHERE game_id = ?',
       [avgRating, gameId]
     );
-    
+
     console.log(`游戏 ${gameId} 的平均评分更新为: ${avgRating}`);
 
     res.json({ message });
@@ -774,9 +774,9 @@ app.post('/api/games/:gameId/comments/:commentId/reply', authenticateToken, asyn
       'INSERT INTO comments (user_id, game_id, parent_id, reply_to_user_id, comment_text) VALUES (?, ?, ?, ?, ?)',
       [userId, gameId, commentId, replyToUserId || null, commentText.trim()]
     );
-    
+
     const newReplyId = result.insertId;
-    
+
     // 如果回复的是其他用户，创建通知
     if (replyToUserId && replyToUserId !== userId) {
       // 获取游戏信息
@@ -784,17 +784,17 @@ app.post('/api/games/:gameId/comments/:commentId/reply', authenticateToken, asyn
         'SELECT title FROM games WHERE game_id = ?',
         [gameId]
       );
-      
+
       // 获取回复者信息
       const [replierInfo] = await pool.execute(
         'SELECT username FROM users WHERE id = ?',
         [userId]
       );
-      
+
       if (gameInfo.length > 0 && replierInfo.length > 0) {
         const gameTitle = gameInfo[0].title;
         const replierName = replierInfo[0].username;
-        
+
         // 创建评论回复通知 - 传递新创建的回复ID
         await createNotification(
           replyToUserId,
@@ -806,7 +806,7 @@ app.post('/api/games/:gameId/comments/:commentId/reply', authenticateToken, asyn
         );
       }
     }
-    
+
     const message = '回复发布成功';
     console.log(`用户 ${userId} 回复了评论 ${commentId}`);
 
@@ -822,7 +822,7 @@ app.post('/api/games/:gameId/comments/:commentId/reply', authenticateToken, asyn
 app.post('/api/games/:gameId/play', async (req, res) => {
   try {
     const { gameId } = req.params;
-    
+
     // 检查游戏是否存在
     const [games] = await pool.execute(
       'SELECT id FROM games WHERE game_id = ?',
@@ -851,7 +851,7 @@ app.post('/api/games/:gameId/play', async (req, res) => {
 app.get('/api/user/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     const [users] = await pool.execute(
       'SELECT id, username, email, role, status, created_at FROM users WHERE id = ?',
       [userId]
@@ -879,42 +879,42 @@ const ADMIN_USERS = [
 async function checkAdminPermission(req, res, next) {
   try {
     const userId = req.user.userId;
-    
+
     // 从数据库查询用户角色
     const [users] = await pool.execute(
       'SELECT role, status FROM users WHERE id = ?',
       [userId]
     );
-    
+
     if (users.length === 0) {
-      return res.status(403).json({ 
-        error: '用户不存在', 
-        message: '用户信息无效' 
+      return res.status(403).json({
+        error: '用户不存在',
+        message: '用户信息无效'
       });
     }
-    
+
     const user = users[0];
-    
+
     // 检查用户状态
     if (user.status !== 'active') {
-      return res.status(403).json({ 
-        error: '账户已禁用', 
-        message: '您的账户已被禁用，无法访问管理功能' 
+      return res.status(403).json({
+        error: '账户已禁用',
+        message: '您的账户已被禁用，无法访问管理功能'
       });
     }
-    
+
     // 检查用户角色
     if (!['admin', 'super_admin'].includes(user.role)) {
-      return res.status(403).json({ 
-        error: '权限不足', 
-        message: '只有管理员才能访问此功能' 
+      return res.status(403).json({
+        error: '权限不足',
+        message: '只有管理员才能访问此功能'
       });
     }
-    
+
     // 将用户角色信息添加到请求对象中
     req.user.role = user.role;
     req.user.status = user.status;
-    
+
     next();
   } catch (error) {
     console.error('权限检查错误:', error);
@@ -952,30 +952,30 @@ app.post('/api/admin/users/:userId/role', authenticateToken, checkAdminPermissio
     const { userId } = req.params;
     const { role } = req.body;
     const adminId = req.user.userId;
-    
+
     // 验证角色
     if (!['user', 'admin', 'super_admin'].includes(role)) {
       return res.status(400).json({ error: '无效的用户角色' });
     }
-    
+
     // 检查目标用户是否存在
     const [users] = await pool.execute(
       'SELECT id, username FROM users WHERE id = ?',
       [userId]
     );
-    
+
     if (users.length === 0) {
       return res.status(404).json({ error: '用户不存在' });
     }
-    
+
     // 更新用户角色
     await pool.execute(
       'UPDATE users SET role = ? WHERE id = ?',
       [role, userId]
     );
-    
+
     console.log(`管理员 ${adminId} 将用户 ${users[0].username} 的角色更改为 ${role}`);
-    
+
     res.json({
       message: '用户角色更新成功',
       user: {
@@ -984,7 +984,7 @@ app.post('/api/admin/users/:userId/role', authenticateToken, checkAdminPermissio
         role: role
       }
     });
-    
+
   } catch (error) {
     console.error('更新用户角色错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
@@ -1010,7 +1010,7 @@ app.get('/api/admin/users', authenticateToken, checkAdminPermission, async (req,
       FROM users 
       ORDER BY created_at DESC
     `);
-    
+
     res.json({ users });
   } catch (error) {
     console.error('获取用户列表错误:', error);
@@ -1024,50 +1024,50 @@ app.post('/api/admin/users/:userId/ban', authenticateToken, checkAdminPermission
     const { userId } = req.params;
     const { action } = req.body; // 'ban' 或 'unban'
     const adminId = req.user.userId;
-    
+
     // 验证操作类型
     if (!['ban', 'unban'].includes(action)) {
       return res.status(400).json({ error: '无效的操作类型' });
     }
-    
+
     // 检查目标用户是否存在
     const [users] = await pool.execute(
       'SELECT id, username, role FROM users WHERE id = ?',
       [userId]
     );
-    
+
     if (users.length === 0) {
       return res.status(404).json({ error: '用户不存在' });
     }
-    
+
     const user = users[0];
-    
+
     // 防止管理员禁言自己
     if (userId == adminId) {
       return res.status(400).json({ error: '不能禁言自己' });
     }
-    
+
     // 防止禁言其他管理员（除非是超级管理员）
     if (action === 'ban' && ['admin', 'super_admin'].includes(user.role)) {
       const [adminUser] = await pool.execute(
         'SELECT role FROM users WHERE id = ?',
         [adminId]
       );
-      
+
       if (adminUser[0].role !== 'super_admin') {
         return res.status(403).json({ error: '只有超级管理员才能禁言其他管理员' });
       }
     }
-    
+
     // 更新用户状态
     const newStatus = action === 'ban' ? 'banned' : 'active';
     await pool.execute(
       'UPDATE users SET status = ? WHERE id = ?',
       [newStatus, userId]
     );
-    
+
     console.log(`管理员 ${adminId} ${action === 'ban' ? '禁言' : '解禁'}了用户 ${user.username} (${userId})`);
-    
+
     res.json({
       message: `用户${action === 'ban' ? '禁言' : '解禁'}成功`,
       user: {
@@ -1076,7 +1076,7 @@ app.post('/api/admin/users/:userId/ban', authenticateToken, checkAdminPermission
         status: newStatus
       }
     });
-    
+
   } catch (error) {
     console.error('用户禁言/解禁错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
@@ -1088,59 +1088,59 @@ app.delete('/api/admin/users/:userId/delete', authenticateToken, checkAdminPermi
   try {
     const { userId } = req.params;
     const adminId = req.user.userId;
-    
+
     // 检查目标用户是否存在
     const [users] = await pool.execute(
       'SELECT id, username, role FROM users WHERE id = ?',
       [userId]
     );
-    
+
     if (users.length === 0) {
       return res.status(404).json({ error: '用户不存在' });
     }
-    
+
     const user = users[0];
-    
+
     // 防止删除自己
     if (userId == adminId) {
       return res.status(400).json({ error: '不能删除自己' });
     }
-    
+
     // 防止删除其他管理员（除非是超级管理员）
     if (['admin', 'super_admin'].includes(user.role)) {
       const [adminUser] = await pool.execute(
         'SELECT role FROM users WHERE id = ?',
         [adminId]
       );
-      
+
       if (adminUser[0].role !== 'super_admin') {
         return res.status(403).json({ error: '只有超级管理员才能删除其他管理员' });
       }
     }
-    
+
     // 开始事务
     const connection = await pool.getConnection();
     await connection.beginTransaction();
-    
+
     try {
       // 1. 删除用户相关的评论
       await connection.execute(
         'DELETE FROM comments WHERE user_id = ?',
         [userId]
       );
-      
+
       // 2. 删除用户相关的通知
       await connection.execute(
         'DELETE FROM notifications WHERE user_id = ?',
         [userId]
       );
-      
+
       // 3. 删除用户上传的游戏（如果用户是游戏上传者）
       const [userGames] = await connection.execute(
         'SELECT game_id FROM games WHERE uploaded_by = ?',
         [userId]
       );
-      
+
       // 删除用户上传的游戏文件
       for (const game of userGames) {
         try {
@@ -1151,24 +1151,24 @@ app.delete('/api/admin/users/:userId/delete', authenticateToken, checkAdminPermi
           console.warn('删除游戏文件失败:', fileError.message);
         }
       }
-      
+
       // 删除用户上传的游戏记录
       await connection.execute(
         'DELETE FROM games WHERE uploaded_by = ?',
         [userId]
       );
-      
+
       // 4. 删除用户记录
       await connection.execute(
         'DELETE FROM users WHERE id = ?',
         [userId]
       );
-      
+
       // 提交事务
       await connection.commit();
-      
+
       console.log(`管理员 ${adminId} 彻底删除了用户: ${user.username} (${userId})`);
-      
+
       res.json({
         message: '用户删除成功',
         user: {
@@ -1176,7 +1176,7 @@ app.delete('/api/admin/users/:userId/delete', authenticateToken, checkAdminPermi
           username: user.username
         }
       });
-      
+
     } catch (error) {
       // 回滚事务
       await connection.rollback();
@@ -1184,7 +1184,7 @@ app.delete('/api/admin/users/:userId/delete', authenticateToken, checkAdminPermi
     } finally {
       connection.release();
     }
-    
+
   } catch (error) {
     console.error('删除用户错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
@@ -1197,7 +1197,7 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query
     const offset = (page - 1) * limit
-    
+
     const [notifications] = await pool.execute(`
       SELECT n.*, g.title as game_title
       FROM notifications n
@@ -1206,15 +1206,15 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
       ORDER BY n.created_at DESC
       LIMIT ? OFFSET ?
     `, [req.user.userId, parseInt(limit), parseInt(offset)])
-    
+
     // 获取总数
     const [countResult] = await pool.execute(`
       SELECT COUNT(*) as total FROM notifications WHERE user_id = ?
     `, [req.user.userId])
-    
+
     const total = countResult[0].total
     const hasMore = offset + notifications.length < total
-    
+
     res.json({
       notifications,
       pagination: {
@@ -1234,13 +1234,13 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
 app.post('/api/notifications/:id/read', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    
+
     await pool.execute(`
       UPDATE notifications 
       SET is_read = true 
       WHERE id = ? AND user_id = ?
     `, [id, req.user.userId])
-    
+
     res.json({ message: '通知已标记为已读' })
   } catch (error) {
     console.error('标记通知已读错误:', error)
@@ -1256,7 +1256,7 @@ app.post('/api/notifications/mark-all-read', authenticateToken, async (req, res)
       SET is_read = true 
       WHERE user_id = ? AND is_read = false
     `, [req.user.userId])
-    
+
     res.json({ message: '所有通知已标记为已读' })
   } catch (error) {
     console.error('全部标记已读错误:', error)
@@ -1291,7 +1291,7 @@ app.use((req, res) => {
 async function startServer() {
   await initDatabase();
   await ensureUploadDir();
-  
+
   app.listen(PORT, () => {
     console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
     console.log(`📊 API文档: http://localhost:${PORT}/api/`);

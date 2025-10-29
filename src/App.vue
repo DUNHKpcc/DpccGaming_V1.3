@@ -44,7 +44,7 @@ const authStore = useAuthStore()
 const sidebarRef = ref(null)
 const mainContent = ref(null)
 
-// 应用启动时检查登录状态
+
 onMounted(async () => {
   await authStore.checkAuthStatus()
   
@@ -89,14 +89,11 @@ onMounted(async () => {
   min-height: calc(100vh - 4rem);
 }
 
-/* 移除导致左侧空白区域的媒体查询 */
-/* 删除以下代码块 */
-/*
-@media (min-width: 1254px) {
+/* 桌面端侧边栏布局 - 默认无边距 */
+@media (min-width: 1024px) {
   .main-content {
-    margin-left: 100px;
+    margin-left: 0; /* 默认无边距，侧边栏完全隐藏 */
     transition: margin-left 0.3s ease;
   }
 }
-*/
 </style>

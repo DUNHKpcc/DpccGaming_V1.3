@@ -5,15 +5,12 @@
         游戏库
       </h2>
 
-      <!-- 修改grid布局，添加响应式调整和边距 -->
-      <div class="grid game-grid gap-8 max-w-6xl mx-auto pl-4 lg:pl-8">
-        <!-- 游戏卡片保持不变 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto pl-4 lg:pl-8">
         <div 
           v-for="game in games" 
           :key="game.id"
           class="fade-in-up game-card bg-white rounded-xl overflow-hidden game-card-hover">
           <div class="relative group">
-            <!-- 视频预览 -->
             <div class="relative w-full h-48 overflow-hidden">
               <video 
                 ref="videoRef"
@@ -27,9 +24,7 @@
                 <source src="/BGV.mp4" type="video/mp4">
               </video>
             </div>
-            <div class="absolute top-4 right-4 bg-primary text-white text-sm font-bold px-3 py-1 rounded-full">
-              {{ game.category || '动作' }}
-            </div>
+           
           </div>
           <div class="p-6">
             <div class="flex justify-between items-start mb-3">
@@ -40,9 +35,16 @@
               </div>
             </div>
             <p class="text-neutral text-sm mb-4">{{ game.description }}</p>
-            <div class="flex items-center text-sm text-primary mb-4">
-              <i class="fa fa-tag mr-2"></i>
-              <span>游戏类别: {{ game.category || '闯关 像素' }}</span>
+          
+            <!-- 添加游戏引擎信息 -->
+            <div class="flex items-center text-sm text-secondary mb-4">
+              <i class="fa fa-cogs mr-2"></i>
+              <span>游戏引擎: {{ game.engine || game.gameEngine || 'Cocos' }}</span>
+            </div>
+            <!-- 添加游戏代码信息 -->
+            <div class="flex items-center text-sm text-tertiary mb-4">
+              <i class="fa fa-code mr-2"></i>
+              <span>游戏代码: {{ game.codeType || game.code_category || 'TypeScript' }}</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-sm text-neutral">
@@ -50,11 +52,7 @@
                 {{ game.play_count || 0 }} 玩过
               </span>
               <div class="flex gap-2">
-                <button
-                  @click.stop="playGame(game)"
-                  class="play-game-btn bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-full text-sm transition-all duration-300">
-                  立即开始
-                </button>
+                
               </div>
             </div>
           </div>
@@ -76,8 +74,7 @@
 </template>
 
 <script setup>
-// 添加屏幕宽度监听
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 
@@ -98,7 +95,9 @@ const loadGames = async () => {
       description: '骑士挥舞刺刀击败骷髅.',
       average_rating: '0.0',
       play_count: 0,
-      category: '动作'
+      category: '动作',
+      engine: 'Cocos',
+      codeType: 'TypeScript'
     }]
   }
 }
@@ -132,39 +131,7 @@ const pauseVideo = (event) => {
   }
 }
 
-// 移除之前添加的屏幕宽度监听和动态调整代码
 onMounted(() => {
   loadGames()
-  // 移除 handleResize() 和 resize 事件监听器
-})
-
-onUnmounted(() => {
-  // 移除 resize 事件监听器
 })
 </script>
-
-<style scoped>
-/* 移除之前添加的游戏网格样式 */
-/* 恢复为原始的响应式网格布局 */
-#games .container > div {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-  max-width: 6xl;
-  margin: 0 auto;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-@media (min-width: 768px) {
-  #games .container > div {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1200px) {
-  #games .container > div {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-</style>
