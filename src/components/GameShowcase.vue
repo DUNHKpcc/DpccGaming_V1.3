@@ -62,7 +62,6 @@
                    <div class="flex items-center">
                      <i class="fa fa-star text-yellow-500 mr-1"></i>
                      <span class="text-gray-700">1.0
-                      
                      </span>
                    </div>
                  </div>

@@ -104,14 +104,24 @@
               更新日志
             </h3>
             <div class="text-xs text-white/60 bg-white/10 px-2 py-1 rounded-full">
-              v2.1.0
+              v2.1.1
             </div>
           </div>
           
           <div class="space-y-3 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
             <div class="update-item">
               <div class="flex items-start gap-3">
-                <div class="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                <div class="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                <div class="flex-1">
+                  <div class="text-sm text-white font-medium">游戏类别扩展</div>
+                  <div class="text-xs text-white/70 mt-1">新增游戏引擎，代码分类</div>
+                  <div class="text-xs text-white/50 mt-1">2025-10-29</div>
+                </div>
+              </div>
+            </div>
+            <div class="update-item">
+              <div class="flex items-start gap-3">
+                <div class="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
                 <div class="flex-1">
                   <div class="text-sm text-white font-medium">游戏分类升级</div>
                   <div class="text-xs text-white/70 mt-1">更方便学习如何制作游戏</div>
@@ -132,7 +142,7 @@
             
             <div class="update-item">
               <div class="flex items-start gap-3">
-                <div class="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                <div class="w-2 h-2 bg-pink-400 rounded-full mt-2 flex-shrink-0"></div>
                 <div class="flex-1">
                   <div class="text-sm text-white font-medium">通知系统优化</div>
                   <div class="text-xs text-white/70 mt-1">评论回复通知支持直接跳转和高亮显示</div>

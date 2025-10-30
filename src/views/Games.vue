@@ -12,16 +12,72 @@
             添加游戏
           </button>
         </div>
+        <!-- 筛选菜单部分：改为浮动滑块 -->
+    <div 
+      class="filter-menu flex gap-3 mb-4 bg-white/15 backdrop-blur-md rounded-xl p-3 inline-block"
+    >
+      <div class="filter-group">
+        <button 
+          class="filter-btn bg-primary/90 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-primary"
+          @click="openEngineSlider"
+        >
+          <i class="fa fa-cogs mr-2"></i>游戏引擎分类
+        </button>
+      </div>
+      <div class="filter-group">
+        <button 
+          class="filter-btn bg-secondary/90 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-secondary"
+          @click="openCodeSlider"
+        >
+          <i class="fa fa-code mr-2"></i>代码分类
+        </button>
+      </div>
+    </div>
 
+    <!-- 固定选项条：不跟随鼠标，毛玻璃罩层跟随并覆盖当前选项 -->
+    <div v-show="sliderVisible" class="options-bar-wrapper">
+      <div 
+        class="options-bar"
+        :class="{ 'is-engine': currentSliderType === 'engine', 'is-code': currentSliderType === 'code' }"
+        @mousemove="onOptionsMouseMove"
+        @mouseleave="hideOverlay"
+      >
+        <div 
+          v-show="overlay.visible"
+          class="glass-overlay"
+          :style="{
+            transform: `translate3d(${overlay.x}px, ${overlay.y}px, 0)`,
+            width: overlay.w + 'px',
+            height: overlay.h + 'px'
+          }"
+        ></div>
+        <button
+          v-for="opt in currentOptions"
+          :key="opt"
+          class="option-chip"
+          :data-opt="opt"
+          :class="{
+            'active': (currentSliderType === 'engine' && (selectedEngine === opt || (selectedEngine === 'all' && opt === '全部')))
+                   || (currentSliderType === 'code' && (selectedCodeType === opt || (selectedCodeType === 'all' && opt === '全部')))
+          }"
+          @click="onSliderSelect(opt)"
+        >
+          {{ opt }}
+        </button>
+      </div>
+    </div>
+
+        <!-- 网格锚点，滚动定位使用 -->
+        <div class="games-grid-anchor"></div>
         <!-- 游戏网格 -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <!-- 游戏卡片 -->
           <div 
-            v-for="game in games" 
+            v-for="game in filteredGames" 
             :key="game.id"
             class="game-card glass-card overflow-hidden hover:shadow-xl transition-all duration-300">
             <div class="relative group">
-              <!-- 视频预览 -->
+  
               <div class="relative w-full h-48 overflow-hidden">
                 <video 
                   ref="videoRef"
@@ -51,6 +107,10 @@
               <div class="flex items-center text-sm text-primary mb-4">
                 <i class="fa fa-tag mr-2"></i>
                 <span>游戏类别: {{ game.category || '闯关 像素' }}</span>
+                <i class="fa fa-cogs mr-2"></i>
+                <span>游戏引擎: {{ game.engine || game.gameEngine || 'Cocos' }}</span>
+                <i class="fa fa-code mr-2"></i>
+                <span>游戏代码: {{ game.codeType || 'TypeScript' }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-sm text-white/80">
@@ -80,8 +140,88 @@ import { useModalStore } from '../stores/modal'
 
 const gameStore = useGameStore()
 const modalStore = useModalStore()
-
 const games = ref([])
+const engines = ['全部', 'UE5', 'Unity', 'Cocos', '其他']
+const codeTypes = ['全部', 'TypeScript', 'JavaScript', 'HTML5', '其他']
+const selectedEngine = ref('all')
+const selectedCodeType = ref('all')
+const filteredGames = ref([])
+
+// 滑块/选项条状态
+const sliderVisible = ref(false)
+const currentSliderType = ref('engine') // 'engine' | 'code'
+const currentOptions = ref([])
+const overlay = ref({ x: 0, y: 0, w: 0, h: 0, visible: false })
+
+// 打开固定选项条
+const openEngineSlider = (e) => {
+  currentSliderType.value = 'engine'
+  currentOptions.value = engines
+  sliderVisible.value = true
+}
+
+const openCodeSlider = (e) => {
+  currentSliderType.value = 'code'
+  currentOptions.value = codeTypes
+  sliderVisible.value = true
+}
+
+// 滑块选择
+const onSliderSelect = (opt) => {
+  if (currentSliderType.value === 'engine') {
+    selectedEngine.value = opt === '全部' ? 'all' : opt
+  } else {
+    selectedCodeType.value = opt === '全部' ? 'all' : opt
+  }
+  applyFilters()
+  requestAnimationFrame(() => scrollToGrid())
+  sliderVisible.value = false
+}
+
+// 应用所有筛选条件
+const applyFilters = () => {
+  filteredGames.value = games.value.filter(game => {
+    const engineMatch = selectedEngine.value === 'all' || 
+                       game.engine === selectedEngine.value || 
+                       game.gameEngine === selectedEngine.value
+    const codeMatch = selectedCodeType.value === 'all' || 
+                      game.codeType === selectedCodeType.value || 
+                      game.code_category === selectedCodeType.value
+    return engineMatch && codeMatch
+  })
+}
+applyFilters()
+
+// 选项条内毛玻璃遮盖跟随并对齐当前选项
+const onOptionsMouseMove = (event) => {
+  if (!sliderVisible.value) return
+  const container = event.currentTarget
+  const containerRect = container.getBoundingClientRect()
+  const chip = event.target.closest('.option-chip')
+  if (!chip) {
+    overlay.value.visible = false
+    return
+  }
+  const chipRect = chip.getBoundingClientRect()
+  overlay.value = {
+    x: chipRect.left - containerRect.left,
+    y: chipRect.top - containerRect.top,
+    w: chipRect.width,
+    h: chipRect.height,
+    visible: true
+  }
+}
+
+const hideOverlay = () => {
+  overlay.value.visible = false
+}
+
+const scrollToGrid = () => {
+  const gridEl = document.querySelector('.games-grid-anchor')
+  if (gridEl) {
+    gridEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
 
 const loadGames = async () => {
   try {
@@ -89,14 +229,15 @@ const loadGames = async () => {
     games.value = gameStore.games
   } catch (error) {
     console.error('加载游戏失败:', error)
-    // 使用默认游戏数据
     games.value = [{
       id: 'web-mobile-001',
       title: '像素逃生',
       description: '骑士挥舞刺刀击败骷髅.',
       average_rating: '0.0',
       play_count: 0,
-      category: '动作'
+      category: '动作',
+      engine: 'Cocos', 
+      codeType: 'TypeScript'
     }]
   }
 }
@@ -130,11 +271,11 @@ const pauseVideo = (event) => {
 onMounted(() => {
   loadGames()
 })
+
+
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Quicksand&display=swap');
-
 .games-page {
   min-height: 100vh;
   position: relative;
@@ -210,6 +351,87 @@ onMounted(() => {
   transform: translateY(-4px);
 }
 
+.filter-menu {
+  position: relative;
+  z-index: 100;
+}
+
+.filter-group {
+  position: relative;
+  z-index: 100;
+}
+
+.filter-dropdown {
+  min-width: 120px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 100; 
+}
+
+/* 确保点击页面其他地方时关闭下拉菜单 */
+.filter-menu:focus-within .filter-dropdown {
+  display: block;
+}
+
+/* 固定选项条样式 */
+.options-bar-wrapper {
+  margin-bottom: 16px;
+}
+
+.options-bar {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.35);
+  overflow: hidden;
+}
+
+.options-bar.is-engine { background: rgba(59,130,246,0.18); }
+.options-bar.is-code { background: rgba(16,185,129,0.18); }
+
+.option-chip {
+  position: relative;
+  white-space: nowrap;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid rgba(255,255,255,0.35);
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.option-chip:hover { 
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.35);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+
+.option-chip.active {
+  background: rgba(255,255,255,0.5);
+  color: #111827;
+}
+
+.glass-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.22);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.4);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  transition: transform 140ms ease, width 140ms ease, height 140ms ease, opacity 160ms ease;
+}
 @keyframes movement {
   0%, 100% {
     background-size: 
