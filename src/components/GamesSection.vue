@@ -10,14 +10,44 @@
           v-for="game in games" 
           :key="game.id"
           class="fade-in-up game-card bg-white rounded-xl overflow-hidden game-card-hover">
-          <div class="relative w-full h-48 overflow-hidden mb-2">
+          <div 
+            class="video-wrapper relative w-full h-48 overflow-hidden mb-2"
+            @mouseenter="handleVideoEnter(getGameKey(game))"
+            @mouseleave="handleVideoLeave(getGameKey(game))">
             <template v-if="game.video_url">
-              <video controls
-                     class="w-full h-full object-cover transition-transform duration-300"
+              <video
+                     class="game-video w-full h-full object-cover"
                      :src="getVideoUrl(game.video_url)"
                      preload="metadata"
-                     poster="/GameImg.jpg">
+                     muted
+                     loop
+                     autoplay
+                     playsinline
+                     poster="/GameImg.jpg"
+                     :ref="el => setVideoRef(el, getGameKey(game))">
               </video>
+              <div 
+                class="video-control-panel absolute bottom-3 left-3 flex items-center gap-3 bg-black/55 backdrop-blur-sm text-white px-3 py-2 rounded-full transition-opacity duration-200 ease-out"
+                :class="isVideoHovered(getGameKey(game)) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'">
+                <button
+                  class="control-btn"
+                  type="button"
+                  @click.stop="toggleVideoPlay(getGameKey(game))">
+                  <i :class="isVideoPlaying(getGameKey(game)) ? 'fa fa-pause' : 'fa fa-play'"></i>
+                </button>
+                <button
+                  class="control-btn"
+                  type="button"
+                  @click.stop="toggleVideoMute(getGameKey(game))">
+                  <i :class="isVideoMuted(getGameKey(game)) ? 'fa fa-volume-mute' : 'fa fa-volume-up'"></i>
+                </button>
+                <button
+                  class="control-btn"
+                  type="button"
+                  @click.stop="restartVideo(getGameKey(game))">
+                  <i class="fa fa-undo"></i>
+                </button>
+              </div>
             </template>
             <template v-else>
               <img :src="game.thumbnail_url || '/GameImg.jpg'"
@@ -71,14 +101,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
+import { resolveMediaUrl } from '../utils/media'
+import { gsap } from 'gsap'
 
 const gameStore = useGameStore()
 const modalStore = useModalStore()
 
 const games = ref([])
+const hoveredVideoId = ref(null)
+const videoStates = reactive({})
+const videoRefs = new Map()
 
 const loadGames = async () => {
   try {
@@ -112,41 +147,136 @@ const openAddGameModal = () => {
   modalStore.openModal('addGame')
 }
 
-const playVideo = (event) => {
-  const video = event.target
-  if (video && video.paused) {
-    video.play().catch(error => {
-      console.log('视频播放失败:', error)
-    })
+// 处理视频URL，输出规范的可访问地址
+const getVideoUrl = (videoUrl) => resolveMediaUrl(videoUrl)
+
+const getGameKey = (game) => game.game_id || game.id
+
+const ensureVideoState = (key) => {
+  if (!videoStates[key]) {
+    videoStates[key] = {
+      muted: true,
+      playing: true
+    }
+  }
+  return videoStates[key]
+}
+
+const setupVideoElement = (video, state) => {
+  video.muted = state.muted
+  video.loop = true
+  video.autoplay = true
+  video.playsInline = true
+  video.defaultMuted = true
+  video.setAttribute('muted', '')
+  video.setAttribute('loop', '')
+  video.setAttribute('autoplay', '')
+  video.setAttribute('playsinline', '')
+  video.volume = state.muted ? 0 : 1
+  const playPromise = video.play()
+  if (playPromise?.then) {
+    playPromise.then(() => {
+      state.playing = true
+    }).catch(() => {})
   }
 }
 
-const pauseVideo = (event) => {
-  const video = event.target
-  if (video && !video.paused) {
+const setVideoRef = (el, key) => {
+  if (el) {
+    videoRefs.set(key, el)
+    const state = ensureVideoState(key)
+    setupVideoElement(el, state)
+  } else {
+    videoRefs.delete(key)
+  }
+}
+
+const handleVideoEnter = (key) => {
+  const video = videoRefs.get(key)
+  if (!video) return
+  const state = ensureVideoState(key)
+  hoveredVideoId.value = key
+  if (video.paused && state.playing !== false) {
+    video.play().then(() => {
+      state.playing = true
+    }).catch(() => {})
+  }
+  gsap.to(video, { scale: 1.08, duration: 0.35, ease: 'power3.out' })
+}
+
+const handleVideoLeave = (key) => {
+  if (hoveredVideoId.value === key) {
+    hoveredVideoId.value = null
+  }
+  const video = videoRefs.get(key)
+  if (!video) return
+  gsap.to(video, { scale: 1, duration: 0.35, ease: 'power3.out' })
+}
+
+const toggleVideoPlay = (key) => {
+  const video = videoRefs.get(key)
+  if (!video) return
+  const state = ensureVideoState(key)
+  if (video.paused) {
+    video.play().then(() => {
+      state.playing = true
+    }).catch(() => {})
+  } else {
     video.pause()
+    state.playing = false
   }
 }
 
-// 处理视频URL，确保它是正确的路径格式
-const getVideoUrl = (videoUrl) => {
-  if (!videoUrl) return ''
-  
-  // 如果已经是完整的URL，则直接返回
-  if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
-    return videoUrl
+const toggleVideoMute = (key) => {
+  const video = videoRefs.get(key)
+  if (!video) return
+  const state = ensureVideoState(key)
+  state.muted = !state.muted
+  video.muted = state.muted
+  video.volume = state.muted ? 0 : 1
+  if (!state.muted && video.paused && state.playing !== false) {
+    video.play().catch(() => {})
   }
-  
-  // 确保URL以/开头，避免重复添加
-  if (!videoUrl.startsWith('/')) {
-    return '/' + videoUrl
-  }
-  
-  // 修复可能存在的双斜杠问题
-  return videoUrl.replace(/^\/\//, '/')
 }
+
+const restartVideo = (key) => {
+  const video = videoRefs.get(key)
+  if (!video) return
+  const state = ensureVideoState(key)
+  video.currentTime = 0
+  video.play().then(() => {
+    state.playing = true
+  }).catch(() => {})
+}
+
+const isVideoHovered = (key) => hoveredVideoId.value === key
+const isVideoMuted = (key) => videoStates[key]?.muted ?? true
+const isVideoPlaying = (key) => videoStates[key]?.playing !== false
 
 onMounted(() => {
   loadGames()
 })
 </script>
+
+<style scoped>
+.video-wrapper .game-video {
+  transform-origin: center;
+  will-change: transform;
+}
+
+.video-control-panel .control-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.25);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.video-control-panel .control-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+</style>

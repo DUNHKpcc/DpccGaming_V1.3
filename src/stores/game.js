@@ -12,7 +12,6 @@ export const useGameStore = defineStore('game', () => {
       const response = await apiCall('/games')
       games.value = (response.games || []).map(game => ({
         ...game,
-        // 确保使用正确的字段名
         engine: game.engine || game.game_engine,
         code_type: game.code_type || game.code_category,
         video_url: game.video_url,

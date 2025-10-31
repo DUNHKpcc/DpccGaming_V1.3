@@ -16,6 +16,7 @@ const path = require('path');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const crypto = require('crypto');
 
 const app = express();
@@ -83,23 +84,47 @@ const upload = multer({
   }
 });
 
-// 静态文件服务 - 使用固定的www/wwwroot/DpccGaming路径
-const wwwRootPath = '/www/wwwroot/DpccGaming';
-app.use('/uploads', express.static(path.join(wwwRootPath, 'uploads')));
+const SITE_ROOT_PATH = resolveSiteRootPath();
+console.log('📁 Upload root resolved to:', SITE_ROOT_PATH);
+
+// 静态文件服务 - 使用与部署目录一致的路径
+app.use('/uploads', express.static(path.join(SITE_ROOT_PATH, 'uploads')));
+
+function resolveSiteRootPath() {
+  const candidates = [];
+
+  if (process.env.SITE_ROOT_PATH) {
+    candidates.push(process.env.SITE_ROOT_PATH);
+  }
+
+  candidates.push(
+    '/www/wwwroot/dpccgaming.xyz',
+    '/www/wwwroot/DpccGaming',
+    path.join('/www', 'wwwroot', path.basename(__dirname))
+  );
+
+  for (const candidate of candidates) {
+    try {
+      if (candidate && fsSync.existsSync(candidate)) {
+        return candidate;
+      }
+    } catch (error) {
+      console.warn(`⚠️ 站点目录检查失败: ${candidate}`, error.message);
+    }
+  }
+
+  return __dirname;
+}
 
 // 确保上传目录存在
 async function ensureUploadDir() {
   try {
-    // 获取项目根目录名
-    const projectRootName = path.basename(__dirname);
-    const wwwRootPath = path.join('/www', 'wwwroot', projectRootName);
-
-    // 在www/wwwroot目录下创建uploads目录
-    const wwwUploadsDir = path.join(wwwRootPath, 'uploads');
+    // 在部署目录下创建uploads目录
+    const wwwUploadsDir = path.join(SITE_ROOT_PATH, 'uploads');
     await fs.mkdir(wwwUploadsDir, { recursive: true });
     await fs.chmod(wwwUploadsDir, 0o755);
 
-    // 在www/wwwroot/uploads下创建video目录
+    // 在uploads下创建video目录
     const wwwVideoDir = path.join(wwwUploadsDir, 'video');
     await fs.mkdir(wwwVideoDir, { recursive: true });
     await fs.chmod(wwwVideoDir, 0o755);
@@ -354,11 +379,8 @@ app.post('/api/games', authenticateToken, upload.fields([
     let videoUrl = null;
     if (videoFile) {
       try {
-        // 使用固定的www/wwwroot/DpccGaming路径
-        const wwwRootPath = '/www/wwwroot/DpccGaming';
-
-        // 确保uploads目录存在
-        const uploadsDir = path.join(wwwRootPath, 'uploads');
+        // 确保uploads目录存在（部署目录）
+        const uploadsDir = path.join(SITE_ROOT_PATH, 'uploads');
         await fs.mkdir(uploadsDir, { recursive: true });
         await fs.chmod(uploadsDir, 0o755);
 
@@ -386,7 +408,9 @@ app.post('/api/games', authenticateToken, upload.fields([
         }
 
         // 验证文件是否存在
-        if (!await fs.existsSync(destPath)) {
+        try {
+          await fs.access(destPath);
+        } catch {
           throw new Error('视频文件保存失败，目标文件不存在');
         }
 
