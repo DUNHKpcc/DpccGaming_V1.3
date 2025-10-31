@@ -41,43 +41,74 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// 静态文件服务
-app.use(express.static(path.join(__dirname)));
-
-// 文件上传配置
-const storage = multer.diskStorage({
+// 文件上传multer配置组
+const gameFileStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, 'uploads');
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // 生成唯一文件名
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB限制
+const videoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const videoDir = path.join(__dirname, 'uploads', 'video');
+    cb(null, videoDir);
   },
-  fileFilter: function (req, file, cb) {
-    // 只允许ZIP文件
-    if (file.mimetype === 'application/zip' || path.extname(file.originalname).toLowerCase() === '.zip') {
-      cb(null, true);
-    } else {
-      cb(new Error('只允许上传ZIP文件'), false);
-    }
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
+// 1. multer配置统一用dest目录（去掉原storage: function...相关内容）
+const upload = multer({
+  dest: path.join(__dirname, 'uploads'), // 临时文件存储在项目目录的uploads中
+  limits: { fileSize: 400 * 1024 * 1024 },
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'gameFile') {
+      if (file.mimetype === 'application/zip' || path.extname(file.originalname).toLowerCase() === '.zip') {
+        cb(null, true);
+      } else {
+        cb(new Error('只允许上传ZIP文件'), false);
+      }
+    } else if (file.fieldname === 'video') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('只允许上传视频文件'), false);
+      }
+    } else cb(null, false);
+  }
+});
+
+// 静态文件服务 - 使用固定的www/wwwroot/DpccGaming路径
+const wwwRootPath = '/www/wwwroot/DpccGaming';
+app.use('/uploads', express.static(path.join(wwwRootPath, 'uploads')));
 
 // 确保上传目录存在
 async function ensureUploadDir() {
   try {
+    // 获取项目根目录名
+    const projectRootName = path.basename(__dirname);
+    const wwwRootPath = path.join('/www', 'wwwroot', projectRootName);
+
+    // 在www/wwwroot目录下创建uploads目录
+    const wwwUploadsDir = path.join(wwwRootPath, 'uploads');
+    await fs.mkdir(wwwUploadsDir, { recursive: true });
+    await fs.chmod(wwwUploadsDir, 0o755);
+
+    // 在www/wwwroot/uploads下创建video目录
+    const wwwVideoDir = path.join(wwwUploadsDir, 'video');
+    await fs.mkdir(wwwVideoDir, { recursive: true });
+    await fs.chmod(wwwVideoDir, 0o755);
+
+    // 仍然创建项目目录下的uploads和games目录，确保临时文件有地方存储
     await fs.mkdir(path.join(__dirname, 'uploads'), { recursive: true });
     await fs.mkdir(path.join(__dirname, 'games'), { recursive: true });
-    console.log('✅ 上传目录创建成功');
+
+    console.log('✅ 上传目录创建成功，www/wwwroot目录结构:', wwwVideoDir);
   } catch (error) {
     console.error('❌ 创建上传目录失败:', error.message);
   }
@@ -291,6 +322,9 @@ app.get('/api/games', async (req, res) => {
       title: game.title,
       description: game.description,
       category: game.category,
+      engine: game.engine,
+      code_type: game.code_type,
+      video_url: game.video_url,
       image_url: game.image_url,
       game_url: game.game_url,
       created_at: game.created_at,
@@ -307,19 +341,70 @@ app.get('/api/games', async (req, res) => {
 });
 
 // 上传游戏
-app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req, res) => {
+app.post('/api/games', authenticateToken, upload.fields([
+  { name: 'gameFile', maxCount: 1 },
+  { name: 'video', maxCount: 1 }
+]), async (req, res) => {
   try {
-    const { title, category, description } = req.body;
+    const { title, category, description, engine, codeType } = req.body;
     const userId = req.user.userId;
-    const file = req.file;
+    const files = req.files;
+    const gameFile = files.gameFile && files.gameFile[0];
+    const videoFile = files.video && files.video[0];
+    let videoUrl = null;
+    if (videoFile) {
+      try {
+        // 使用固定的www/wwwroot/DpccGaming路径
+        const wwwRootPath = '/www/wwwroot/DpccGaming';
 
-    // 验证输入
-    if (!title || !category || !description) {
-      return res.status(400).json({ error: '游戏标题、类型和描述不能为空' });
+        // 确保uploads目录存在
+        const uploadsDir = path.join(wwwRootPath, 'uploads');
+        await fs.mkdir(uploadsDir, { recursive: true });
+        await fs.chmod(uploadsDir, 0o755);
+
+        // 确保video子目录存在
+        const videoDir = path.join(uploadsDir, 'video');
+        await fs.mkdir(videoDir, { recursive: true });
+        await fs.chmod(videoDir, 0o755);
+
+        // 生成唯一的文件名
+        const videoExt = path.extname(videoFile.originalname);
+        const destPath = path.join(videoDir, Date.now() + '-' + Math.round(Math.random() * 1E9) + videoExt);
+
+        // 确保文件正确保存
+        try {
+          // 使用copyFile代替rename，确保跨设备移动也能工作
+          await fs.copyFile(videoFile.path, destPath);
+          // 复制成功后删除原临时文件
+          await fs.unlink(videoFile.path);
+          console.log('视频文件复制成功:', destPath);
+        } catch (copyError) {
+          console.warn('视频文件复制失败，尝试使用rename:', copyError.message);
+          // 如果copyFile失败，尝试使用rename作为备选方案
+          await fs.rename(videoFile.path, destPath);
+          console.log('视频文件重命名成功:', destPath);
+        }
+
+        // 验证文件是否存在
+        if (!await fs.existsSync(destPath)) {
+          throw new Error('视频文件保存失败，目标文件不存在');
+        }
+
+        // 设置文件权限为755，确保文件可读写执行
+        await fs.chmod(destPath, 0o755);
+
+        // 生成正确的URL路径
+        videoUrl = '/uploads/video/' + path.basename(destPath);
+      } catch (videoError) {
+        console.warn('⚠️ 视频处理失败:', videoError.message);
+        videoUrl = null; // 上传失败允许无视频
+      }
     }
-
-    if (!file) {
-      return res.status(400).json({ error: '请上传游戏文件' });
+    if (!title || !category || !description || !engine || !codeType) {
+      return res.status(400).json({ error: '信息不完整' });
+    }
+    if (!gameFile) {
+      return res.status(400).json({ error: '未上传游戏包' });
     }
 
     // 生成唯一的游戏ID
@@ -331,7 +416,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
 
     try {
       // 解压ZIP文件
-      const zip = new AdmZip(file.path);
+      const zip = new AdmZip(gameFile.path);
       zip.extractAllTo(gameDir, true);
 
       // 查找index.html文件
@@ -357,7 +442,7 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
       if (!indexHtmlPath) {
         // 清理文件
         await fs.rm(gameDir, { recursive: true, force: true });
-        await fs.unlink(file.path);
+        await fs.unlink(gameFile.path);
         return res.status(400).json({ error: 'ZIP文件中未找到index.html文件' });
       }
 
@@ -389,27 +474,23 @@ app.post('/api/games', authenticateToken, upload.single('gameFile'), async (req,
 
       // 保存游戏信息到数据库
       await pool.execute(
-        `INSERT INTO games (game_id, title, description, category, thumbnail_url, game_url, status, uploaded_by, uploaded_at) 
-         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, NOW())`,
-        [gameId, title, description, category, thumbnailUrl, gameUrl, userId]
+        `INSERT INTO games (game_id, title, description, category, engine, code_type, thumbnail_url, video_url, game_url, status, uploaded_by, uploaded_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())`,
+        [gameId, title, description, category, engine, codeType, thumbnailUrl, videoUrl, gameUrl, userId]
       );
 
       // 清理上传的临时文件
-      await fs.unlink(file.path);
+      await fs.unlink(gameFile.path);
 
       console.log(`用户 ${userId} 上传了游戏: ${title} (${gameId})`);
 
-      res.json({
-        message: '游戏上传成功，正在审核中',
-        gameId: gameId,
-        status: 'pending'
-      });
+      res.json({ message: '游戏上传成功，正在审核中', gameId, status: 'pending' });
 
     } catch (extractError) {
       console.error('解压文件错误:', extractError);
       // 清理文件
       await fs.rm(gameDir, { recursive: true, force: true });
-      await fs.unlink(file.path);
+      await fs.unlink(gameFile.path);
       res.status(500).json({ error: '文件解压失败，请检查ZIP文件格式' });
     }
 

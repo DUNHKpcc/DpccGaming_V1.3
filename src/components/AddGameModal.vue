@@ -40,6 +40,34 @@
             class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800 placeholder-gray-500"
             placeholder="请描述您的游戏" required></textarea>
         </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏引擎</label>
+          <select v-model="form.engine" required
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800">
+            <option value="">请选择游戏引擎</option>
+            <option value="Godot">Godot</option>
+            <option value="Unity">Unity</option>
+            <option value="Cocos">Cocos</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏代码类型</label>
+          <select v-model="form.codeType" required
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800">
+            <option value="">请选择代码类型</option>
+            <option value="TypeScript">TypeScript</option>
+            <option value="JavaScript">JavaScript</option>
+            <option value="C#">C#</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏展示视频</label>
+          <input type="file" accept="video/*" @change="onVideoChange"
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800 file:bg-white/80 file:border-0 file:rounded file:px-3 file:py-1 file:text-sm file:text-gray-700">
+          <p class="text-xs text-white/70 mt-1">（可选）上传展示/预览视频，支持 mp4/webm 等格式</p>
+        </div>
         <div class="mb-6">
           <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">游戏文件 (HTML5)</label>
           <input ref="fileInput" type="file" accept=".html,.zip"
@@ -67,10 +95,14 @@ const notificationStore = useNotificationStore()
 const isOpen = computed(() => modalStore.activeModal === 'addGame')
 const fileInput = ref(null)
 
+// 表单数据 增加 engine, codeType, video
 const form = ref({
   title: '',
   category: '',
-  description: ''
+  description: '',
+  engine: '',
+  codeType: '',
+  video: null
 })
 
 const handleSubmit = async () => {
@@ -99,6 +131,9 @@ const handleSubmit = async () => {
     formData.append('category', form.value.category)
     formData.append('description', form.value.description)
     formData.append('gameFile', fileInput.value.files[0])
+    formData.append('engine', form.value.engine)
+    formData.append('codeType', form.value.codeType)
+    if(form.value.video) formData.append('video', form.value.video)
 
     // 显示上传中状态
     notificationStore.info('正在上传...', '请稍候，正在处理您的游戏文件')
@@ -144,7 +179,10 @@ const closeModal = () => {
   form.value = {
     title: '',
     category: '',
-    description: ''
+    description: '',
+    engine: '',
+    codeType: '',
+    video: null
   }
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -155,5 +193,10 @@ const handleBackdropClick = (e) => {
   if (e.target === e.currentTarget) {
     closeModal()
   }
+}
+
+// 新增@change事件处理视频文件
+const onVideoChange = (e) => {
+  form.value.video = e.target.files && e.target.files[0] ? e.target.files[0] : null;
 }
 </script>

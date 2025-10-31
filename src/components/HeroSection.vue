@@ -108,7 +108,7 @@
             </div>
           </div>
           
-          <div class="space-y-3 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <div class="space-y-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
             <div class="update-item">
               <div class="flex items-start gap-3">
                 <div class="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>

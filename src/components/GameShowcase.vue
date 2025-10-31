@@ -106,18 +106,10 @@
                <!-- 毛玻璃信息 -->
                <div class="card-info bg-white/10 backdrop-blur-md p-6 rounded-b-2xl">
                  <div class="flex items-center justify-between mb-2">
-                   <h3 class="text-xl font-bold text-white/90">精选游戏</h3>
                    <div class="flex items-center">
-                     <i class="fa fa-star text-yellow-400 mr-1"></i>
-                     <span class="text-white/80">{{ games[index]?.average_rating || '0.0' }}</span>
                    </div>
                  </div>
-                 <p class="text-white/70 text-sm mb-4">探索更多精彩游戏体验</p>
                  <div class="flex items-center justify-center">
-                   <button class="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300">
-                     <i class="fa fa-play mr-2"></i>
-                     开始游戏
-                   </button>
                  </div>
                </div>
              </div>

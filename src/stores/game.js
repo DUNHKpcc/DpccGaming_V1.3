@@ -12,8 +12,12 @@ export const useGameStore = defineStore('game', () => {
       const response = await apiCall('/games')
       games.value = (response.games || []).map(game => ({
         ...game,
-        engine: game.engine || game.gameEngine || 'Cocos',
-        codeType: game.codeType || game.code_category || 'TypeScript'
+        // 确保使用正确的字段名
+        engine: game.engine || game.game_engine,
+        code_type: game.code_type || game.code_category,
+        video_url: game.video_url,
+        description: game.description,
+        category: game.category
       }))
     } catch (error) {
       console.error('加载游戏失败:', error)
@@ -25,7 +29,7 @@ export const useGameStore = defineStore('game', () => {
           category: '动作',
           thumbnail: '/images/placeholder.png',
           engine: 'Cocos',
-          codeType: 'TypeScript'
+          code_type: 'TypeScript'
         },
         {
           id: 2,
@@ -33,7 +37,7 @@ export const useGameStore = defineStore('game', () => {
           category: '益智',
           thumbnail: '/images/placeholder.png',
           engine: 'Unity',
-          codeType: 'C#'
+          code_type: 'C#'
         }
       ]
     }

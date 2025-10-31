@@ -40,7 +40,7 @@
         class="options-bar"
         :class="{ 'is-engine': currentSliderType === 'engine', 'is-code': currentSliderType === 'code' }"
         @mousemove="onOptionsMouseMove"
-        @mouseleave="hideOverlay"
+        @mouseleave="onOptionsBarLeave"
       >
         <div 
           v-show="overlay.visible"
@@ -56,10 +56,11 @@
           :key="opt"
           class="option-chip"
           :data-opt="opt"
-          :class="{
+          :class="['option-chip', {
+            magnifier: overlay.hoverKey === opt,
             'active': (currentSliderType === 'engine' && (selectedEngine === opt || (selectedEngine === 'all' && opt === '全部')))
                    || (currentSliderType === 'code' && (selectedCodeType === opt || (selectedCodeType === 'all' && opt === '全部')))
-          }"
+          }]"
           @click="onSliderSelect(opt)"
         >
           {{ opt }}
@@ -79,17 +80,17 @@
             <div class="relative group">
   
               <div class="relative w-full h-48 overflow-hidden">
-                <video 
-                  ref="videoRef"
-                  class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  muted 
-                  loop 
-                  preload="metadata"
-                  poster="/GameImg.jpg"
-                  @mouseenter="playVideo"
-                  @mouseleave="pauseVideo">
-                  <source src="/BGV.mp4" type="video/mp4">
-                </video>
+                <template v-if="game.video_url">
+                  <video controls
+                         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                         :src="getVideoUrl(game.video_url)"
+                         preload="metadata"
+                         poster="/GameImg.jpg">
+                  </video>
+                </template>
+                <template v-else>
+                  <img :src="game.thumbnail_url || '/GameImg.jpg'" class="w-full h-full object-cover" />
+                </template>
               </div>
               <div class="absolute top-4 right-4 bg-primary text-white text-sm font-bold px-3 py-1 rounded-full">
                 {{ game.category || '动作' }}
@@ -106,11 +107,11 @@
               <p class="text-white/80 text-sm mb-4">{{ game.description }}</p>
               <div class="flex items-center text-sm text-primary mb-4">
                 <i class="fa fa-tag mr-2"></i>
-                <span>游戏类别: {{ game.category || '闯关 像素' }}</span>
-                <i class="fa fa-cogs mr-2"></i>
-                <span>游戏引擎: {{ game.engine || game.gameEngine || 'Cocos' }}</span>
-                <i class="fa fa-code mr-2"></i>
-                <span>游戏代码: {{ game.codeType || 'TypeScript' }}</span>
+                <span>类别: {{ game.category || '动作' }}</span>
+                <i class="fa fa-cogs mr-2 ml-4"></i>
+                <span>引擎: {{ game.engine || 'Cocos' }}</span>
+                <i class="fa fa-code mr-2 ml-4"></i>
+                <span>代码: {{ game.code_type || 'TypeScript' }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-sm text-white/80">
@@ -141,17 +142,17 @@ import { useModalStore } from '../stores/modal'
 const gameStore = useGameStore()
 const modalStore = useModalStore()
 const games = ref([])
-const engines = ['全部', 'UE5', 'Unity', 'Cocos', '其他']
-const codeTypes = ['全部', 'TypeScript', 'JavaScript', 'HTML5', '其他']
+const engines = ['全部', 'Godot', 'Unity', 'Cocos', '其他']
+const codeTypes = ['全部', 'TypeScript', 'JavaScript', 'C#', '其他']
 const selectedEngine = ref('all')
 const selectedCodeType = ref('all')
 const filteredGames = ref([])
 
 // 滑块/选项条状态
 const sliderVisible = ref(false)
-const currentSliderType = ref('engine') // 'engine' | 'code'
+const currentSliderType = ref('engine') 
 const currentOptions = ref([])
-const overlay = ref({ x: 0, y: 0, w: 0, h: 0, visible: false })
+const overlay = ref({ x: 0, y: 0, w: 0, h: 0, visible: false, hoverKey: null })
 
 // 打开固定选项条
 const openEngineSlider = (e) => {
@@ -182,11 +183,9 @@ const onSliderSelect = (opt) => {
 const applyFilters = () => {
   filteredGames.value = games.value.filter(game => {
     const engineMatch = selectedEngine.value === 'all' || 
-                       game.engine === selectedEngine.value || 
-                       game.gameEngine === selectedEngine.value
+                       game.engine === selectedEngine.value
     const codeMatch = selectedCodeType.value === 'all' || 
-                      game.codeType === selectedCodeType.value || 
-                      game.code_category === selectedCodeType.value
+                      game.code_type === selectedCodeType.value
     return engineMatch && codeMatch
   })
 }
@@ -200,20 +199,23 @@ const onOptionsMouseMove = (event) => {
   const chip = event.target.closest('.option-chip')
   if (!chip) {
     overlay.value.visible = false
+    overlay.value.hoverKey = null
     return
   }
   const chipRect = chip.getBoundingClientRect()
+  const key = chip.dataset.opt
   overlay.value = {
     x: chipRect.left - containerRect.left,
     y: chipRect.top - containerRect.top,
     w: chipRect.width,
     h: chipRect.height,
-    visible: true
+    visible: true,
+    hoverKey: key
   }
 }
-
-const hideOverlay = () => {
+const onOptionsBarLeave = () => {
   overlay.value.visible = false
+  overlay.value.hoverKey = null
 }
 
 const scrollToGrid = () => {
@@ -223,10 +225,12 @@ const scrollToGrid = () => {
   }
 }
 
+// 修正loadGames，数据加载后调用applyFilters确保初始显示全部
 const loadGames = async () => {
   try {
     await gameStore.loadGames()
     games.value = gameStore.games
+    applyFilters() // 数据加载后，立即进行筛选，页面初始展示全部游戏
   } catch (error) {
     console.error('加载游戏失败:', error)
     games.value = [{
@@ -237,8 +241,9 @@ const loadGames = async () => {
       play_count: 0,
       category: '动作',
       engine: 'Cocos', 
-      codeType: 'TypeScript'
+      code_type: 'TypeScript'
     }]
+    applyFilters()
   }
 }
 
@@ -266,6 +271,24 @@ const pauseVideo = (event) => {
   if (video && !video.paused) {
     video.pause()
   }
+}
+
+// 处理视频URL，确保它是正确的路径格式
+const getVideoUrl = (videoUrl) => {
+  if (!videoUrl) return ''
+  
+  // 如果已经是完整的URL，则直接返回
+  if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+    return videoUrl
+  }
+  
+  // 确保URL以/开头，避免重复添加
+  if (!videoUrl.startsWith('/')) {
+    return '/' + videoUrl
+  }
+  
+  // 修复可能存在的双斜杠问题
+  return videoUrl.replace(/^\/\//, '/')
 }
 
 onMounted(() => {
@@ -425,12 +448,23 @@ onMounted(() => {
   top: 0;
   pointer-events: none;
   border-radius: 9999px;
-  background: rgba(255,255,255,0.22);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
-  border: 1px solid rgba(255,255,255,0.4);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  background: rgba(255,255,255,0.32); /* 由0.22提升至0.32更显眼*/
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 2px solid #fff; /* 更亮边框 */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
   transition: transform 140ms ease, width 140ms ease, height 140ms ease, opacity 160ms ease;
+  z-index: 1000;
+}
+
+.magnifier {
+  transform: scale(1.24);
+  color: #fff;
+  font-weight: bold;
+  z-index: 1200;
+  background: rgba(255,255,255,0.46) !important;
+  box-shadow: 0 0 20px 6px rgba(255,255,255,0.18);
+  transition: transform 0.13s cubic-bezier(.67,.12,.85,1.21), background 0.18s, box-shadow 0.18s;
 }
 @keyframes movement {
   0%, 100% {

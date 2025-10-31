@@ -35,12 +35,8 @@
               <div class="flex items-start space-x-6">
                 <!-- 缩略图 -->
                 <div class="flex-shrink-0">
-                  <img v-if="game.thumbnail_url" 
-                    :src="game.thumbnail_url" 
-                    :alt="game.title"
-                    class="w-24 h-24 object-cover rounded-lg shadow-lg">
-                  <div v-else class="w-24 h-24 bg-gray-300 rounded-lg flex items-center justify-center">
-                    <i class="fa fa-gamepad text-2xl text-gray-500"></i>
+                  <div class="w-24 h-24 bg-gray-300 rounded-lg flex items-center justify-center">
+                    <i class="fa fa-gamepad text-3xl text-gray-500"></i>
                   </div>
                 </div>
 
