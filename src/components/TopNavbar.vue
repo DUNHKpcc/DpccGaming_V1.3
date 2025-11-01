@@ -36,7 +36,6 @@
           </button>
         </div>
 
-        <!-- 已登录状态 -->
         <div v-else class="user-menu">
           <div class="user-info">
             <div class="user-avatar">
@@ -161,9 +160,9 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
 
 .navbar-content {
@@ -187,22 +186,22 @@ onUnmounted(() => {
   width: 2.5rem;
   height: 2.5rem;
   border: none;
-  background: #f3f4f6;
+  background: #2e2e30;
   border-radius: 0.5rem;
-  color: #374151;
+  color: #f3f4f6;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .menu-button:hover {
-  background: #e5e7eb;
-  color: #111827;
+  background: #3a3a3d;
+  color: #ffffff;
 }
 
 .navbar-title {
   font-size: 1.25rem;
   font-weight: bold;
-  color: #111827;
+  color: #f9fafb;
   margin: 0;
 }
 
@@ -276,8 +275,8 @@ onUnmounted(() => {
 .user-avatar {
   width: 2rem;
   height: 2rem;
-  background: #6c5ce7;
-  color: white;
+  background: #ffffff;
+  color: #4b5563;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -287,7 +286,7 @@ onUnmounted(() => {
 
 .username {
   font-weight: 500;
-  color: #374151;
+  color: #ffffff;
 }
 
 .dropdown {
@@ -318,8 +317,8 @@ onUnmounted(() => {
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: rgb(0, 0, 0);
+  border: 1px solid #000000;
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   min-width: 12rem;
@@ -331,7 +330,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  color: #374151;
+  color: #ffffff;
   text-decoration: none;
   border: none;
   background: none;
