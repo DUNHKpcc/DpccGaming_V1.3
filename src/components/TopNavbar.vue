@@ -160,7 +160,7 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: #000;
+  background: rgb(29, 29, 31);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
@@ -337,19 +337,15 @@ onUnmounted(() => {
   width: 100%;
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.dropdown-item:hover {
-  background: #f9fafb;
-}
+
 
 .dropdown-item i {
   width: 1rem;
   text-align: center;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .navbar-content {
     padding: 0.75rem 1rem;

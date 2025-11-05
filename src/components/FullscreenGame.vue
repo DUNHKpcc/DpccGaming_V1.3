@@ -5,7 +5,7 @@
         ref="gameFrame"
         frameborder="0" 
         class="game-vertical-container"
-        :src="currentGame ? `games/${currentGame.game_id || currentGame.id}/index.html` : ''"
+        :src="gameLaunchUrl"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-top-navigation"
         allow="fullscreen; autoplay; microphone; camera; gamepad"
         @load="onGameFrameLoad"
@@ -177,6 +177,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useNotificationStore } from '../stores/notification'
 import { setupGameEventHandling, focusGameIframe } from '../utils/gameEvents'
+import { resolveMediaUrl } from '../utils/media'
 
 const modalStore = useModalStore()
 const authStore = useAuthStore()
@@ -187,6 +188,14 @@ const isFullscreen = computed(() => modalStore.isFullscreen)
 const currentGame = computed(() => modalStore.currentGame)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const comments = computed(() => gameStore.comments)
+const gameLaunchUrl = computed(() => {
+  if (!currentGame.value) return ''
+  const rawUrl =
+    currentGame.value.launch_url ||
+    currentGame.value.game_url ||
+    `games/${currentGame.value.game_id || currentGame.value.id}/index.html`
+  return resolveMediaUrl(rawUrl)
+})
 
 const gameFrame = ref(null)
 const showComments = ref(false)

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="games-page">
     <!-- 主要内容 -->
     <div class="content-wrapper">
@@ -76,7 +76,7 @@
           <div 
             v-for="game in filteredGames" 
             :key="game.id"
-            class="game-card glass-card overflow-hidden hover:shadow-xl transition-all duration-300">
+            class="game-card glass-card overflow-hidden">
             <div class="relative group">
   
               <div 
@@ -264,7 +264,7 @@ const loadGames = async () => {
   try {
     await gameStore.loadGames()
     games.value = gameStore.games
-    applyFilters() // 数据加载后，立即进行筛选，页面初始展示全部游戏
+    applyFilters() 
   } catch (error) {
     console.error('加载游戏失败:', error)
     games.value = [{
@@ -429,23 +429,20 @@ onMounted(() => {
 
 .glass-card {
   background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 20px;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background-clip: padding-box;
+  -webkit-background-clip: padding-box;
+  isolation: isolate;
+  contain: paint;
+  will-change: transform;
+  transition: background 0.3s ease;
 }
 
 .glass-card:hover {
   background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 
 .game-card {
@@ -490,8 +487,6 @@ onMounted(() => {
   padding: 10px;
   border-radius: 14px;
   background: rgba(255,255,255,0.2);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 10px 30px rgba(0,0,0,0.2);
   border: 1px solid rgba(255,255,255,0.35);
   overflow: hidden;
@@ -552,8 +547,6 @@ onMounted(() => {
   pointer-events: none;
   border-radius: 9999px;
   background: rgba(255,255,255,0.32); /* 由0.22提升至0.32更显眼*/
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
   border: 2px solid #fff; /* 更亮边框 */
   box-shadow: 0 8px 24px rgba(0,0,0,0.18);
   transition: transform 140ms ease, width 140ms ease, height 140ms ease, opacity 160ms ease;
@@ -628,3 +621,8 @@ onMounted(() => {
   }
 }
 </style>
+
+
+
+
+

@@ -73,7 +73,7 @@ onMounted(async () => {
 .app-layout {
   display: flex;
   min-height: 100vh;
-  background: #f8f9fa;
+  background: #000000;
 }
 
 .main-content {

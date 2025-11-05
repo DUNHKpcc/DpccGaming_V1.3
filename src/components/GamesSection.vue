@@ -127,7 +127,7 @@ const loadGames = async () => {
       description: '骑士挥舞刺刀击败骷髅.',
       average_rating: '0.0',
       play_count: 0,
-      category: '动作',
+      category: 'action',
       engine: 'Cocos',
       codeType: 'TypeScript'
     }]

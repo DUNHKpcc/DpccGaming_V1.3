@@ -27,7 +27,7 @@
           </div>
           <div class="hero-image-wrapper" :style="heroImageWrapperStyle">
             <div ref="heroImage" class="hero-spline">
-              <iframe src='https://my.spline.design/nintendoswitchcopy-IVP00AdsHDXPUiPtmMtHq6sY/' frameborder='0' width='100%' height='100%'></iframe>
+               <iframe src='https://my.spline.design/nintendoswitchcopy-IVP00AdsHDXPUiPtmMtHq6sY/' frameborder='0' width='100%' height='100%'></iframe>
             </div>
           </div>
         </div>
@@ -56,8 +56,6 @@ const heroSubtitleText = '为个人开发者打造的游戏聚合平台'
 
 let heroTimeline = null
 
-// 手柄位置偏移（可根据需要调整）
-// 默认让 3D 模型位于按钮下方，可根据需要调大(向下)或调小(向上)
 const heroImageOffset = ref('2rem')
 const heroImageTabletOffset = ref('1.5rem')
 const heroImageMobileOffset = ref('1rem')

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="game-showcase-section relative min-h-[80vh] py-24 overflow-hidden">
     <!-- 背景毛玻璃效果 -->
     <div class="absolute inset-0 bg-gradient-to-b from-dark/90 via-primary/20 to-secondary/20 backdrop-blur-sm"></div>
@@ -514,7 +514,7 @@ onUnmounted(() => {
 <style scoped>
 /* 主容器样式 */
 .game-showcase-section {
-  background: linear-gradient(135deg, #2D3436 0%, #6C5CE7 50%, #00B894 100%);
+  background: black;
   position: relative;
 }
 

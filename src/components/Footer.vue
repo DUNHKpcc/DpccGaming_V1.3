@@ -1,7 +1,7 @@
 <template>
   <footer class="bg-dark text-white py-8">
     <div class="container mx-auto px-4">
-      <!-- 主要内容区域 -->
+      
       <div class="text-center mb-8">
         <div class="flex items-center justify-center mb-4">
           <img src="/logo.png" alt="DpccGaming Logo" class="w-8 h-8 mr-2">
@@ -10,7 +10,6 @@
         <p class="text-gray-400 mb-6">这是一个面向个人开发者的游戏收集平台</p>
       </div>
 
-      <!-- 赞助商区域 -->
       <div class="border-t border-gray-800 pt-6 mb-6">
         <div class="text-center mb-4">
           <h3 class="text-lg font-semibold text-gray-300 mb-2">特别感谢</h3>
@@ -28,7 +27,6 @@
         </div>
       </div>
 
-      <!-- 版权信息 -->
       <div class="border-t border-gray-800 pt-6 text-center text-gray-500 text-sm">
         <p>&copy; 2025 SunJiaHao. All rights reserved.</p>
         <p class="mt-2">
@@ -43,11 +41,10 @@
 </template>
 
 <script setup>
-// 页脚组件不需要额外的逻辑
 </script>
 
 <style scoped>
-/* 赞助商logo样式 */
+
 .sponsor-logo-container {
   transition: all 0.3s ease;
   cursor: pointer;
