@@ -75,8 +75,19 @@
             required>
           <p class="text-xs text-white/80 mt-1 drop-shadow-sm">上传包含游戏文件的 ZIP 压缩包，并且带有介绍视频或图片</p>
         </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium mb-1 text-white drop-shadow-sm">源码压缩包（用于 Coding 模式）</label>
+          <input
+            ref="codeFileInput"
+            type="file"
+            accept=".zip,.tar,.tar.gz,.rar"
+            @change="onCodeArchiveChange"
+            class="w-full px-4 py-2 bg-white/90 backdrop-blur-sm border border-white/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-gray-800 file:bg-white/80 file:border-0 file:rounded file:px-3 file:py-1 file:text-sm file:text-gray-700"
+          >
+          <p class="text-xs text-white/70 mt-1 drop-shadow-sm">（可选）上传源码压缩包，让 Coding 模式可以展示完整代码。</p>
+        </div>
         <button type="submit"
-          class="w-full bg-primary/90 hover:bg-primary backdrop-blur-sm border border-primary/30 text-white py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl">
+          class="w-full bg-white hover:bg-white/90 text-[#1d1d1f] border border-black/10 py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl">
           上传游戏
         </button>
       </form>
@@ -94,6 +105,7 @@ const notificationStore = useNotificationStore()
 
 const isOpen = computed(() => modalStore.activeModal === 'addGame')
 const fileInput = ref(null)
+const codeFileInput = ref(null)
 
 // 表单数据 增加 engine, codeType, video
 const form = ref({
@@ -134,6 +146,9 @@ const handleSubmit = async () => {
     formData.append('engine', form.value.engine)
     formData.append('codeType', form.value.codeType)
     if(form.value.video) formData.append('video', form.value.video)
+    if (codeFileInput.value?.files?.length) {
+      formData.append('codeArchive', codeFileInput.value.files[0])
+    }
 
     // 显示上传中状态
     notificationStore.info('正在上传...', '请稍候，正在处理您的游戏文件')
@@ -187,6 +202,9 @@ const closeModal = () => {
   if (fileInput.value) {
     fileInput.value.value = ''
   }
+  if (codeFileInput.value) {
+    codeFileInput.value.value = ''
+  }
 }
 
 const handleBackdropClick = (e) => {
@@ -198,5 +216,9 @@ const handleBackdropClick = (e) => {
 // 新增@change事件处理视频文件
 const onVideoChange = (e) => {
   form.value.video = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+}
+
+const onCodeArchiveChange = (e) => {
+  if (!e.target.files?.length) return
 }
 </script>

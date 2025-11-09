@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <div v-if="isOpen" 
     class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
     @click="handleBackdropClick">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
     <div
-      class="relative bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col transform scale-100 transition-transform duration-300"
+      class="relative bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl w-full md:w-[96vw] lg:w-[85vw] max-w-none h-[90vh] flex flex-col transform scale-100 transition-transform duration-300 overflow-hidden"
       @click.stop>
       <div class="flex justify-between items-center p-6 border-b border-white/20">
         <h3 class="text-2xl font-bold text-white">{{ currentGame?.title || '游戏标题' }}</h3>
@@ -15,19 +15,27 @@
             <i class="fa fa-expand"></i>
             <span>全屏</span>
           </button>
+          <button @click="enterCodingMode" 
+                  class="bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white px-4 py-2 rounded-xl text-sm transition-all duration-300 flex items-center gap-2"
+                  title="进入编程模式">
+            <i class="fa fa-code"></i>
+            <span>Coding</span>
+          </button>
           <button @click="closeModal" class="text-white/80 hover:text-white text-2xl transition-colors duration-300">
             <i class="fa fa-times"></i>
           </button>
         </div>
       </div>
 
-      <div class="flex flex-col md:flex-row flex-1 overflow-hidden">
+      <div class="flex flex-col md:flex-row flex-1 h-full overflow-y-auto md:overflow-hidden min-h-0">
         <!-- 游戏区域 -->
-        <div class="md:w-2/3 bg-white/10 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
-          <div class="w-full h-full flex items-center justify-center">
-            <div v-if="gameLoading" class="text-center">
-              <i class="fa fa-gamepad text-6xl text-white/30 mb-4"></i>
-              <p class="text-white/80">正在加载游戏...</p>
+        <div class="md:flex-[7] bg-white/10 backdrop-blur-sm flex flex-col items-center justify-center p-4 overflow-hidden rounded-2xl md:rounded-tl-none md:rounded-bl-2xl md:rounded-tr-none md:rounded-br-none h-full min-h-0">
+          <div class="game-frame-wrapper">
+            <div v-if="gameLoading" class="game-loading-overlay">
+              <div class="text-center">
+                <i class="fa fa-gamepad text-6xl text-white/30 mb-4"></i>
+                <p class="text-white/80">正在加载游戏...</p>
+              </div>
             </div>
             <iframe 
               v-else-if="currentGame"
@@ -44,7 +52,7 @@
         </div>
 
         <!-- 评论区域 -->
-        <div class="md:w-1/3 border-l border-white/20 overflow-y-auto bg-white/5 backdrop-blur-sm">
+        <div class="md:flex-[3] border-l border-white/20 overflow-y-auto bg-white/5 backdrop-blur-sm h-full rounded-2xl md:rounded-tl-none md:rounded-bl-none md:rounded-tr-2xl md:rounded-br-2xl mt-4 md:mt-0 min-h-0">
           <div class="p-6">
             <h4 class="text-lg font-bold mb-4 text-white">评论&评价</h4>
 
@@ -190,6 +198,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useModalStore } from '../stores/modal'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
@@ -201,6 +210,7 @@ const modalStore = useModalStore()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 const notificationStore = useNotificationStore()
+const router = useRouter()
 
 const isOpen = computed(() => modalStore.activeModal === 'game')
 const currentGame = computed(() => modalStore.currentGame)
@@ -512,6 +522,16 @@ const scrollToComment = (commentId) => {
   })
 }
 
+// 进入编程模式
+const enterCodingMode = () => {
+  if (currentGame.value) {
+    // 关闭当前模态框
+    closeModal()
+    // 导航到CodingMode页面，传递游戏ID
+    router.push({ name: 'CodingMode', params: { id: currentGame.value.game_id || currentGame.value.id } })
+  }
+}
+
 // 游戏iframe相关方法
 const onGameFrameLoad = () => {
   gameLoading.value = false
@@ -669,12 +689,33 @@ div[id^="reply-"].highlight-comment {
   }
 }
 
+.game-frame-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  max-height: 100%;
+}
+
+.game-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
 .game-modal-iframe {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border: none;
-  border-radius: 8px;
-  min-height: 400px;
+  border-radius: 16px;
+  min-height: 0;
   outline: none;
   /* 确保iframe可以接收焦点和事件 */
   pointer-events: auto;

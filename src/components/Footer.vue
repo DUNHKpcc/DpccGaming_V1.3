@@ -1,5 +1,5 @@
 <template>
-  <footer class="bg-dark text-white py-8">
+  <footer class="bg_footer text-white py-8">
     <div class="container mx-auto px-4">
       
       <div class="text-center mb-8">
@@ -10,11 +10,7 @@
         <p class="text-gray-400 mb-6">这是一个面向个人开发者的游戏收集平台</p>
       </div>
 
-      <div class="border-t border-gray-800 pt-6 mb-6">
-        <div class="text-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-300 mb-2">特别感谢</h3>
-          <p class="text-sm text-gray-500">感谢以下合作伙伴的支持</p>
-        </div>
+      
         
         <div class="flex items-center justify-center">
           <div class="sponsor-logo-container bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
@@ -36,7 +32,6 @@
           </a>
         </p>
       </div>
-    </div>
   </footer>
 </template>
 
@@ -44,6 +39,10 @@
 </script>
 
 <style scoped>
+.bg_footer{
+  background: rgb(29, 29, 31) !important;
+  background-color: rgb(29, 29, 31) !important;
+}
 
 .sponsor-logo-container {
   transition: all 0.3s ease;
@@ -65,7 +64,6 @@
   transform: scale(1.05);
 }
 
-/* 响应式设计 */
 @media (max-width: 640px) {
   .sponsor-logo-container {
     padding: 0.75rem;

@@ -46,7 +46,7 @@
                   <p class="text-white/80 mb-2">{{ game.description }}</p>
                   
                   <div class="flex flex-wrap gap-4 text-sm text-white/70 mb-4">
-                    <span><i class="fa fa-tag mr-1"></i>{{ game.category }}</span>
+                    <span><i class="fa fa-tag mr-1"></i>{{ categoryToZh(game.category) }}</span>
                     <span><i class="fa fa-user mr-1"></i>上传者: {{ game.uploaded_by_username }}</span>
                     <span><i class="fa fa-clock mr-1"></i>{{ formatDate(game.uploaded_at) }}</span>
                   </div>
@@ -84,6 +84,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useNotificationStore } from '../stores/notification'
+import { categoryToZh } from '../utils/category'
 
 const notificationStore = useNotificationStore()
 const pendingGames = ref([])

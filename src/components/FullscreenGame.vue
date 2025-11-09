@@ -5,6 +5,7 @@
         ref="gameFrame"
         frameborder="0" 
         class="game-vertical-container"
+        :style="gameFrameStyle"
         :src="gameLaunchUrl"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock allow-top-navigation"
         allow="fullscreen; autoplay; microphone; camera; gamepad"
@@ -208,6 +209,98 @@ const replyToUserId = ref(null)
 const expandedComments = ref(new Set()) // 存储展开的评论ID
 const expandedReplies = ref(new Set()) // 存储展开的回复ID
 const collapsedReplies = ref(new Set()) // 存储折叠的回复列表ID
+const fetchedDesignResolution = ref(null)
+const getInitialViewportSize = () => ({
+  width: typeof window !== 'undefined' ? window.innerWidth : defaultGameDimensions.width,
+  height: typeof window !== 'undefined' ? window.innerHeight : defaultGameDimensions.height
+})
+const viewportSize = ref(getInitialViewportSize())
+
+const defaultGameDimensions = { width: 960, height: 540 }
+const dimensionKeyMap = {
+  width: ['width', 'game_width', 'resolution_width', 'design_width', 'canvas_width'],
+  height: ['height', 'game_height', 'resolution_height', 'design_height', 'canvas_height']
+}
+
+const getContentPadding = () => {
+  const viewportWidth = viewportSize.value.width
+  if (viewportWidth <= 480) return 6
+  if (viewportWidth <= 768) return 10
+  return 20
+}
+
+const getCommentsPanelWidth = () => {
+  if (!showComments.value) return 0
+  const viewportWidth = viewportSize.value.width
+  if (viewportWidth <= 480) return Math.min(viewportWidth, 300)
+  if (viewportWidth <= 768) return Math.min(viewportWidth, 350)
+  return 400
+}
+
+const parseDimensionValue = (value) => {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+  if (typeof value === 'string') {
+    const match = value.match(/(\d+(\.\d+)?)/)
+    if (match) {
+      const parsed = Number(match[1])
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed
+      }
+    }
+  }
+  return null
+}
+
+const deriveDimensionsFromGame = (game) => {
+  if (!game) return { ...defaultGameDimensions }
+  const widthCandidate = dimensionKeyMap.width
+    .map(key => parseDimensionValue(game[key]))
+    .find(Boolean)
+  const heightCandidate = dimensionKeyMap.height
+    .map(key => parseDimensionValue(game[key]))
+    .find(Boolean)
+
+  const width = widthCandidate || (heightCandidate ? Math.round(heightCandidate * (defaultGameDimensions.width / defaultGameDimensions.height)) : defaultGameDimensions.width)
+  const height = heightCandidate || (widthCandidate ? Math.round(widthCandidate * (defaultGameDimensions.height / defaultGameDimensions.width)) : defaultGameDimensions.height)
+
+  return {
+    width,
+    height
+  }
+}
+
+const gameDimensions = ref(deriveDimensionsFromGame(currentGame.value))
+
+const gameFrameStyle = computed(() => {
+  const { width, height } = gameDimensions.value
+  const designWidth = Math.max(width || defaultGameDimensions.width, 1)
+  const designHeight = Math.max(height || defaultGameDimensions.height, 1)
+  const viewportWidth = viewportSize.value.width || designWidth
+  const viewportHeight = viewportSize.value.height || designHeight
+
+  const horizontalPadding = getContentPadding() * 2
+  const verticalPadding = getContentPadding() * 2
+  const availableWidth = Math.max(viewportWidth - getCommentsPanelWidth() - horizontalPadding, 120)
+  const availableHeight = Math.max(viewportHeight - verticalPadding, 120)
+
+  const widthScale = availableWidth / designWidth
+  const heightScale = availableHeight / designHeight
+  const scale = Math.min(widthScale, heightScale, 1)
+
+  const finalWidth = Math.max(designWidth * scale, 1)
+  const finalHeight = Math.max(designHeight * scale, 1)
+
+  return {
+    width: `${finalWidth}px`,
+    height: `${finalHeight}px`,
+    maxWidth: '100%',
+    maxHeight: '100%'
+  }
+})
+
+let measureTimer = null
+const designResolutionCache = new Map()
 
 const loadComments = async () => {
   if (!currentGame.value) return
@@ -378,6 +471,172 @@ const toggleRepliesCollapse = (commentId) => {
   }
 }
 
+const extractDesignResolution = (data) => {
+  if (!data || typeof data !== 'object') return null
+  const candidates = [
+    data.screen?.designResolution,
+    data.designResolution,
+    data.project?.designResolution
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    const width = parseDimensionValue(candidate.width ?? candidate[0])
+    const height = parseDimensionValue(candidate.height ?? candidate[1])
+    if (width && height) {
+      const orientation = data.screen?.orientation || data.orientation
+      if (orientation === 'portrait' && width > height) {
+        return { width: height, height: width }
+      }
+      if (orientation === 'landscape' && height > width) {
+        return { width: height, height: width }
+      }
+      return { width, height }
+    }
+  }
+  return null
+}
+
+const getGameBaseUrl = (url) => {
+  if (!url) return null
+  if (typeof window === 'undefined') return null
+  try {
+    const absolute = new URL(url, window.location.origin)
+    absolute.hash = ''
+    absolute.search = ''
+    absolute.pathname = absolute.pathname.replace(/\/[^/]*$/, '/') || '/'
+    return absolute.toString()
+  } catch {
+    return null
+  }
+}
+
+const fetchDesignResolution = async (launchUrl) => {
+  const baseUrl = getGameBaseUrl(launchUrl)
+  if (!baseUrl) return null
+
+  if (designResolutionCache.has(baseUrl)) {
+    return designResolutionCache.get(baseUrl)
+  }
+
+  const candidates = [
+    'src/settings.json',
+    'settings.json',
+    'project.json',
+    'game.json',
+    'config.json'
+  ]
+
+  for (const candidate of candidates) {
+    const targetUrl = new URL(candidate, baseUrl).toString()
+    try {
+      const response = await fetch(targetUrl, { method: 'GET' })
+      if (!response.ok) continue
+      const data = await response.json()
+      const resolution = extractDesignResolution(data)
+      if (resolution) {
+        designResolutionCache.set(baseUrl, resolution)
+        return resolution
+      }
+    } catch {
+      /* ignore fetch errors */
+    }
+  }
+
+  designResolutionCache.set(baseUrl, null)
+  return null
+}
+
+const applyDesignResolution = (resolution) => {
+  if (!resolution) return
+  gameDimensions.value = {
+    width: resolution.width,
+    height: resolution.height
+  }
+  fetchedDesignResolution.value = resolution
+}
+
+const ensureDesignResolution = async () => {
+  if (!gameLaunchUrl.value) return
+  const resolution = await fetchDesignResolution(gameLaunchUrl.value)
+  if (resolution) {
+    applyDesignResolution(resolution)
+  }
+}
+
+const syncGameDimensionsFromIframe = () => {
+  const frame = gameFrame.value
+  if (!frame) return
+
+  try {
+    const doc = frame.contentDocument || frame.contentWindow?.document
+    if (!doc) return
+
+    const target =
+      doc.getElementById('GameDiv') ||
+      doc.getElementById('GameCanvas') ||
+      doc.querySelector('#GameDiv canvas') ||
+      doc.querySelector('canvas') ||
+      doc.body
+
+    if (!target) return
+
+    const intrinsicWidth = parseDimensionValue(target.getAttribute?.('width')) || target.width
+    const intrinsicHeight = parseDimensionValue(target.getAttribute?.('height')) || target.height
+
+    const rect = target.getBoundingClientRect()
+    const measuredWidth = Math.round(intrinsicWidth || rect.width || target.scrollWidth || defaultGameDimensions.width)
+    const measuredHeight = Math.round(intrinsicHeight || rect.height || target.scrollHeight || defaultGameDimensions.height)
+
+    if (measuredWidth > 0 && measuredHeight > 0) {
+      gameDimensions.value = {
+        width: measuredWidth,
+        height: measuredHeight
+      }
+    }
+  } catch (error) {
+    console.warn('自动测量游戏尺寸失败:', error)
+  }
+}
+
+const scheduleGameDimensionMeasure = (delay = 120) => {
+  if (typeof window === 'undefined') return
+  if (measureTimer) {
+    window.clearTimeout(measureTimer)
+  }
+  measureTimer = window.setTimeout(() => {
+    syncGameDimensionsFromIframe()
+  }, Math.max(delay, 16))
+}
+
+const updateViewportSize = () => {
+  if (typeof window === 'undefined') return
+  viewportSize.value = {
+    width: window.innerWidth,
+    height: window.innerHeight
+  }
+}
+
+const handleViewportResize = () => {
+  updateViewportSize()
+  scheduleGameDimensionMeasure(0)
+}
+
+watch(currentGame, (newGame) => {
+  gameDimensions.value = deriveDimensionsFromGame(newGame)
+  scheduleGameDimensionMeasure(200)
+})
+
+watch(gameLaunchUrl, (newUrl) => {
+  if (!newUrl) return
+  fetchedDesignResolution.value = null
+  ensureDesignResolution()
+}, { immediate: true })
+
+watch(showComments, () => {
+  scheduleGameDimensionMeasure(0)
+})
+
 const handleKeydown = (e) => {
   // 如果游戏iframe有焦点，不拦截键盘事件
   if (gameFrame.value && document.activeElement === gameFrame.value) {
@@ -405,6 +664,8 @@ const onGameFrameLoad = () => {
     setTimeout(() => {
       focusGameIframe(gameFrame.value)
     }, 100)
+
+    scheduleGameDimensionMeasure(180)
   }
 }
 
@@ -427,12 +688,17 @@ watch(comments, (newComments) => {
 // iframe的src现在通过:src绑定自动更新，无需手动设置
 
 onMounted(() => {
+  updateViewportSize()
   document.addEventListener('keydown', handleKeydown)
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleViewportResize)
+  }
   // 监听全屏状态变化，确保游戏获得焦点
   watch(isFullscreen, (newValue) => {
     if (newValue && gameFrame.value) {
       setTimeout(() => {
         focusGameFrame()
+        scheduleGameDimensionMeasure(0)
       }, 200)
     }
   })
@@ -440,13 +706,22 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleViewportResize)
+    if (measureTimer) {
+      window.clearTimeout(measureTimer)
+      measureTimer = null
+    }
+  }
 })
 </script>
 
 <style scoped>
 .game-vertical-container {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   border: none;
   border-radius: 12px;
   overflow: hidden;
@@ -462,7 +737,7 @@ onUnmounted(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgb(25, 25, 31);
   z-index: 9999;
   display: flex;
   flex-direction: column;
@@ -577,6 +852,10 @@ onUnmounted(() => {
     width: 100%;
     max-width: 350px;
   }
+
+  .fullscreen-game-content {
+    padding: 10px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -594,6 +873,10 @@ onUnmounted(() => {
   .fullscreen-comments-panel {
     width: 100%;
     max-width: 300px;
+  }
+
+  .fullscreen-game-content {
+    padding: 6px;
   }
 }
 </style>

@@ -5,6 +5,7 @@ import Account from '../views/Account.vue'
 import AdminPanel from '../components/AdminPanel.vue'
 import UserManagement from '../components/UserManagement.vue'
 import GameManagement from '../components/GameManagement.vue'
+import CodingMode from '../views/CodingMode.vue'
 
 const routes = [
   {
@@ -39,6 +40,12 @@ const routes = [
     name: 'GameManagement',
     component: GameManagement,
     meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/coding/:id',
+    name: 'CodingMode',
+    component: CodingMode,
+    props: true
   }
 ]
 
@@ -50,20 +57,20 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('token')
-  
+
   // 检查是否需要认证
   if (to.meta.requiresAuth && !token) {
     next('/')
     return
   }
-  
+
   // 检查管理员权限
   if (to.meta.requiresAdmin) {
     if (!token) {
       next('/')
       return
     }
-    
+
     try {
       // 调用API检查管理员权限
       const response = await fetch('/api/admin/check-permission', {
@@ -71,14 +78,14 @@ router.beforeEach(async (to, from, next) => {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       if (!response.ok) {
         // 权限不足，重定向到首页
         localStorage.removeItem('token')
         next('/')
         return
       }
-      
+
       // 权限验证通过，继续访问
       next()
     } catch (error) {

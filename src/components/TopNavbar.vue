@@ -214,7 +214,7 @@ onUnmounted(() => {
 }
 
 .title-link:hover {
-  color: #6c5ce7;
+  color: #676767;
 }
 
 .navbar-right {
@@ -229,8 +229,8 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  background: #6c5ce7;
-  color: white;
+  background: #ffffff;
+  color: #000000;
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
@@ -240,13 +240,14 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover {
-  background: #5a4fcf;
+  background: #f3f4f6;
+  color: #000000;
 }
 
 .btn-secondary {
-  background: transparent;
-  color: #6b7280;
-  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-weight: 500;
@@ -276,7 +277,7 @@ onUnmounted(() => {
   width: 2rem;
   height: 2rem;
   background: #ffffff;
-  color: #4b5563;
+  color: #1d1d1f;
   border-radius: 50%;
   display: flex;
   align-items: center;

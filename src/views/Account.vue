@@ -7,8 +7,8 @@
           <h1 class="text-3xl font-bold text-white mb-8">账户详情</h1>
         
           <div v-if="!isLoggedIn" class="glass-card text-center py-12">
-            <div class="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-6">
-              <i class="fa fa-user text-4xl text-white"></i>
+            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6">
+              <i class="fa fa-user text-4xl text-[#1d1d1f]"></i>
             </div>
             <h2 class="text-2xl font-bold text-white mb-4">请先登录</h2>
             <p class="text-white/80 mb-6">登录后可以查看您的账户信息和游戏记录</p>
@@ -24,8 +24,8 @@
             <div class="lg:col-span-1">
               <div class="glass-card p-6">
                 <div class="text-center">
-                  <div class="w-24 h-24 bg-primary/30 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fa fa-user text-3xl text-white"></i>
+                  <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa fa-user text-3xl text-[#1d1d1f]"></i>
                   </div>
                   <h3 class="text-xl font-bold text-white mb-2">{{ currentUser.username }}</h3>
                   <p class="text-white/80 text-sm mb-4">{{ currentUser.email || '未设置邮箱' }}</p>
@@ -49,24 +49,24 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div class="text-center">
-                    <div class="w-16 h-16 bg-blue-500/30 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-gamepad text-2xl text-white"></i>
+                    <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3">
+                      <i class="fa fa-gamepad text-2xl text-[#1d1d1f]"></i>
                     </div>
                     <div class="text-2xl font-bold text-white">{{ totalGamesPlayed }}</div>
                     <div class="text-sm text-white/80">总游戏次数</div>
                   </div>
                   
                   <div class="text-center">
-                    <div class="w-16 h-16 bg-green-500/30 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-star text-2xl text-white"></i>
+                    <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3">
+                      <i class="fa fa-star text-2xl text-[#1d1d1f]"></i>
                     </div>
                     <div class="text-2xl font-bold text-white">{{ averageRating }}</div>
                     <div class="text-sm text-white/80">平均评分</div>
                   </div>
                   
                   <div class="text-center">
-                    <div class="w-16 h-16 bg-purple-500/30 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-comment text-2xl text-white"></i>
+                    <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3">
+                      <i class="fa fa-comment text-2xl text-[#1d1d1f]"></i>
                     </div>
                     <div class="text-2xl font-bold text-white">{{ totalComments }}</div>
                     <div class="text-sm text-white/80">总评论数</div>
@@ -86,12 +86,12 @@
                       :key="game.id"
                       class="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm rounded-lg">
                       <div class="flex items-center">
-                        <div class="w-12 h-12 bg-primary/30 backdrop-blur-sm rounded-lg flex items-center justify-center mr-3">
-                          <i class="fa fa-gamepad text-white"></i>
+                        <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center mr-3">
+                          <i class="fa fa-gamepad text-[#1d1d1f]"></i>
                         </div>
                         <div>
                           <div class="font-medium text-white">{{ game.title }}</div>
-                          <div class="text-sm text-white/80">{{ game.category }}</div>
+                          <div class="text-sm text-white/80">{{ categoryToZh(game.category) }}</div>
                         </div>
                       </div>
                       <div class="text-right">
@@ -119,6 +119,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 import NotificationsSection from '../components/NotificationsSection.vue'
+import { categoryToZh } from '../utils/category'
 
 const authStore = useAuthStore()
 const gameStore = useGameStore()
@@ -138,7 +139,7 @@ const loadUserStats = async () => {
   try {
     // 加载游戏数据
     await gameStore.loadGames()
-    recentGames.value = gameStore.games.slice(0, 5) // 显示最近5个游戏
+    recentGames.value = gameStore.games.slice(0, 5) 
     
     // 计算统计数据
     totalGamesPlayed.value = gameStore.games.reduce((sum, game) => sum + (game.play_count || 0), 0)
@@ -148,8 +149,8 @@ const loadUserStats = async () => {
       averageRating.value = (ratings.reduce((sum, game) => sum + parseFloat(game.average_rating), 0) / ratings.length).toFixed(1)
     }
     
-    // 这里可以添加更多统计数据的计算
-    totalComments.value = 0 // 暂时设为0，后续可以从API获取
+    
+    totalComments.value = 0 
   } catch (error) {
     console.error('加载用户统计失败:', error)
   }
@@ -161,7 +162,6 @@ const openLoginModal = () => {
 
 const logout = () => {
   authStore.logout()
-  // 可以添加登出后的通知
 }
 
 onMounted(() => {
@@ -177,40 +177,14 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   font-family: 'Quicksand', sans-serif;
-  background-color: #e493d0;
-  background-image: 
-    radial-gradient(closest-side, rgb(42, 8, 233), rgba(235, 105, 78, 0)),
-    radial-gradient(closest-side, rgb(189, 6, 239), rgba(243, 11, 164, 0)),
-    radial-gradient(closest-side, rgb(183, 0, 255), rgba(254, 234, 131, 0)),
-    radial-gradient(closest-side, rgba(170, 142, 245, 1), rgba(170, 142, 245, 0)),
-    radial-gradient(closest-side, rgb(237, 164, 255), rgba(55, 0, 119, 0));
-  background-size: 
-    130vmax 130vmax,
-    80vmax 80vmax,
-    90vmax 90vmax,
-    110vmax 110vmax,
-    90vmax 90vmax;
-  background-position:
-    -80vmax -80vmax,
-    60vmax -30vmax,
-    10vmax 10vmax,
-    -30vmax -10vmax,
-    50vmax 50vmax;
+  background: #000000 !important;
+  background-image: none !important;
   background-repeat: no-repeat;
-  animation: 10s movement linear infinite;
+  animation: none !important;
 }
 
 .account-page::after {
-  content: '';
-  display: block;
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 0;
+  display: none !important;
 }
 
 .content-wrapper {

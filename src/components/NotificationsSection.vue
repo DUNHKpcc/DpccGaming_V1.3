@@ -21,7 +21,7 @@
 
     <div v-else class="space-y-3">
       <div 
-        v-for="notification in notifications" 
+        v-for="notification in displayedNotifications" 
         :key="notification.id"
         :class="[
           'notification-item',
@@ -46,7 +46,7 @@
           <div v-if="notification.related_game_id" class="notification-actions">
             <button 
               @click="handleNotificationClick(notification)"
-              class="text-primary hover:text-primary/80 text-sm font-medium">
+              class="bg-white text-[#1d1d1f] hover:bg-white/90 px-3 py-1 rounded-md text-sm font-medium transition-colors">
               <i :class="getActionIcon(notification.type)" class="mr-1"></i>
               {{ getActionText(notification.type) }}
             </button>
@@ -56,6 +56,15 @@
         <!-- 未读标识 -->
         <div v-if="!notification.is_read" class="unread-indicator"></div>
       </div>
+    </div>
+
+    <!-- 展开/收起 -->
+    <div v-if="shouldShowToggle" class="text-center mt-4">
+      <button
+        @click="toggleNotificationVisibility"
+        class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors">
+        {{ showAllNotifications ? '收起通知' : '展开通知' }}
+      </button>
     </div>
 
     <!-- 加载更多 -->
@@ -86,6 +95,22 @@ const loading = ref(false)
 const hasMore = ref(true)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const DEFAULT_VISIBLE_NOTIFICATION_COUNT = 3
+const showAllNotifications = ref(false)
+
+const displayedNotifications = computed(() => {
+  return showAllNotifications.value
+    ? notifications.value
+    : notifications.value.slice(0, DEFAULT_VISIBLE_NOTIFICATION_COUNT)
+})
+
+const shouldShowToggle = computed(() => {
+  return notifications.value.length > DEFAULT_VISIBLE_NOTIFICATION_COUNT
+})
+
+const toggleNotificationVisibility = () => {
+  showAllNotifications.value = !showAllNotifications.value
+}
 
 // 计算未读通知数量
 const unreadCount = computed(() => {
@@ -174,14 +199,14 @@ const loadMore = () => {
   }
 }
 
-// 获取通知图标
+// 获取通知图标（统一为无颜色类）
 const getNotificationIcon = (type) => {
   const icons = {
-    'game_approved': 'fa fa-check-circle text-green-400',
-    'game_rejected': 'fa fa-times-circle text-red-400',
-    'comment_reply': 'fa fa-reply text-blue-400'
+    'game_approved': 'fa fa-check-circle',
+    'game_rejected': 'fa fa-times-circle',
+    'comment_reply': 'fa fa-reply'
   }
-  return icons[type] || 'fa fa-bell text-gray-400'
+  return icons[type] || 'fa fa-bell'
 }
 
 // 处理通知点击
@@ -325,7 +350,7 @@ onMounted(() => {
 .notification-icon {
   width: 2.5rem;
   height: 2.5rem;
-  background: rgba(255, 255, 255, 0.2);
+  background: #ffffff;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -335,6 +360,7 @@ onMounted(() => {
 
 .notification-icon i {
   font-size: 1.25rem;
+  color: #1d1d1f;
 }
 
 .notification-content {

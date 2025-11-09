@@ -66,7 +66,7 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center">
             <img src="/logo.png" alt="DpccGaming Logo" class="w-8 h-8 mr-3">
-            <span class="text-lg font-bold text-dark">DpccGaming</span>
+            <span class="text-lg font-bold text-white">DpccGaming</span>
           </div>
           <button 
             @click="closeSidebar"
@@ -98,19 +98,19 @@
       <div class="sidebar-footer">
         <div v-if="isLoggedIn" class="user-info">
           <div class="flex items-center">
-            <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center mr-3">
-              <i class="fa fa-user text-primary text-sm"></i>
+            <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
+              <i class="fa fa-user text-[#1d1d1f] text-sm"></i>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-dark truncate">{{ currentUser.username }}</div>
-              <div class="text-xs text-neutral">已登录</div>
+              <div class="text-sm font-medium text-white truncate">{{ currentUser.username }}</div>
+              <div class="text-xs text-white">已登录</div>
             </div>
           </div>
         </div>
         <div v-else class="login-prompt">
           <button 
             @click="openLoginModal"
-            class="w-full bg-primary hover:bg-primary/90 text-white py-2 px-3 rounded-lg text-sm transition-colors">
+            class="w-full bg-white hover:bg-white/90 text-[#1d1d1f] py-2 px-3 rounded-lg text-sm transition-colors">
             登录
           </button>
         </div>
@@ -420,14 +420,14 @@ defineExpose({
 }
 
 .nav-icon:hover {
-  background: rgba(108, 92, 231, 0.3);
-  border: 1px solid rgba(108, 92, 231, 0.5);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
 }
 
 .nav-icon-active {
-  background: rgba(108, 92, 231, 0.4);
-  border: 1px solid rgba(108, 92, 231, 0.6);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   color: white;
 }
 
@@ -472,7 +472,7 @@ defineExpose({
   width: 60px;
   height: 60px;
   border-radius: 15px;
-  background: rgba(108, 92, 231, 0.3);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -510,8 +510,8 @@ defineExpose({
   top: 0;
   left: 0;
   height: 100vh;
-  background: white;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+  background: rgb(29, 29, 31);
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3);
   z-index: 1000;
   transition: all 0.3s ease;
   display: flex;
@@ -544,7 +544,7 @@ defineExpose({
   border-bottom: 1px solid #e5e7eb;
 }
 
-/* 导航菜单 */
+
 .sidebar-nav {
   flex: 1;
   padding: 1rem;
@@ -555,20 +555,22 @@ defineExpose({
   align-items: center;
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
-  color: #6b7280;
+  color: #e5e7eb;
+  border: 1px solid transparent;
   text-decoration: none;
   transition: all 0.2s ease;
   margin-bottom: 0.25rem;
 }
 
 .nav-item:hover {
-  background: #f3f4f6;
-  color: #374151;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 .nav-item-active {
-  background: #6c5ce7;
-  color: white;
+  background: transparent;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .nav-item i {
@@ -585,7 +587,7 @@ defineExpose({
 
 .user-info {
   padding: 0.5rem;
-  background: #f9fafb;
+  background: transparent;
   border-radius: 0.5rem;
 }
 

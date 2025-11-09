@@ -1,14 +1,10 @@
 ﻿<template>
   <section class="game-showcase-section relative min-h-[80vh] py-24 overflow-hidden">
-    <!-- 背景毛玻璃效果 -->
-    <div class="absolute inset-0 bg-gradient-to-b from-dark/90 via-primary/20 to-secondary/20 backdrop-blur-sm"></div>
+    <!-- 背景纯黑 -->
+    <div class="absolute inset-0 bg-black"></div>
     
-    <!-- 背景装饰元素 -->
-    <div class="absolute inset-0 overflow-hidden">
-      <div class="absolute top-20 left-10 w-32 h-32 bg-primary/10 rounded-full blur-xl"></div>
-      <div class="absolute bottom-20 right-10 w-48 h-48 bg-secondary/10 rounded-full blur-xl"></div>
-      <div class="absolute top-1/2 left-1/4 w-24 h-24 bg-accent/10 rounded-full blur-lg"></div>
-    </div>
+    <!-- 背景装饰元素（隐藏以保持纯黑） -->
+    <div class="hidden"></div>
 
     <div class="container mx-auto px-4 relative z-10">
       <!-- 标题区域 -->

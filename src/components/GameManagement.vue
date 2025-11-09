@@ -68,7 +68,7 @@
                   <p class="text-white/80 mb-2">{{ game.description }}</p>
                   
                   <div class="flex flex-wrap gap-4 text-sm text-white/70 mb-4">
-                    <span><i class="fa fa-tag mr-1"></i>{{ game.category }}</span>
+                    <span><i class="fa fa-tag mr-1"></i>{{ categoryToZh(game.category) }}</span>
                     <span><i class="fa fa-star mr-1"></i>评分: {{ game.average_rating || '0.0' }}</span>
                     <span><i class="fa fa-play mr-1"></i>玩过: {{ game.play_count || 0 }}次</span>
                     <span><i class="fa fa-comment mr-1"></i>评论: {{ game.comment_count || 0 }}条</span>
@@ -116,6 +116,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useNotificationStore } from '../stores/notification'
+import { categoryToZh, categoryToCode } from '../utils/category'
 
 const notificationStore = useNotificationStore()
 const games = ref([])
@@ -137,7 +138,7 @@ const filteredGames = computed(() => {
 
   // 按类型过滤
   if (selectedCategory.value) {
-    filtered = filtered.filter(game => game.category === selectedCategory.value)
+    filtered = filtered.filter(game => categoryToCode(game.category) === selectedCategory.value)
   }
 
   // 分页
@@ -157,7 +158,7 @@ const totalPages = computed(() => {
   }
 
   if (selectedCategory.value) {
-    filtered = filtered.filter(game => game.category === selectedCategory.value)
+    filtered = filtered.filter(game => categoryToCode(game.category) === selectedCategory.value)
   }
 
   return Math.ceil(filtered.length / pageSize)

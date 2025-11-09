@@ -7,7 +7,7 @@
     <GameShowcase />
     
     <!-- 页脚 -->
-    <footer class="bg-dark text-white py-8">
+    <footer class="text-white py-8" style="background-color: rgb(29, 29, 31);">
       <div class="container mx-auto px-4 text-center">
         <div class="flex items-center justify-center mb-4">
           <img src="/logo.png" alt="DpccGaming Logo" class="w-8 h-8 mr-2">

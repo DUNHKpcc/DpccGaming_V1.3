@@ -38,12 +38,6 @@
                 <button
                   class="control-btn"
                   type="button"
-                  @click.stop="toggleVideoMute(getGameKey(game))">
-                  <i :class="isVideoMuted(getGameKey(game)) ? 'fa fa-volume-mute' : 'fa fa-volume-up'"></i>
-                </button>
-                <button
-                  class="control-btn"
-                  type="button"
                   @click.stop="restartVideo(getGameKey(game))">
                   <i class="fa fa-undo"></i>
                 </button>
@@ -114,6 +108,7 @@ const games = ref([])
 const hoveredVideoId = ref(null)
 const videoStates = reactive({})
 const videoRefs = new Map()
+const initializedVideos = new Set()
 
 const loadGames = async () => {
   try {
@@ -177,6 +172,11 @@ const setupVideoElement = (video, state) => {
   if (playPromise?.then) {
     playPromise.then(() => {
       state.playing = true
+      // 触发响应更新，确保初始图标为“暂停”
+      const key = [...videoRefs.entries()].find(([, el]) => el === video)?.[0]
+      if (key !== undefined) {
+        videoStates[key] = { ...state }
+      }
     }).catch(() => {})
   }
 }
@@ -185,9 +185,13 @@ const setVideoRef = (el, key) => {
   if (el) {
     videoRefs.set(key, el)
     const state = ensureVideoState(key)
-    setupVideoElement(el, state)
+    if (!initializedVideos.has(key)) {
+      setupVideoElement(el, state)
+      initializedVideos.add(key)
+    }
   } else {
     videoRefs.delete(key)
+    initializedVideos.delete(key)
   }
 }
 
@@ -218,40 +222,56 @@ const toggleVideoPlay = (key) => {
   if (!video) return
   const state = ensureVideoState(key)
   if (video.paused) {
-    video.play().then(() => {
+    // 重新允许自动播放并开始
+    video.autoplay = true
+    video.setAttribute('autoplay', '')
+    const p = video.play()
+    if (p?.then) {
+      p.then(() => { 
+        state.playing = true 
+        // 强制触发响应更新
+        videoStates[key] = { ...state }
+      }).catch(() => {})
+    } else {
       state.playing = true
-    }).catch(() => {})
+      videoStates[key] = { ...state }
+    }
   } else {
+    // 暂停并移除自动播放，防止再次自动拉起
     video.pause()
+    video.autoplay = false
+    video.removeAttribute('autoplay')
     state.playing = false
+    videoStates[key] = { ...state }
   }
 }
 
-const toggleVideoMute = (key) => {
-  const video = videoRefs.get(key)
-  if (!video) return
-  const state = ensureVideoState(key)
-  state.muted = !state.muted
-  video.muted = state.muted
-  video.volume = state.muted ? 0 : 1
-  if (!state.muted && video.paused && state.playing !== false) {
-    video.play().catch(() => {})
-  }
-}
 
 const restartVideo = (key) => {
   const video = videoRefs.get(key)
   if (!video) return
   const state = ensureVideoState(key)
   video.currentTime = 0
-  video.play().then(() => {
+  video.autoplay = true
+  video.setAttribute('autoplay', '')
+  const p = video.play()
+  if (p?.then) {
+    p.then(() => { 
+      state.playing = true 
+      videoStates[key] = { ...state }
+    }).catch(() => {})
+  } else {
     state.playing = true
-  }).catch(() => {})
+    videoStates[key] = { ...state }
+  }
 }
 
 const isVideoHovered = (key) => hoveredVideoId.value === key
-const isVideoMuted = (key) => videoStates[key]?.muted ?? true
-const isVideoPlaying = (key) => videoStates[key]?.playing !== false
+const isVideoPlaying = (key) => {
+  const v = videoRefs.get(key)
+  if (v) return !v.paused
+  return videoStates[key]?.playing === true
+}
 
 onMounted(() => {
   loadGames()
@@ -278,5 +298,10 @@ onMounted(() => {
 .video-control-panel .control-btn:hover {
   background: rgba(0, 0, 0, 0.4);
   transform: translateY(-1px);
+}
+
+/* 确保控制面板在视频之上可点 */
+.video-control-panel {
+  z-index: 2;
 }
 </style>
