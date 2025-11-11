@@ -14,7 +14,7 @@
             <p class="text-white/80 mb-6">登录后可以查看您的账户信息和游戏记录</p>
             <button
               @click="openLoginModal"
-              class="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg transition-colors duration-300">
+              class="bg-white hover:bg-white/90 text-black px-6 py-3 rounded-lg transition-colors duration-300">
               立即登录
             </button>
           </div>

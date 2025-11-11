@@ -12,6 +12,14 @@ html {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
+/* Prevent horizontal scrolling globally */
+html,
+body,
+#app {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 *::-webkit-scrollbar {
@@ -32,6 +40,11 @@ body::-webkit-scrollbar-thumb,
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
+}
+
+/* Ensure hero sections never cause horizontal scroll */
+.hero-section {
+  overflow-x: hidden;
 }
 
 * {
@@ -146,7 +159,7 @@ button:active {
 }
 
 .add-game-card {
-  border: 2px dashed #6C5CE7;
+  border: 2px dashed #ffffff;
   transition: all 0.3s ease;
 }
 
@@ -170,7 +183,7 @@ button:active {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6C5CE7;
+  background: #ffffff;
 }
 
 .game-card video {

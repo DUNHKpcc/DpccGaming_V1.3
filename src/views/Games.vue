@@ -7,18 +7,18 @@
           <h1 class="text-3xl font-bold text-white">游戏库</h1>
           <button
             @click="openAddGameModal"
-            class="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg transition-colors duration-300 flex items-center gap-2">
+            class="bg-white hover:bg-white/90 text-[#1d1d1f] px-6 py-3 rounded-lg transition-colors duration-300 flex items-center gap-2">
             <i class="fa fa-plus"></i>
             添加游戏
           </button>
         </div>
         <!-- 筛选菜单部分：改为浮动滑块 -->
     <div 
-      class="filter-menu flex gap-3 mb-4 bg-white/15 backdrop-blur-md rounded-xl p-3 inline-block"
+      class="filter-menu flex gap-3 mb-4 bg-transparent rounded-xl p-3 inline-block"
     >
       <div class="filter-group">
         <button 
-          class="filter-btn bg-primary/90 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-primary"
+          class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90"
           @click="openEngineSlider"
         >
           <i class="fa fa-cogs mr-2"></i>游戏引擎分类
@@ -26,7 +26,7 @@
       </div>
       <div class="filter-group">
         <button 
-          class="filter-btn bg-secondary/90 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-secondary"
+          class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90"
           @click="openCodeSlider"
         >
           <i class="fa fa-code mr-2"></i>代码分类
@@ -107,12 +107,6 @@
                     <button
                       class="control-btn"
                       type="button"
-                      @click.stop="toggleVideoMute(getGameKey(game))">
-                      <i :class="isVideoMuted(getGameKey(game)) ? 'fa fa-volume-mute' : 'fa fa-volume-up'"></i>
-                    </button>
-                    <button
-                      class="control-btn"
-                      type="button"
                       @click.stop="restartVideo(getGameKey(game))">
                       <i class="fa fa-undo"></i>
                     </button>
@@ -122,8 +116,8 @@
                   <img :src="game.thumbnail_url || '/GameImg.jpg'" class="w-full h-full object-cover" />
                 </template>
               </div>
-              <div class="absolute top-4 right-4 bg-primary text-white text-sm font-bold px-3 py-1 rounded-full">
-                {{ game.category || 'action' }}
+              <div class="absolute top-4 right-4 bg-white text-[#1d1d1f] text-sm font-bold px-3 py-1 rounded-full border border-black/10 shadow-sm">
+                {{ categoryToZh(game.category || 'action') }}
               </div>
             </div>
             <div class="p-6">
@@ -135,13 +129,13 @@
                 </div>
               </div>
               <p class="text-white/80 text-sm mb-4">{{ game.description }}</p>
-              <div class="flex items-center text-sm text-primary mb-4">
+              <div class="flex items-center text-sm text-white/80 mb-4">
                 <i class="fa fa-tag mr-2"></i>
-                <span>类别: {{ game.category || 'action' }}</span>
+                <span>类别: {{ categoryToZh(game.category || 'action') }}</span>
                 <i class="fa fa-cogs mr-2 ml-4"></i>
-                <span>引擎: {{ game.engine || 'Cocos' }}</span>
+                <span>引擎: {{ getEngine(game) || 'Cocos' }}</span>
                 <i class="fa fa-code mr-2 ml-4"></i>
-                <span>代码: {{ game.code_type || 'TypeScript' }}</span>
+                <span>代码: {{ getCodeType(game) || 'TypeScript' }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-sm text-white/80">
@@ -151,7 +145,7 @@
                 <div class="flex gap-2">
                   <button
                     @click="playGame(game)"
-                    class="play-game-btn bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-full text-sm transition-all duration-300">
+                    class="play-game-btn bg-white hover:bg-white/90 text-[#1d1d1f] px-4 py-2 rounded-full text-sm transition-all duration-300">
                     立即开始
                   </button>
                 </div>
@@ -165,11 +159,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 import { resolveMediaUrl } from '../utils/media'
 import { gsap } from 'gsap'
+import { categoryToZh } from '../utils/category'
 
 const gameStore = useGameStore()
 const modalStore = useModalStore()
@@ -182,6 +177,7 @@ const filteredGames = ref([])
 const hoveredVideoId = ref(null)
 const videoStates = reactive({})
 const videoRefs = new Map()
+const initializedVideos = new Set()
 
 // 滑块/选项条状态
 const sliderVisible = ref(false)
@@ -214,13 +210,42 @@ const onSliderSelect = (opt) => {
   sliderVisible.value = false
 }
 
-// 应用所有筛选条件
+// 字段读取统一
+const getEngine = (game) => (game.engine || game.game_engine || '').toString().trim()
+const getCodeType = (game) => (game.code_type || game.codeType || game.code_category || '').toString().trim()
+
+// 归一化（同义词、大小写、符号）
+const normalizeEngine = (val) => {
+  const v = (val || '').toString().trim().toLowerCase()
+  if (!v) return ''
+  if (['godot'].includes(v)) return 'godot'
+  if (['unity'].includes(v)) return 'unity'
+  if (['cocos', 'cocos2d', 'cocos-creator', 'cocos creator'].includes(v)) return 'cocos'
+  if (['other', 'others', '其他'].includes(v)) return 'other'
+  return v
+}
+
+const normalizeCodeType = (val) => {
+  const v = (val || '').toString().trim().toLowerCase()
+  if (!v) return ''
+  if (['typescript', 'ts'].includes(v)) return 'typescript'
+  if (['javascript', 'js'].includes(v)) return 'javascript'
+  if (['c#', 'csharp', 'cs'].includes(v)) return 'c#'
+  if (['other', 'others', '其他'].includes(v)) return 'other'
+  return v
+}
+
+// 应用所有筛选条件（大小写不敏感，去空格，兼容多字段名）
 const applyFilters = () => {
+  const selEngine = normalizeEngine(selectedEngine.value)
+  const selCode = normalizeCodeType(selectedCodeType.value)
+
   filteredGames.value = games.value.filter(game => {
-    const engineMatch = selectedEngine.value === 'all' || 
-                       game.engine === selectedEngine.value
-    const codeMatch = selectedCodeType.value === 'all' || 
-                      game.code_type === selectedCodeType.value
+    const engine = normalizeEngine(getEngine(game))
+    const code = normalizeCodeType(getCodeType(game))
+
+    const engineMatch = selEngine === 'all' || (engine && engine === selEngine)
+    const codeMatch = selCode === 'all' || (code && code === selCode)
     return engineMatch && codeMatch
   })
 }
@@ -264,6 +289,7 @@ const loadGames = async () => {
   try {
     await gameStore.loadGames()
     games.value = gameStore.games
+    ensureFeaturedGame()
     applyFilters() 
   } catch (error) {
     console.error('加载游戏失败:', error)
@@ -277,13 +303,37 @@ const loadGames = async () => {
       engine: 'Cocos', 
       code_type: 'TypeScript'
     }]
+    ensureFeaturedGame()
     applyFilters()
   }
 }
 
 const playGame = (game) => {
-  gameStore.recordGamePlay(game.game_id || game.id)
+  const key = game.game_id || game.id
+  // 避免对本地“主卡”占位数据上报玩过记录
+  if (key && !(typeof key === 'string' && key.startsWith('featured-'))) {
+    gameStore.recordGamePlay(key)
+  }
   modalStore.openGameModal(game)
+}
+
+// 将主卡纳入 games 列表，受筛选控制
+const ensureFeaturedGame = () => {
+  const exists = games.value.some(g => (g.game_id || g.id) === 'featured-pixel-escape' || g.title === '像素逃生')
+  if (!exists) {
+    games.value.unshift({
+      id: 'featured-pixel-escape',
+      title: '像素逃生',
+      description: '骑士挥舞刺刀击败骷髅.',
+      average_rating: '0.0',
+      play_count: 0,
+      category: 'action',
+      engine: 'Cocos',
+      code_type: 'TypeScript',
+      thumbnail_url: '/GameImg.jpg',
+      video_url: null
+    })
+  }
 }
 
 const openAddGameModal = () => {
@@ -320,6 +370,10 @@ const setupVideoElement = (video, state) => {
   if (playPromise?.then) {
     playPromise.then(() => {
       state.playing = true
+      const key = [...videoRefs.entries()].find(([, el]) => el === video)?.[0]
+      if (key !== undefined) {
+        videoStates[key] = { ...state }
+      }
     }).catch(() => {})
   }
 }
@@ -328,9 +382,13 @@ const setVideoRef = (el, key) => {
   if (el) {
     videoRefs.set(key, el)
     const state = ensureVideoState(key)
-    setupVideoElement(el, state)
+    if (!initializedVideos.has(key)) {
+      setupVideoElement(el, state)
+      initializedVideos.add(key)
+    }
   } else {
     videoRefs.delete(key)
+    initializedVideos.delete(key)
   }
 }
 
@@ -361,12 +419,26 @@ const toggleVideoPlay = (key) => {
   if (!video) return
   const state = ensureVideoState(key)
   if (video.paused) {
-    video.play().then(() => {
+    // 恢复播放时，确保重新允许自动播放
+    video.autoplay = true
+    video.setAttribute('autoplay', '')
+    const p = video.play()
+    if (p?.then) {
+      p.then(() => { 
+        state.playing = true 
+        videoStates[key] = { ...state }
+      }).catch(() => {})
+    } else {
       state.playing = true
-    }).catch(() => {})
+      videoStates[key] = { ...state }
+    }
   } else {
+    // 暂停时，移除自动播放，避免在hover等场景被重新拉起
     video.pause()
+    video.autoplay = false
+    video.removeAttribute('autoplay')
     state.playing = false
+    videoStates[key] = { ...state }
   }
 }
 
@@ -387,17 +459,35 @@ const restartVideo = (key) => {
   if (!video) return
   const state = ensureVideoState(key)
   video.currentTime = 0
-  video.play().then(() => {
+  video.autoplay = true
+  video.setAttribute('autoplay', '')
+  const p = video.play()
+  if (p?.then) {
+    p.then(() => { 
+      state.playing = true 
+      videoStates[key] = { ...state }
+    }).catch(() => {})
+  } else {
     state.playing = true
-  }).catch(() => {})
+    videoStates[key] = { ...state }
+  }
 }
 
 const isVideoHovered = (key) => hoveredVideoId.value === key
 const isVideoMuted = (key) => videoStates[key]?.muted ?? true
-const isVideoPlaying = (key) => videoStates[key]?.playing !== false
+const isVideoPlaying = (key) => {
+  const v = videoRefs.get(key)
+  if (v) return !v.paused
+  return videoStates[key]?.playing === true
+}
 
 onMounted(() => {
   loadGames()
+})
+
+// 响应筛选变化
+watch([selectedEngine, selectedCodeType, games], () => {
+  applyFilters()
 })
 
 
@@ -425,6 +515,20 @@ onMounted(() => {
 .content-wrapper {
   position: relative;
   z-index: 10;
+}
+
+/* 避免与桌面端悬浮侧边栏（宽80px，距左20px）重叠 */
+@media (min-width: 1024px) {
+  .games-page .content-wrapper {
+    padding-left: 96px; /* 80px 侧边栏 + 16px 安全间距 */
+  }
+}
+
+/* 更宽的屏幕上再多留一些空间（典型 16 寸笔记本分辨率） */
+@media (min-width: 1536px) {
+  .games-page .content-wrapper {
+    padding-left: 120px; /* 额外留白，避免视觉拥挤 */
+  }
 }
 
 .glass-card {
@@ -486,37 +590,38 @@ onMounted(() => {
   gap: 8px;
   padding: 10px;
   border-radius: 14px;
-  background: rgba(255,255,255,0.2);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-  border: 1px solid rgba(255,255,255,0.35);
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid transparent;
   overflow: hidden;
 }
 
-.options-bar.is-engine { background: rgba(59,130,246,0.18); }
-.options-bar.is-code { background: rgba(16,185,129,0.18); }
+.options-bar.is-engine { background: transparent; }
+.options-bar.is-code { background: transparent; }
 
 .option-chip {
   position: relative;
   white-space: nowrap;
   padding: 10px 16px;
   border-radius: 9999px;
-  background: rgba(255,255,255,0.25);
-  color: #fff;
+  background: #ffffff;
+  color: #1d1d1f;
   font-weight: 600;
   font-size: 14px;
-  border: 1px solid rgba(255,255,255,0.35);
-  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  border: 1px solid rgba(0,0,0,0.15);
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease, color 160ms ease;
 }
 
 .option-chip:hover { 
   transform: translateY(-1px);
-  background: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.9);
   box-shadow: 0 6px 18px rgba(0,0,0,0.12);
 }
 
 .option-chip.active {
-  background: rgba(255,255,255,0.5);
-  color: #111827;
+  background: #ffffff;
+  color: #1d1d1f;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.06) inset;
 }
 
 .video-wrapper .game-video {
@@ -531,13 +636,20 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.15);
-  transition: background 0.2s ease, transform 0.2s ease;
+  background: #ffffff;
+  color: #1d1d1f;
+  border: 1px solid rgba(0,0,0,0.15);
+  transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
 }
 
 .video-control-panel .control-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.9);
   transform: translateY(-1px);
+}
+
+/* 确保控制面板在视频之上可点 */
+.video-control-panel {
+  z-index: 2;
 }
 
 .glass-overlay {
@@ -621,8 +733,3 @@ onMounted(() => {
   }
 }
 </style>
-
-
-
-
-

@@ -1,4 +1,4 @@
-// 加载环境变量（如果dotenv可用）
+﻿// 加载环境变量（如果dotenv可用）
 try {
   require('dotenv').config();
 } catch (error) {
@@ -89,6 +89,8 @@ console.log('📁 Upload root resolved to:', SITE_ROOT_PATH);
 
 // 静态文件服务 - 使用与部署目录一致的路径
 app.use('/uploads', express.static(path.join(SITE_ROOT_PATH, 'uploads')));
+// Serve built game directories for local/prod access in iframe
+app.use('/games', express.static(path.join(__dirname, 'games')));
 
 function resolveSiteRootPath() {
   const candidates = [];
@@ -128,6 +130,11 @@ async function ensureUploadDir() {
     const wwwVideoDir = path.join(wwwUploadsDir, 'video');
     await fs.mkdir(wwwVideoDir, { recursive: true });
     await fs.chmod(wwwVideoDir, 0o755);
+
+    // 代码压缩包目录（站点级 uploads/code）
+    const wwwCodeDir = path.join(SITE_ROOT_PATH, 'uploads', 'code');
+    await fs.mkdir(wwwCodeDir, { recursive: true });
+    await fs.chmod(wwwCodeDir, 0o755);
 
     // 仍然创建项目目录下的uploads和games目录，确保临时文件有地方存储
     await fs.mkdir(path.join(__dirname, 'uploads'), { recursive: true });
@@ -341,22 +348,29 @@ app.get('/api/games', async (req, res) => {
     `);
 
     // 格式化游戏数据
-    const formattedGames = games.map(game => ({
-      id: game.id,
-      game_id: game.game_id,
-      title: game.title,
-      description: game.description,
-      category: game.category,
-      engine: game.engine,
-      code_type: game.code_type,
-      video_url: game.video_url,
-      image_url: game.image_url,
-      game_url: game.game_url,
-      created_at: game.created_at,
-      average_rating: parseFloat(game.average_rating).toFixed(1),
-      comment_count: game.comment_count,
-      play_count: game.play_count || 0
-    }));
+    const formattedGames = games.map(game => {
+      const codeZipPath = path.join(SITE_ROOT_PATH, 'uploads', 'code', `${game.game_id}.zip`);
+      const codePackageUrl = fsSync.existsSync(codeZipPath)
+        ? `/uploads/code/${game.game_id}.zip`
+        : null;
+      return {
+        id: game.id,
+        game_id: game.game_id,
+        title: game.title,
+        description: game.description,
+        category: game.category,
+        engine: game.engine,
+        code_type: game.code_type,
+        video_url: game.video_url,
+        image_url: game.image_url,
+        game_url: game.game_url,
+        created_at: game.created_at,
+        average_rating: parseFloat(game.average_rating).toFixed(1),
+        comment_count: game.comment_count,
+        play_count: game.play_count || 0,
+        code_package_url: codePackageUrl
+      };
+    });
 
     res.json({ games: formattedGames });
   } catch (error) {
@@ -365,10 +379,141 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
+// 获取单个游戏详情
+app.get('/api/games/:gameId', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const [rows] = await pool.execute(`
+      SELECT 
+        g.*,
+        COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
+        COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count
+      FROM games g
+      LEFT JOIN comments c ON g.game_id = c.game_id
+      WHERE g.game_id = ?
+    `, [gameId]);
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: '游戏不存在' });
+    }
+
+    const game = rows[0];
+    const codeZipPath = path.join(SITE_ROOT_PATH, 'uploads', 'code', `${game.game_id}.zip`);
+    const codePackageUrl = fsSync.existsSync(codeZipPath) ? `/uploads/code/${game.game_id}.zip` : null;
+
+    res.json({
+      game: {
+        id: game.id,
+        game_id: game.game_id,
+        title: game.title,
+        description: game.description,
+        category: game.category,
+        engine: game.engine,
+        code_type: game.code_type,
+        video_url: game.video_url,
+        image_url: game.image_url,
+        game_url: game.game_url,
+        created_at: game.created_at,
+        average_rating: parseFloat(game.average_rating || 0).toFixed(1),
+        comment_count: game.comment_count || 0,
+        play_count: game.play_count || 0,
+        code_package_url: codePackageUrl
+      }
+    });
+  } catch (error) {
+    console.error('获取游戏详情错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 代码浏览：返回已上传源码（_code 目录）的部分文件内容
+app.get('/api/games/:gameId/code', authenticateToken, async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const baseDir = path.join(__dirname, 'games', gameId);
+    const codeDir = path.join(baseDir, '_code');
+
+    // 选取存在的目录：优先 _code，其次游戏根目录
+    let targetDir = null;
+    if (fsSync.existsSync(codeDir) && fsSync.lstatSync(codeDir).isDirectory()) {
+      targetDir = codeDir;
+    } else if (fsSync.existsSync(baseDir) && fsSync.lstatSync(baseDir).isDirectory()) {
+      targetDir = baseDir;
+    } else {
+      return res.status(404).json({ error: '源码目录不存在' });
+    }
+
+    // 扫描与过滤
+    const exts = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.css', '.scss', '.less', '.html', '.json', '.md', '.c', '.cpp', '.h', '.cs', '.py']);
+    const MAX_FILES = 60;
+    const MAX_FILE_SIZE = 200 * 1024; // 200KB
+
+    const files = [];
+    async function walk(dir) {
+      const items = await fs.readdir(dir, { withFileTypes: true });
+      for (const item of items) {
+        if (files.length >= MAX_FILES) return; // 控制数量
+        const full = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          // 跳过庞大目录
+          if (['node_modules', 'dist', 'build', '.git', '.output', '.cache'].includes(item.name)) continue;
+          await walk(full);
+        } else {
+          const ext = path.extname(item.name).toLowerCase();
+          if (!exts.has(ext)) continue;
+          const rel = path.relative(targetDir, full).replace(/\\/g, '/');
+          try {
+            const stat = await fs.lstat(full);
+            if (stat.size > MAX_FILE_SIZE) continue;
+            const content = await fs.readFile(full, 'utf8');
+            files.push({ path: rel, content });
+          } catch (e) {
+            // 忽略无法读取的文件
+          }
+        }
+      }
+    }
+    await walk(targetDir);
+
+    res.json({ files });
+  } catch (error) {
+    console.error('读取源码失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 源码下载：返回代码压缩包（优先已保存的 zip，否则现打包 _code）
+app.get('/api/games/:gameId/code.zip', authenticateToken, async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const predefinedZip = path.join(SITE_ROOT_PATH, 'uploads', 'code', `${gameId}.zip`);
+    if (fsSync.existsSync(predefinedZip)) {
+      return res.sendFile(predefinedZip);
+    }
+
+    // 尝试现打包 _code 目录
+    const baseDir = path.join(__dirname, 'games', gameId);
+    const codeDir = path.join(baseDir, '_code');
+    if (!fsSync.existsSync(codeDir)) {
+      return res.status(404).json({ error: '未找到可下载的源码包' });
+    }
+    const zip = new AdmZip();
+    zip.addLocalFolder(codeDir);
+    const buffer = zip.toBuffer();
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=${gameId}.zip`);
+    return res.end(buffer);
+  } catch (error) {
+    console.error('下载源码失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
 // 上传游戏
 app.post('/api/games', authenticateToken, upload.fields([
   { name: 'gameFile', maxCount: 1 },
-  { name: 'video', maxCount: 1 }
+  { name: 'video', maxCount: 1 },
+  { name: 'codeArchive', maxCount: 1 }
 ]), async (req, res) => {
   try {
     const { title, category, description, engine, codeType } = req.body;
@@ -376,6 +521,7 @@ app.post('/api/games', authenticateToken, upload.fields([
     const files = req.files;
     const gameFile = files.gameFile && files.gameFile[0];
     const videoFile = files.video && files.video[0];
+    const codeArchiveFile = files.codeArchive && files.codeArchive[0];
     let videoUrl = null;
     if (videoFile) {
       try {
@@ -495,6 +641,31 @@ app.post('/api/games', authenticateToken, upload.fields([
       }
 
       await findThumbnail(gameDir);
+
+      // 如果上传了源码压缩包：保存到站点 uploads/code，并解压到游戏目录 _code 供 Coding 页面浏览
+      try {
+        if (codeArchiveFile) {
+          const codeZipDir = path.join(SITE_ROOT_PATH, 'uploads', 'code');
+          await fs.mkdir(codeZipDir, { recursive: true });
+          const codeZipTarget = path.join(codeZipDir, `${gameId}.zip`);
+
+          try {
+            await fs.copyFile(codeArchiveFile.path, codeZipTarget);
+            await fs.unlink(codeArchiveFile.path).catch(() => { });
+          } catch (e) {
+            await fs.rename(codeArchiveFile.path, codeZipTarget);
+          }
+
+          await fs.chmod(codeZipTarget, 0o644);
+
+          const codeExtractDir = path.join(gameDir, '_code');
+          await fs.mkdir(codeExtractDir, { recursive: true });
+          const codeZip = new AdmZip(codeZipTarget);
+          codeZip.extractAllTo(codeExtractDir, true);
+        }
+      } catch (codeErr) {
+        console.warn('代码压缩包处理失败:', codeErr.message);
+      }
 
       // 保存游戏信息到数据库
       await pool.execute(
@@ -630,19 +801,26 @@ app.get('/api/admin/games/all', authenticateToken, checkAdminPermission, async (
     `);
 
     // 格式化游戏数据
-    const formattedGames = games.map(game => ({
-      id: game.id,
-      game_id: game.game_id,
-      title: game.title,
-      description: game.description,
-      category: game.category,
-      thumbnail_url: game.thumbnail_url,
-      game_url: game.game_url,
-      created_at: game.created_at,
-      average_rating: parseFloat(game.average_rating).toFixed(1),
-      comment_count: game.comment_count,
-      play_count: game.play_count || 0
-    }));
+    const formattedGames = games.map(game => {
+      const codeZipPath = path.join(SITE_ROOT_PATH, 'uploads', 'code', `${game.game_id}.zip`);
+      const codePackageUrl = fsSync.existsSync(codeZipPath)
+        ? `/uploads/code/${game.game_id}.zip`
+        : null;
+      return {
+        id: game.id,
+        game_id: game.game_id,
+        title: game.title,
+        description: game.description,
+        category: game.category,
+        thumbnail_url: game.thumbnail_url,
+        game_url: game.game_url,
+        created_at: game.created_at,
+        average_rating: parseFloat(game.average_rating).toFixed(1),
+        comment_count: game.comment_count,
+        play_count: game.play_count || 0,
+        code_package_url: codePackageUrl
+      };
+    });
 
     res.json({ games: formattedGames });
   } catch (error) {
@@ -1382,6 +1560,21 @@ async function createNotification(userId, type, title, content, relatedGameId = 
 }
 
 // 错误处理中间件
+// 简易 AI 占位接口：回显问题，并结合上下文返回提示
+app.post('/api/ai/code-assistant', async (req, res) => {
+  try {
+    const { prompt, selectedFile, files = [] } = req.body || {};
+    const fileHint = selectedFile ? `针对文件 ${selectedFile}` : '针对当前项目';
+    const fileList = Array.isArray(files) && files.length
+      ? `（收到 ${files.length} 个文件索引）`
+      : '';
+    const answer = `已收到你的问题："${(prompt || '').toString().slice(0, 200)}"。${fileHint}${fileList}。\n\n暂未接入真实 AI 服务，此为占位回复。建议：\n- 明确期望行为与错误现象\n- 附上相关文件与关键代码片段\n- 指明引擎/框架版本，便于定位问题。`;
+    res.json({ answer });
+  } catch (error) {
+    res.status(500).json({ message: 'AI 服务暂不可用' });
+  }
+});
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: '服务器内部错误' });
