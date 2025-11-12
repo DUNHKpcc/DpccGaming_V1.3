@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="game-showcase-section relative min-h-[80vh] py-24 overflow-hidden">
     <!-- 背景纯黑 -->
     <div class="absolute inset-0 bg-black"></div>
@@ -44,11 +44,6 @@
                    alt="像素逃生" 
                    class="w-full h-full object-cover rounded-t-2xl"
                    loading="lazy">
-                 <div class="image-overlay">
-                   <div class="play-button">
-                     <i class="fa fa-play text-4xl text-white"></i>
-                   </div>
-                 </div>
                </div>
                
                <!-- 游戏信息 -->
@@ -67,7 +62,7 @@
                      <i class="fa fa-gamepad mr-1"></i>
                      动作游戏
                    </span>
-                   <button class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300">
+                   <button class="bg-black text-white px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300">
                      立即游玩
                    </button>
                  </div>
@@ -319,6 +314,65 @@ const executeCardAnimation = (cards) => {
 // 防抖变量
 let animationInProgress = false
 
+// 初始化滚动卡片动画（一张一张从上至下出现）
+const initScrollCardAnimations = () => {
+  const cards = [...cardRefs.value.filter(Boolean), mainCard.value]
+  
+  // 设置标题初始状态
+  gsap.set([sectionTitle.value, sectionSubtitle.value], {
+    opacity: 0,
+    y: 30
+  })
+  
+  // 标题动画
+  gsap.to([sectionTitle.value, sectionSubtitle.value], {
+    opacity: 1,
+    y: 0,
+    duration: 0.8,
+    ease: "power2.out",
+    scrollTrigger: {
+      trigger: '.game-showcase-section',
+      start: 'top 70%',
+      end: 'bottom 30%',
+      toggleActions: 'play none none reverse'
+    }
+  })
+
+  // 为每个卡片创建独立的滚动触发器
+  cards.forEach((card, index) => {
+    if (!card) return
+    
+    // 设置卡片初始状态（从上方出现）
+    gsap.set(card, {
+      opacity: 0,
+      y: -100 - (index * 30), // 每个卡片从更上方开始
+      x: (index - 2) * 20, // 轻微的左右偏移
+      scale: 0.8 + (index * 0.03),
+      rotationY: (index - 2) * 5,
+      rotationX: 0
+    })
+    
+    // 为每个卡片创建独立的滚动触发器
+    ScrollTrigger.create({
+      trigger: card,
+      start: 'top 85%',
+      end: 'bottom 15%',
+      toggleActions: 'play none none reverse',
+      animation: gsap.to(card, {
+        opacity: 1,
+        y: index === cards.length - 1 ? 5 * -5 : index * -5,
+        x: 0,
+        scale: index === cards.length - 1 ? 1 : 0.8 + (index * 0.05),
+        rotationY: index === cards.length - 1 ? 5 * 2 : index * 2,
+        rotationX: 0,
+        duration: 1.2,
+        ease: "power2.out",
+        delay: index * 0.3 // 每个卡片依次延迟出现
+      })
+    })
+  })
+}
+
 // 初始化动画
 const initAnimations = () => {
   // 首先设置卡片的初始隐藏状态
@@ -343,82 +397,7 @@ const initAnimations = () => {
     y: 20
   })
 
-  // 创建时间线动画，使用ScrollTrigger
-  const tl = gsap.timeline({
-    scrollTrigger: {
-      trigger: '.game-showcase-section',
-      start: 'top 85%',
-      end: 'bottom 15%',
-      toggleActions: 'play none none reverse',
-      refreshPriority: -1, // 降低刷新优先级
-      onEnter: () => {
-        if (animationInProgress) return // 防止重复触发
-        animationInProgress = true
-        
-        // 延迟执行，确保DOM完全渲染
-        setTimeout(() => {
-          // 重新获取所有卡片元素
-          const glassCards = document.querySelectorAll('.glass-card')
-          const mainCardElement = document.querySelector('.main-game-card')
-          
-          const allCards = [...glassCards, mainCardElement].filter(Boolean)
-          
-          if (allCards.length === 0) {
-            animationInProgress = false
-            return
-          }
-          
-          // 设置所有卡片的初始状态
-          allCards.forEach((card, index) => {
-            if (!card) return
-            gsap.set(card, {
-              opacity: 0,
-              y: 30,
-              scale: 0.9,
-              rotationY: 0,
-              rotationX: 0
-            })
-          })
-          
-          // 重新设置标题状态
-          if (sectionTitle.value) {
-            gsap.set(sectionTitle.value, { opacity: 0, y: 20 })
-          }
-          if (sectionSubtitle.value) {
-            gsap.set(sectionSubtitle.value, { opacity: 0, y: 20 })
-          }
-          
-          // 执行动画
-          executeCardAnimation(allCards)
-          
-          // 延迟重置标志
-          setTimeout(() => {
-            animationInProgress = false
-          }, 2000)
-        }, 100) // 100ms延迟确保DOM渲染完成
-      },
-      onLeave: () => {
-        // 简化重置逻辑
-        const currentCards = [...cardRefs.value.filter(Boolean), mainCard.value]
-        currentCards.forEach((card, index) => {
-          if (!card) return
-          gsap.set(card, {
-            opacity: 0,
-            y: 30,
-            scale: 0.9,
-            rotationY: 0,
-            rotationX: 0
-          })
-        })
-      },
-      onEnterBack: () => {
-        // ScrollTrigger 返回
-      },
-      onLeaveBack: () => {
-        // ScrollTrigger 离开返回
-      }
-    }
-  })
+  // 取消滚动触发的动画效果
 
   // 主卡片悬停效果
   if (mainCard.value) {
@@ -492,10 +471,10 @@ onMounted(async () => {
   // 确保游戏数据已加载
   await gameStore.loadGames()
 
+  // 初始化滚动卡片动画（一张一张从上至下出现）
   setTimeout(() => {
-    initAnimations()
-    initScrollAnimations()
-  }, 500) // 增加延迟时间
+    initScrollCardAnimations()
+  }, 300)
 })
 
 onUnmounted(() => {
@@ -637,26 +616,6 @@ onUnmounted(() => {
 
 .card-content:hover .image-overlay {
   opacity: 1;
-}
-
-/* 播放按钮 */
-.play-button {
-  width: 80px;
-  height: 80px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.play-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
 }
 
 /* 卡片信息 */

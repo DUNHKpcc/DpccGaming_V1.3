@@ -1,10 +1,85 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* 主题变量 - 暗色模式（默认） */
 :root {
   --scrollbar-thumb: #1d1d1f;
   --scrollbar-track: rgba(255, 255, 255, 0.12);
+
+  /* 主题颜色变量 */
+  --bg-primary: #000000;
+  --bg-secondary: #1d1d1f;
+  --bg-tertiary: #2e2e30;
+  --text-primary: #ffffff;
+  --text-secondary: #f3f4f6;
+  --text-tertiary: #d1d5db;
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-secondary: rgba(255, 255, 255, 0.16);
+
+  /* 按钮颜色 */
+  --btn-primary-bg: #ffffff;
+  --btn-primary-text: #000000;
+  --btn-primary-hover-bg: #f3f4f6;
+  --btn-secondary-bg: #2e2e30;
+  --btn-secondary-text: #f3f4f6;
+  --btn-secondary-hover-bg: #3a3a3d;
+
+  /* 毛玻璃效果 */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-backdrop: blur(10px);
+
+  /* 遮罩过渡颜色 */
+  --theme-overlay-dark: #000000;
+  --theme-overlay-light: #ffffff;
+}
+
+/* 亮色模式变量 */
+[data-theme="light"] {
+  --scrollbar-thumb: #e2e8f0;
+  --scrollbar-track: #f7fafc;
+
+  /* 主题颜色变量 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f4;
+  --text-primary: #1a202c;
+  --text-secondary: #2d3748;
+  --text-tertiary: #4a5568;
+  --border-primary: rgba(0, 0, 0, 0.08);
+  --border-secondary: rgba(0, 0, 0, 0.16);
+
+  /* 按钮颜色 */
+  --btn-primary-bg: #000000;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover-bg: #2d3748;
+  --btn-secondary-bg: #f8f9fa;
+  --btn-secondary-text: #4a5568;
+  --btn-secondary-hover-bg: #e2e8f0;
+
+  /* 灰色毛玻璃效果 */
+  --glass-bg: rgba(0, 0, 0, 0.05);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-backdrop: blur(8px);
+
+  /* 遮罩过渡颜色 */
+  --theme-overlay-dark: #ffffff;
+  --theme-overlay-light: #ffffff;
+}
+
+/* 主题过渡动画 */
+* {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    backdrop-filter 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 主题过渡遮罩动画 */
+#theme-transition-overlay {
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 html {
@@ -199,9 +274,21 @@ button:active {
 }
 
 .video-play-button {
+  /* 暗色模式 */
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.3s ease;
+}
+
+/* 亮色模式下的视频播放按钮 */
+[data-theme="light"] .video-play-button {
+  background: rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #2d3748;
 }
 
 .video-play-button:hover {
@@ -307,6 +394,7 @@ button:active {
   left: 0;
   width: 100vw;
   height: 70vh;
+  /* 暗色模式 */
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -318,6 +406,17 @@ button:active {
   box-shadow:
     0 -10px 30px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* 亮色模式下的全屏评论面板 */
+[data-theme="light"] .fullscreen-comments-panel {
+  background: rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 -10px 30px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .fullscreen-comments-panel.active {

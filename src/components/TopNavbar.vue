@@ -22,6 +22,14 @@
 
       <!-- 右侧：用户操作 -->
       <div class="navbar-right">
+        <!-- 主题切换按钮 -->
+        <button 
+          @click="toggleTheme"
+          class="theme-toggle-btn"
+          :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'">
+          <i :class="isDark ? 'fa fa-sun' : 'fa fa-moon'"></i>
+        </button>
+        
         <!-- 登录状态 -->
         <div v-if="!isLoggedIn" class="auth-buttons">
           <button 
@@ -74,15 +82,18 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
+import { useThemeStore } from '../stores/theme'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
+const themeStore = useThemeStore()
 
 const showDropdown = ref(false)
 const isAdmin = ref(false)
 
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
+const isDark = computed(() => themeStore.isDark)
 
 // 检查管理员权限
 const checkAdminPermission = async () => {
@@ -137,6 +148,10 @@ const logout = () => {
   closeDropdown()
 }
 
+const toggleTheme = () => {
+  themeStore.toggleTheme()
+}
+
 // 点击外部关闭下拉菜单
 const handleClickOutside = (event) => {
   if (!event.target.closest('.dropdown')) {
@@ -160,9 +175,18 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 30;
+  /* 暗色模式（默认） */
   background: rgb(29, 29, 31);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 亮色模式下的导航栏 */
+[data-theme="light"] .top-navbar {
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
 }
 
 .navbar-content {
@@ -186,6 +210,7 @@ onUnmounted(() => {
   width: 2.5rem;
   height: 2.5rem;
   border: none;
+  /* 暗色模式（默认） */
   background: #2e2e30;
   border-radius: 0.5rem;
   color: #f3f4f6;
@@ -194,15 +219,34 @@ onUnmounted(() => {
 }
 
 .menu-button:hover {
+  /* 暗色模式（默认） */
   background: #3a3a3d;
   color: #ffffff;
+}
+
+/* 亮色模式下的菜单按钮 */
+[data-theme="light"] .menu-button {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+[data-theme="light"] .menu-button:hover {
+  background: #e5e7eb;
+  color: #111827;
 }
 
 .navbar-title {
   font-size: 1.25rem;
   font-weight: bold;
+  /* 暗色模式（默认） */
   color: #f9fafb;
   margin: 0;
+  transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 亮色模式下的标题 */
+[data-theme="light"] .navbar-title {
+  color: #000000;
 }
 
 .title-link {
@@ -223,12 +267,53 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
+/* 主题切换按钮样式 */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  background: #2e2e30;
+  border-radius: 0.5rem;
+  color: #f3f4f6;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle-btn:hover {
+  background: #3a3a3d;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.theme-toggle-btn i {
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+/* 亮色模式下的主题切换按钮 */
+[data-theme="light"] .theme-toggle-btn {
+  background: #f8f9fa;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .theme-toggle-btn:hover {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+
 .auth-buttons {
   display: flex;
   gap: 0.5rem;
 }
 
 .btn-primary {
+  /* 暗色模式（默认） */
   background: #ffffff;
   color: #000000;
   border: none;
@@ -240,11 +325,24 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover {
+  /* 暗色模式（默认） */
   background: #f3f4f6;
   color: #000000;
 }
 
+/* 亮色模式下的主按钮 */
+[data-theme="light"] .btn-primary {
+  background: #000000;
+  color: #ffffff;
+}
+
+[data-theme="light"] .btn-primary:hover {
+  background: #333333;
+  color: #ffffff;
+}
+
 .btn-secondary {
+  /* 暗色模式（默认） */
   background: #ffffff;
   color: #000000;
   border: 1px solid #ffffff;
@@ -256,8 +354,21 @@ onUnmounted(() => {
 }
 
 .btn-secondary:hover {
+  /* 暗色模式（默认） */
   background: #f9fafb;
   color: #374151;
+}
+
+/* 亮色模式下的次要按钮 */
+[data-theme="light"] .btn-secondary {
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #000000;
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #333333;
+  color: #ffffff;
 }
 
 .user-menu {
@@ -287,7 +398,14 @@ onUnmounted(() => {
 
 .username {
   font-weight: 500;
+  /* 暗色模式（默认） */
   color: #ffffff;
+  transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 亮色模式下的用户名 */
+[data-theme="light"] .username {
+  color: #1f2937;
 }
 
 .dropdown {
@@ -318,8 +436,8 @@ onUnmounted(() => {
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: rgb(0, 0, 0);
-  border: 1px solid #000000;
+  background: rgb(29, 29, 31);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   min-width: 12rem;
@@ -367,6 +485,15 @@ onUnmounted(() => {
   
   .navbar-right {
     gap: 0.5rem;
+  }
+  
+  .theme-toggle-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  
+  .theme-toggle-btn i {
+    font-size: 0.875rem;
   }
   
   .auth-buttons {

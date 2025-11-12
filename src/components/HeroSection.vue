@@ -19,15 +19,17 @@
 
           <!-- Removed middle hero-waves container per request -->
 
-          <p v-if="heroSubtitleText" ref="heroSubtitle" class="hero-subtitle text-black/80 uppercase tracking-[0.4em]">
+          <p v-if="heroSubtitleText" ref="heroSubtitle" class="hero-subtitle text-black/80 uppercase tracking-[0.4em] font-bold">
             {{ heroSubtitleText }}
           </p>
           <div ref="heroActions" class="hero-actions flex flex-col sm:flex-row items-center gap-4">
-            <button @click="scrollToGames" class="hero-button">
-              立即开始
+            <button @click="scrollToGames" class="hero-button btn-23">
+              <span class="text">PLAY</span>
+              <span class="marquee" aria-hidden="true">PLAY</span>
             </button>
-            <button @click="scrollToFeatures" class="hero-button">
-              了解更多
+            <button @click="scrollToFeatures" class="hero-button btn-23">
+              <span class="text">MORW</span>
+              <span class="marquee" aria-hidden="true">MORW</span>
             </button>
           </div>
         </div>
@@ -384,10 +386,76 @@ if (!customElements.get('a-waves')) {
   customElements.define('a-waves', AWaves)
 }
 
+// 主题状态管理
+const isLightTheme = ref(false)
+
+// 动态设置AWaves组件的颜色
+const updateAWavesColors = () => {
+  const wavesElements = document.querySelectorAll('a-waves')
+  wavesElements.forEach(waves => {
+    const paths = waves.querySelectorAll('path')
+    const beforeElements = waves.querySelectorAll('::before')
+    
+    if (isLightTheme.value) {
+      // 亮色模式：设置为黑色
+      paths.forEach(path => {
+        path.style.stroke = '#000000'
+        path.style.strokeWidth = '1px'
+        path.style.fill = 'none'
+        // 使用!important确保覆盖
+        path.style.setProperty('stroke', '#000000', 'important')
+      })
+      
+      // 设置::before伪元素的背景色
+      waves.style.setProperty('--waves-dot-color', '#000000')
+    } else {
+      // 暗色模式：设置为浅色
+      paths.forEach(path => {
+        path.style.stroke = '#efecec'
+        path.style.strokeWidth = '1px'
+        path.style.fill = 'none'
+        path.style.setProperty('stroke', '#efecec', 'important')
+      })
+      
+      waves.style.setProperty('--waves-dot-color', '#fff7f7')
+    }
+  })
+}
+
+// 监听主题变化
+const observeThemeChanges = () => {
+  const checkTheme = () => {
+    const currentTheme = document.documentElement.getAttribute('data-theme')
+    const wasLight = isLightTheme.value
+    isLightTheme.value = currentTheme === 'light'
+    
+    // 只有在主题确实改变时才更新颜色
+    if (wasLight !== isLightTheme.value) {
+      updateAWavesColors()
+    }
+  }
+  
+  // 初始检查
+  checkTheme()
+  
+  // 监听DOM属性变化
+  const observer = new MutationObserver(checkTheme)
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme']
+  })
+  
+  // 定期检查（备用方案）
+  setInterval(checkTheme, 1000)
+}
+
 onMounted(() => {
   requestAnimationFrame(() => {
     initAnimations()
     initScrollAnimations()
+    observeThemeChanges()
+    // 延迟执行以确保AWaves组件已渲染
+    setTimeout(updateAWavesColors, 100)
   })
 })
 
@@ -403,13 +471,19 @@ onUnmounted(() => {
 
 <style scoped>
   .hero-section {
-    /* Light background to match line work */
-    background-color: #f4ece7;
+    /* 暗色模式（默认） */
+    background-color: #000000;
     padding: 0;
     height: 94vh;
     width: 100%;
     overflow-x: clip;
     overflow-y: visible;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* 亮色模式下的hero section */
+  [data-theme="light"] .hero-section {
+    background-color: #ffffff;
   }
   
 
@@ -469,12 +543,28 @@ onUnmounted(() => {
   font-size: clamp(110px, min(12vw, 26vh), 280px);
   font-weight: 900;
   letter-spacing: 0.04em;
-  color: #000;
+  /* 暗色模式（默认） */
+  color: #fff9f9;
+  transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 亮色模式下的标题颜色 */
+[data-theme="light"] .hero-title-line--small,
+[data-theme="light"] .hero-title-line--large {
+  color: #000000;
 }
 /* Remove gradient; use solid black text */
 
 .hero-subtitle {
   font-size: clamp(1rem, 2vw, 1.35rem);
+  /* 暗色模式（默认） */
+  color: #ffffff;
+  transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 亮色模式下的subtitle颜色 */
+[data-theme="light"] .hero-subtitle {
+  color: #000000;
 }
 
 .hero-image-wrapper {
@@ -521,15 +611,64 @@ onUnmounted(() => {
   left: 0;
   width: 0.5rem;
   height: 0.5rem;
-  background: #160000;
+  /* 暗色模式（默认） */
+  background: #fff7f7;
   border-radius: 50%;
   transform: translate3d(calc(var(--x) - 50%), calc(var(--y) - 50%), 0);
   will-change: transform;
   content: "";
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 亮色模式下的waves小点 */
+html[data-theme="light"] a-waves::before {
+  background: var(--waves-dot-current) !important;
+}
+
+/* 暗色模式下的waves小点 */
+html[data-theme="dark"] a-waves::before {
+  background: var(--waves-dot-current) !important;
 }
 
 :deep(a-waves) svg { display: block; width: 100%; height: 100%; }
-:deep(a-waves) path { fill: none; stroke: #160000; stroke-width: 1px; }
+:deep(a-waves) path { 
+  fill: none; 
+  /* 暗色模式（默认） */
+  stroke: #efecec; 
+  stroke-width: 1px; 
+  transition: stroke 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 全局CSS变量定义 */
+:root {
+  --waves-stroke-dark: #efecec;
+  --waves-dot-dark: #fff7f7;
+  --waves-stroke-light: #000000;
+  --waves-dot-light: #000000;
+}
+
+html[data-theme="light"] {
+  --waves-stroke-current: var(--waves-stroke-light);
+  --waves-dot-current: var(--waves-dot-light);
+}
+
+html[data-theme="dark"] {
+  --waves-stroke-current: var(--waves-stroke-dark);
+  --waves-dot-current: var(--waves-dot-dark);
+}
+
+/* 测试样式 - 直接覆盖AWaves路径 */
+a-waves path, 
+a-waves svg path {
+  stroke: var(--waves-stroke-current) !important;
+  stroke-width: 1px !important;
+  fill: none !important;
+}
+
+/* 测试样式 - 直接覆盖AWaves小点 */
+a-waves::before {
+  background: var(--waves-dot-current) !important;
+}
 
 .hero-actions {
   display: flex;
@@ -545,19 +684,118 @@ onUnmounted(() => {
   padding: 0.9rem 2.75rem;
   transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, color 0.3s ease;
   border: none;
+  background: transparent;
+  padding: 0;
   cursor: pointer;
 }
+.hero-button:focus {
+  outline: none;
+}
 
-.hero-button:hover {
+.hero-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 4px;
+  border-radius: 9999px;
+}
+
+.btn-23,
+.btn-23 *,
+.btn-23 :after,
+.btn-23 :before,
+.btn-23:after,
+.btn-23:before {
+  border: 0 solid;
+  box-sizing: border-box;
+}
+
+.btn-23 {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: button;
+  background-color: #000;
+  background-image: none;
+  color: #fff;
+  cursor: pointer;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.5;
+  margin: 0;
+  -webkit-mask-image: -webkit-radial-gradient(#000, #fff);
+  padding: 0;
+  text-transform: uppercase;
+  border-radius: 99rem;
+  border-width: 2px;
+  overflow: hidden;
+  padding: 0.8rem 3rem;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 10rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.btn-23:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.btn-23 span {
+  display: grid;
+  inset: 0;
+  place-items: center;
+  position: absolute;
+  transition: opacity 0.2s ease;
+}
+
+.btn-23 .marquee {
+  --spacing: 5em;
+  --start: 0em;
+  --end: 5em;
+  animation: marquee 1s linear infinite;
+  animation-play-state: paused;
+  opacity: 0;
+  position: relative;
+  text-shadow: #fff var(--spacing) 0, #fff calc(var(--spacing) * -1) 0, #fff calc(var(--spacing) * -2) 0;
+}
+
+.btn-23:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 20px 35px rgba(255, 255, 255, 0.18);
 }
 
-.hero-button:active {
+.btn-23:hover .marquee {
+  animation-play-state: running;
+  opacity: 1;
+}
+
+.btn-23:hover .text {
+  opacity: 0;
+}
+
+.btn-23:active {
   transform: translateY(0);
   box-shadow: 0 12px 24px rgba(255, 255, 255, 0.12);
 }
 
+@-webkit-keyframes marquee {
+  0% {
+    transform: translateX(var(--start));
+  }
+
+  100% {
+    transform: translateX(var(--end));
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(var(--start));
+  }
+
+  100% {
+    transform: translateX(var(--end));
+  }
+}
 @media (max-width: 768px) {
   .hero-section {
     padding: 0;

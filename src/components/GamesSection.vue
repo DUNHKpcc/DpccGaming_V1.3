@@ -9,7 +9,7 @@
         <div 
           v-for="game in games" 
           :key="game.id"
-          class="fade-in-up game-card bg-white rounded-xl overflow-hidden game-card-hover">
+          class="fade-in-up game-card bg-white rounded-none border border-black/10 overflow-hidden game-card-hover">
           <div 
             class="video-wrapper relative w-full h-48 overflow-hidden mb-2"
             @mouseenter="handleVideoEnter(getGameKey(game))"
@@ -81,7 +81,7 @@
 
         <!-- 添加游戏卡片 -->
         <div 
-          class="fade-in-up add-game-card bg-white rounded-xl overflow-hidden h-full flex flex-col items-center justify-center p-6 cursor-pointer"
+          class="fade-in-up add-game-card bg-white rounded-none border border-black/10 overflow-hidden h-full flex flex-col items-center justify-center p-6 cursor-pointer"
           @click="openAddGameModal">
           <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <i class="fa fa-plus text-primary text-3xl"></i>
