@@ -77,22 +77,22 @@ const removeNotification = (id) => {
 }
 
 .notification-success {
-  background: linear-gradient(135deg, #0800fc, #ff00ea);
+  background-color: rgb(0, 0, 0);
   color: white;
 }
 
 .notification-error {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background-color: rgb(0, 0, 0);
   color: white;
 }
 
 .notification-warning {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background-color: rgb(255, 0, 0);
   color: white;
 }
 
 .notification-info {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background-color: rgb(0, 0, 0);
   color: white;
 }
 

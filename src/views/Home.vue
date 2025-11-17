@@ -5,7 +5,6 @@
     
     <!-- 游戏展示区域 -->
     <GameShowcase />
-    
     <!-- 页脚 -->
     <footer class="text-white py-8" style="background-color: rgb(29, 29, 31);">
       <div class="container mx-auto px-4 text-center">

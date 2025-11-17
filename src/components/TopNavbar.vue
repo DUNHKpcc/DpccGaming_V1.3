@@ -1,9 +1,7 @@
 <template>
   <header class="top-navbar">
     <div class="navbar-content">
-      <!-- 左侧：移动端菜单和标题 -->
       <div class="navbar-left">
-        <!-- 移动端菜单按钮 -->
         <button 
           @click="toggleSidebar"
           class="menu-button"
@@ -11,7 +9,6 @@
           <i class="fa fa-bars"></i>
         </button>
         
-        <!-- 网站标题/Logo -->
         <div class="navbar-title">
           <router-link to="/" class="title-link">
             <img src="/logo.png" alt="DpccGaming Logo" class="w-6 h-6 mr-2">
@@ -20,17 +17,14 @@
         </div>
       </div>
 
-      <!-- 右侧：用户操作 -->
       <div class="navbar-right">
-        <!-- 主题切换按钮 -->
         <button 
           @click="toggleTheme"
           class="theme-toggle-btn"
           :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'">
-          <i :class="isDark ? 'fa fa-sun' : 'fa fa-moon'"></i>
+          <i class="fa fa-adjust" aria-hidden="true"></i>
         </button>
-        
-        <!-- 登录状态 -->
+
         <div v-if="!isLoggedIn" class="auth-buttons">
           <button 
             @click="openLoginModal"

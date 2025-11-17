@@ -15,5 +15,6 @@
             "database": "DpccGaming"
         }
     ],
-    "files.autoSave": "onFocusChange"
+    "files.autoSave": "onFocusChange",
+    "chatgpt.openOnStartup": false
 }
