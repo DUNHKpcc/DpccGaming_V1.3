@@ -1,18 +1,18 @@
 <template>
-  <section class="game-showcase-section relative min-h-[80vh] py-24 overflow-hidden">
-    <!-- 背景纯黑 -->
-    <div class="absolute inset-0 bg-black"></div>
+  <section class="game-showcase-section relative min-h-[80vh] py-24 overflow-hidden" :class="isDark ? 'theme-dark' : 'theme-light'">
+    <!-- 背景层 -->
+    <div class="section-bg absolute inset-0"></div>
     
-    <!-- 背景装饰元素（隐藏以保持纯黑） -->
+    <!-- 背景装饰元素（占位） -->
     <div class="hidden"></div>
 
     <div class="container mx-auto px-4 relative z-10">
       <!-- 标题区域 -->
       <div class="text-center mb-24">
-        <h2 ref="sectionTitle" class="fade-in-up text-4xl md:text-6xl font-bold text-white mb-6">
+        <h2 ref="sectionTitle" class="fade-in-up section-title text-4xl md:text-6xl font-bold mb-6">
           精选游戏
         </h2>
-        <p ref="sectionSubtitle" class="fade-in-up text-xl text-white/80 max-w-2xl mx-auto">
+        <p ref="sectionSubtitle" class="fade-in-up section-subtitle text-xl max-w-2xl mx-auto">
           探索我们的游戏收藏，每一款都经过精心挑选
         </p>
       </div>
@@ -47,22 +47,23 @@
                </div>
                
                <!-- 游戏信息 -->
-               <div class="card-info bg-white/90 backdrop-blur-md p-6 rounded-b-2xl">
+               <div class="card-info main-card-surface p-6 rounded-b-2xl">
                  <div class="flex items-center justify-between mb-4">
-                   <h3 class="text-2xl font-bold text-gray-800">像素逃生</h3>
+                   <h3 class="text-2xl font-bold main-card-title">像素逃生</h3>
                    <div class="flex items-center">
                      <i class="fa fa-star text-yellow-500 mr-1"></i>
-                     <span class="text-gray-700">1.0
-                     </span>
+                     <span class="rating-text">1.0</span>
                    </div>
                  </div>
-                 <p class="text-gray-600 mb-4">骑士挥舞刺刀击败骷髅的像素风格动作游戏</p>
+                 <p class="main-card-description mb-4">
+                   骑士挥舞刺刀击败骷髅的像素风格动作游戏
+                 </p>
                  <div class="flex items-center justify-between">
-                   <span class="text-sm text-gray-500">
+                   <span class="text-sm main-card-meta">
                      <i class="fa fa-gamepad mr-1"></i>
                      动作游戏
                    </span>
-                   <button class="bg-black text-white px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300">
+                   <button class="primary-play-btn px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300">
                      立即游玩
                    </button>
                  </div>
@@ -114,16 +115,20 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useModalStore } from '../stores/modal'
 import { useGameStore } from '../stores/game'
+import { useThemeStore } from '../stores/theme'
 
 // 注册GSAP插件
 gsap.registerPlugin(ScrollTrigger)
 
 const modalStore = useModalStore()
 const gameStore = useGameStore()
+const themeStore = useThemeStore()
+const { isDark } = storeToRefs(themeStore)
 
 // 响应式数据
 const cardRefs = ref([])
@@ -137,7 +142,7 @@ const sectionSubtitle = ref(null)
 const mainCard = ref(null)
 const cardsContainer = ref(null)
 
-// 毛玻璃卡片数据
+// ???????
 const glassCards = ref([
   { id: 1, title: '精选游戏 1' },
   { id: 2, title: '精选游戏 2' },
@@ -146,7 +151,7 @@ const glassCards = ref([
   { id: 5, title: '精选游戏 5' }
 ])
 
-// 打开主游戏
+// ?????
 const openMainGame = () => {
   const game = {
     id: 'web-mobile-001',
@@ -159,6 +164,9 @@ const openMainGame = () => {
   }
   modalStore.openGameModal(game)
 }
+
+
+
 
 // 打开添加游戏模态框
 const openAddGameModal = () => {
@@ -487,10 +495,46 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 主容器样式 */
+/* ????? */
 .game-showcase-section {
-  background: black;
   position: relative;
+  background: #000000;
+  color: #ffffff;
+}
+
+.game-showcase-section.theme-light {
+  background: #ffffff;
+  color: #000000;
+}
+
+.game-showcase-section.theme-dark .section-bg {
+  background: #000000;
+}
+
+.game-showcase-section.theme-light .section-bg {
+  background: #ffffff;
+}
+
+.section-bg {
+  opacity: 1;
+  pointer-events: none;
+  transition: background 0.3s ease;
+}
+
+.section-title {
+  color: #ffffff;
+}
+
+.section-subtitle {
+  color: #ffffff;
+}
+
+.game-showcase-section.theme-light .section-title {
+  color: #000000;
+}
+
+.game-showcase-section.theme-light .section-subtitle {
+  color: #000000;
 }
 
 /* 叠加卡片容器 */
@@ -538,10 +582,10 @@ onUnmounted(() => {
 .card-content {
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
   border-radius: 1.5rem;
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.1),
@@ -559,6 +603,22 @@ onUnmounted(() => {
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transform: translateY(-5px);
 }
+.game-showcase-section.theme-light .glass-card .card-content {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 8px 32px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.glass-card .card-content i {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.game-showcase-section.theme-light .glass-card .card-content i {
+  color: #475569;
+}
+
 
 /* 主游戏卡片 - 保持白色背景 */
 .main-game-card .card-content {
@@ -626,6 +686,56 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: space-between;
 }
+.main-card-surface {
+  background: #000000;
+  border: 1px solid #000000;
+  color: #ffffff;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+
+.game-showcase-section.theme-dark .main-card-surface {
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  color: #000000;
+  box-shadow: 0 18px 50px rgba(255, 255, 255, 0.2);
+}
+
+.main-card-title {
+  color: inherit;
+}
+
+.main-card-description {
+  color: #ffffff;
+  line-height: 1.6;
+}
+
+.game-showcase-section.theme-dark .main-card-description {
+  color: #111827;
+}
+
+.main-card-meta,
+.rating-text {
+  color: #e5e7eb;
+}
+
+.game-showcase-section.theme-dark .main-card-meta,
+.game-showcase-section.theme-dark .rating-text {
+  color: #111827;
+}
+
+.primary-play-btn {
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  box-shadow: none;
+  transition: all 0.2s ease;
+}
+
+.primary-play-btn:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
 
 /* 毛玻璃装饰 */
 .glass-decoration {

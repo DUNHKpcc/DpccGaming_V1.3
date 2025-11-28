@@ -11,10 +11,22 @@
         
         <div class="navbar-title">
           <router-link to="/" class="title-link">
-            <img src="/logo.png" alt="DpccGaming Logo" class="w-6 h-6 mr-2">
+            <img 
+              :src="currentLogo" 
+              alt="DpccGaming Logo" 
+              class="logo-image mr-2">
             DpccGaming
           </router-link>
         </div>
+
+        <nav class="main-nav-links">
+          <router-link to="/blog" class="nav-link" active-class="nav-link-active">
+            Blog
+          </router-link>
+          <router-link to="/docs" class="nav-link" active-class="nav-link-active">
+            Docs
+          </router-link>
+        </nav>
       </div>
 
       <div class="navbar-right">
@@ -88,6 +100,11 @@ const isAdmin = ref(false)
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const isDark = computed(() => themeStore.isDark)
+
+// 根据主题动态返回logo路径
+const currentLogo = computed(() => {
+  return isDark.value ? '/logo.png' : '/logo_light.png'
+})
 
 // 检查管理员权限
 const checkAdminPermission = async () => {
@@ -165,10 +182,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 .top-navbar {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 30;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   /* 暗色模式（默认） */
   background: rgb(29, 29, 31);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -197,6 +218,50 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
+.main-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: 1.5rem;
+}
+
+.nav-link {
+  padding: 0.35rem 0.9rem;
+  border-radius: 9999px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #e5e7eb;
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-link-active {
+  background: #ffffff;
+  color: #000000;
+  border-color: transparent;
+}
+
+[data-theme="light"] .nav-link {
+  color: #1f2937;
+}
+
+[data-theme="light"] .nav-link:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .nav-link-active {
+  background: #000000;
+  color: #ffffff;
+}
+
 .menu-button {
   display: flex;
   align-items: center;
@@ -204,7 +269,6 @@ onUnmounted(() => {
   width: 2.5rem;
   height: 2.5rem;
   border: none;
-  /* 暗色模式（默认） */
   background: #2e2e30;
   border-radius: 0.5rem;
   color: #f3f4f6;
@@ -213,7 +277,6 @@ onUnmounted(() => {
 }
 
 .menu-button:hover {
-  /* 暗色模式（默认） */
   background: #3a3a3d;
   color: #ffffff;
 }
@@ -253,6 +316,24 @@ onUnmounted(() => {
 
 .title-link:hover {
   color: #676767;
+}
+
+/* Logo样式 */
+.logo-image {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 1;
+}
+
+.logo-image:hover {
+  transform: scale(1.05);
+}
+
+/* 亮色模式下的logo样式 */
+[data-theme="light"] .logo-image {
+  opacity: 1;
 }
 
 .navbar-right {
@@ -438,6 +519,11 @@ onUnmounted(() => {
   z-index: 50;
 }
 
+[data-theme="light"] .dropdown-menu {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 .dropdown-item {
   display: flex;
   align-items: center;
@@ -452,11 +538,13 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-
-
 .dropdown-item i {
   width: 1rem;
   text-align: center;
+}
+
+[data-theme="light"] .dropdown-item {
+  color: #1f2937;
 }
 
 @media (max-width: 768px) {

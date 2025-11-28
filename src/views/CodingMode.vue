@@ -7,14 +7,14 @@
       </div>
       <div class="flex items-center gap-3">
         <button
-          class="soft-btn"
+          class="soft-btn-Chinese"
           @click="reloadCodeBundle"
           :disabled="codeLoading"
         >
           <i :class="codeLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
           <span>刷新源码</span>
         </button>
-        <button class="soft-btn" @click="goBack">
+        <button class="soft-btn-Chinese" @click="goBack">
           <i class="fa fa-arrow-left"></i>
           <span>返回</span>
         </button>
@@ -22,7 +22,6 @@
     </header>
 
     <div class="coding-mode-grid">
-      <!-- 左侧：游戏运行 -->
       <section class="coding-panel game-panel">
         <div class="panel-header">
           <div>
@@ -37,14 +36,20 @@
               <i class="fa fa-spinner fa-spin text-2xl mb-2"></i>
               <p>正在加载游戏…</p>
             </div>
-            <iframe
+            <div
               v-else-if="gameLaunchUrl"
-              :src="gameLaunchUrl"
-              class="coding-game-frame"
-              frameborder="0"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups"
-              allowfullscreen
-            ></iframe>
+              class="game-frame-inner"
+            >
+              <iframe
+                :src="gameLaunchUrl"
+                ref="gameFrameRef"
+                class="coding-game-frame"
+                frameborder="0"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups"
+                allowfullscreen
+                @load="onGameFrameLoad"
+              ></iframe>
+            </div>
             <div v-else class="game-placeholder">
               <i class="fa fa-exclamation-circle text-2xl mb-2"></i>
               <p>尚未配置游戏运行地址</p>
@@ -81,8 +86,8 @@
               :disabled="!codingGame?.codePackageUrl"
               @click="downloadFullCode"
             >
-              <i class="fa fa-file-zipper"></i>
-              <span>下载源码</span>
+              <i class="fa-solid fa-download"></i>
+              <span>Download</span>
             </button>
           </div>
         </div>
@@ -96,11 +101,16 @@
           <div class="code-meta">
             <span class="file-name">{{ selectedFile.path }}</span>
             <button class="soft-btn" @click="copyCode">
-              <i class="fa fa-copy"></i>
-              <span>复制</span>
+              <i class="fa-solid fa-copy"></i>
+              <span>Copy</span>
             </button>
           </div>
-          <pre class="code-view"><code>{{ selectedFile.content }}</code></pre>
+          <pre class="code-view">
+            <code
+              class="hljs"
+              v-html="highlightedCode"
+            ></code>
+          </pre>
         </div>
         <div class="code-content" v-else>
           <div class="code-placeholder">
@@ -126,34 +136,112 @@
             class="chat-message"
             :class="message.role"
           >
-            <div class="bubble">
-              <p>{{ message.text }}</p>
-              <small>{{ message.timestamp }}</small>
+            <div class="bubble" :class="{ pending: message.thinking }">
+              <div class="bubble-content">
+                <i v-if="message.thinking" class="fa fa-spinner fa-spin text-xs"></i>
+                <p>{{ message.text }}</p>
+              </div>
+              <small v-if="!message.thinking">{{ message.timestamp }}</small>
             </div>
           </div>
         </div>
         <form class="chat-input" @submit.prevent="sendMessage">
-          <textarea
-            v-model="userInput"
-            rows="3"
-            placeholder="向 AI 咨询实现原理、BUG 或优化建议…"
-          ></textarea>
-          <button class="soft-btn primary" type="submit" :disabled="aiLoading || !userInput.trim()">
-            <i :class="aiLoading ? 'fa fa-spinner fa-spin' : 'fa fa-paper-plane'"></i>
-            <span>{{ aiLoading ? '思考中...' : '发送' }}</span>
-          </button>
+          <div class="chat-composer">
+            <div class="composer-header">
+              <div class="context-pill" :class="{ muted: !selectedFile }">
+                <i class="fa fa-paperclip"></i>
+                <span class="context-name">
+                  {{ selectedFile?.path}}
+                </span>
+              </div>
+              <button type="button" class="context-add" title="?????">
+                <i class="fa fa-plus"></i>
+              </button>
+            </div>
+            <textarea
+              v-model="userInput"
+              rows="3"
+              class="chat-textarea"
+              placeholder="Describe what to build next"
+            ></textarea>
+            <div class="composer-footer">
+              <div class="footer-left">
+                <button type="button" class="ghost-pill">
+                  <span>Agent</span>
+                  <i class="fa fa-chevron-down"></i>
+                </button>
+                <div class="model-inline" tabindex="0" @blur="modelDropdownOpen = false">
+                  <button type="button" class="ghost-pill" @click="modelDropdownOpen = !modelDropdownOpen">
+                    <img
+                      v-if="selectedModelOption?.image"
+                      :src="selectedModelOption.image"
+                      alt=""
+                      class="model-avatar"
+                    />
+                    <span>{{ selectedModelOption?.label || '????' }}</span>
+                    <i class="fa fa-chevron-down"></i>
+                  </button>
+                  <div v-if="modelDropdownOpen" class="model-dropdown">
+                    <button
+                      v-for="option in modelOptions"
+                      :key="option.value"
+                      type="button"
+                      class="model-option"
+                      @mousedown.prevent="selectedModel = option.value; modelDropdownOpen = false"
+                    >
+                      <img v-if="option.image" :src="option.image" alt="" class="model-avatar" />
+                      <div class="model-copy">
+                        <span class="option-label">{{ option.label }}</span>
+                        <small class="option-sub">{{ option.value }}</small>
+                      </div>
+                      <i v-if="selectedModel === option.value" class="fa fa-check option-check"></i>
+                    </button>
+                  </div>
+                </div>
+                <button type="button" class="ghost-icon" title="???????">
+                  <i class="fa fa-screwdriver-wrench"></i>
+                </button>
+              </div>
+              <div class="footer-right">
+                <button
+                  class="icon-btn primary"
+                  type="submit"
+                  :disabled="aiLoading || !userInput.trim()"
+                >
+                  <i :class="aiLoading ? 'fa fa-spinner fa-spin' : 'fa fa-paper-plane'"></i>
+                </button>
+              </div>
+            </div>
+          </div>
         </form>
+
       </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import xml from 'highlight.js/lib/languages/xml'
+import css from 'highlight.js/lib/languages/css'
+import json from 'highlight.js/lib/languages/json'
 import { useGameStore } from '../stores/game'
 import { useNotificationStore } from '../stores/notification'
 import { resolveMediaUrl } from '../utils/media'
+
+// 注册常用语言，覆盖当前页面需求
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('css', css)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('html', xml)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('vue', xml)
+
 
 const route = useRoute()
 const router = useRouter()
@@ -170,6 +258,21 @@ const selectedFilePath = ref('')
 const userInput = ref('')
 const aiLoading = ref(false)
 const chatThreadRef = ref(null)
+const selectedModel = ref('doubao-seed-1-6-251015')
+const modelOptions = [
+  { label: 'DoubaoSeed 1.6', value: 'doubao-seed-1-6-251015', image: '/Ai/DouBaoSeed1.6.png' },
+  { label: 'DeepSeekR1', value: 'doubao-seed-1-8-20241115', image: '/Ai/DeepSeekR1.png' },
+  { label: '通用轻量模型', value: 'general-lite', image: '/Ai/DouBaoSeed1.6.png' }
+]
+const gameFrameRef = ref(null)
+let gameFrameMeasureAttempts = 0
+let lastGameFrameWidth = 0
+let lastGameFrameHeight = 0
+const pendingAssistantIndex = ref(null)
+const modelDropdownOpen = ref(false)
+const selectedModelOption = computed(() =>
+  modelOptions.find(item => item.value === selectedModel.value) || modelOptions[0]
+)
 
 const chatMessages = ref([
   {
@@ -188,6 +291,98 @@ const filteredFiles = computed(() => {
 const selectedFile = computed(() =>
   codeFiles.value.find(file => file.path === selectedFilePath.value) || null
 )
+
+const highlightedCode = computed(() => {
+  if (!selectedFile.value) return ''
+  const lang = selectedFile.value.language || detectLanguage(selectedFile.value.path)
+  const content = selectedFile.value.content || ''
+  try {
+    return hljs.highlight(content, { language: lang }).value
+  } catch (error) {
+    return hljs.highlightAuto(content).value
+  }
+})
+
+const applyGameFrameScale = (nativeWidth, nativeHeight) => {
+  const iframe = gameFrameRef.value
+  if (!iframe || !nativeWidth || !nativeHeight) return
+  const container = iframe.parentElement
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+
+  const scale = Math.min(
+    rect.width / nativeWidth,
+    rect.height / nativeHeight,
+    1
+  )
+
+  iframe.style.width = `${nativeWidth}px`
+  iframe.style.height = `${nativeHeight}px`
+  iframe.style.transformOrigin = 'center center'
+  iframe.style.transform = `scale(${scale})`
+}
+
+const measureAndScaleGameFrame = () => {
+  const iframe = gameFrameRef.value
+  if (!iframe || gameFrameMeasureAttempts > 20) return
+
+  gameFrameMeasureAttempts += 1
+
+  try {
+    const win = iframe.contentWindow
+    const doc = win?.document
+    const body = doc?.body
+    const html = doc?.documentElement
+
+    const nativeWidth = Math.max(
+      win?.innerWidth || 0,
+      html?.clientWidth || 0,
+      body?.clientWidth || 0,
+      body?.scrollWidth || 0,
+      body?.offsetWidth || 0
+    )
+
+    const nativeHeight = Math.max(
+      win?.innerHeight || 0,
+      html?.clientHeight || 0,
+      body?.clientHeight || 0,
+      body?.scrollHeight || 0,
+      body?.offsetHeight || 0
+    )
+
+    if (nativeWidth && nativeHeight) {
+      // 只在尺寸变大时更新缩放，避免放大
+      if (
+        nativeWidth !== lastGameFrameWidth ||
+        nativeHeight !== lastGameFrameHeight
+      ) {
+        lastGameFrameWidth = nativeWidth
+        lastGameFrameHeight = nativeHeight
+        applyGameFrameScale(nativeWidth, nativeHeight)
+      }
+    }
+  } catch (error) {
+    // 跨域等情况下直接让 iframe 自适应容器
+    const iframeEl = gameFrameRef.value
+    if (iframeEl) {
+      iframeEl.style.width = '100%'
+      iframeEl.style.height = '100%'
+      iframeEl.style.transform = ''
+    }
+    return
+  }
+
+  // 在游戏初始化阶段连续测量几次，等分辨率稳定
+  setTimeout(measureAndScaleGameFrame, 300)
+}
+
+const onGameFrameLoad = () => {
+  gameFrameMeasureAttempts = 0
+  lastGameFrameWidth = 0
+  lastGameFrameHeight = 0
+  measureAndScaleGameFrame()
+}
 
 const gameLaunchUrl = computed(() => {
   if (!codingGame.value) return ''
@@ -286,11 +481,7 @@ const copyCode = async () => {
   }
 }
 
-const appendMessage = (payload) => {
-  chatMessages.value.push({
-    ...payload,
-    timestamp: new Date().toLocaleTimeString()
-  })
+const scrollChatToBottom = () => {
   nextTick(() => {
     const el = chatThreadRef.value
     if (el) {
@@ -299,14 +490,74 @@ const appendMessage = (payload) => {
   })
 }
 
+const appendMessage = (payload) => {
+  chatMessages.value.push({
+    ...payload,
+    timestamp: new Date().toLocaleTimeString()
+  })
+  scrollChatToBottom()
+}
+
+const sanitizeAiText = (text = '') => {
+  return text
+    .replace(/```[\s\S]*?```/g, match => match.replace(/```/g, ''))
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\[(.*?)\]\([^)]+\)/g, '$1')
+    .trim()
+}
+
+const buildChatHistory = () =>
+  chatMessages.value
+    .filter(msg => !msg.thinking)
+    .map(msg => ({ role: msg.role, text: msg.text }))
+
+const buildPrompt = (question) => {
+  return [
+    question,
+    '请根据问题自行判断是否需要结合代码回答；若问题与代码无关，请直接回答用户问题，不要强行围绕代码展开。',
+    '输出使用简洁中文，不要带 Markdown 标题、列表符号或装饰符号。'
+  ].join('\n\n')
+}
+
+const showThinkingMessage = () => {
+  pendingAssistantIndex.value = chatMessages.value.length
+  appendMessage({
+    role: 'assistant',
+    text: 'AI 正在思考...',
+    thinking: true
+  })
+}
+
+const resolveThinkingMessage = (text) => {
+  const cleanText = sanitizeAiText(text || '')
+  const index = pendingAssistantIndex.value
+  if (index !== null && chatMessages.value[index]) {
+    chatMessages.value[index] = {
+      ...chatMessages.value[index],
+      text: cleanText,
+      thinking: false,
+      timestamp: new Date().toLocaleTimeString()
+    }
+  } else {
+    appendMessage({ role: 'assistant', text: cleanText })
+  }
+  pendingAssistantIndex.value = null
+  scrollChatToBottom()
+}
+
 const sendMessage = async () => {
   const content = userInput.value.trim()
   if (!content) return
+  const prompt = buildPrompt(content)
   appendMessage({ role: 'user', text: content })
   userInput.value = ''
   aiLoading.value = true
+  showThinkingMessage()
   try {
-    // TODO: 将下面的占位符替换为实际的 AI 服务端点与鉴权信息
     const response = await fetch('/api/ai/code-assistant', {
       method: 'POST',
       headers: {
@@ -314,26 +565,26 @@ const sendMessage = async () => {
         // 'Authorization': `Bearer ${import.meta.env.VITE_AI_API_KEY}`
       },
       body: JSON.stringify({
-        prompt: content,
+        prompt,
         gameId: gameId.value,
         selectedFile: selectedFile.value?.path,
         fileContent: selectedFile.value?.content,
-        files: codeFiles.value.map(file => ({ path: file.path, language: file.language }))
+        files: codeFiles.value.map(file => ({ path: file.path, language: file.language })),
+        model: selectedModel.value,
+        history: buildChatHistory()
       })
     })
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.message || 'AI 服务暂不可用')
     }
-    appendMessage({
-      role: 'assistant',
-      text: data.answer || data.message || 'AI 已收到请求，但没有返回具体内容。'
-    })
+    resolveThinkingMessage(
+      data.answer || data.message || 'AI 已收到请求，但没有返回具体内容。'
+    )
   } catch (error) {
-    appendMessage({
-      role: 'assistant',
-      text: `抱歉，调用 AI 失败：${error.message || '未知错误'}`
-    })
+    resolveThinkingMessage(
+      `抱歉，调用 AI 失败：${error.message || '未知错误'}`
+    )
   } finally {
     aiLoading.value = false
   }
@@ -347,12 +598,15 @@ watch(gameId, async () => {
 
 <style scoped>
 .coding-mode-page {
-  min-height: 100vh;
-  background: radial-gradient(circle at top, rgba(108, 92, 231, 0.25), transparent 45%) #0f0f13;
-  padding: 2rem;
+  --navbar-height: 72px;
+  height: calc(100vh - var(--navbar-height));
+  background: black;
+  padding: 1rem 0.75rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .coding-mode-header {
@@ -365,17 +619,39 @@ watch(gameId, async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: rgba(255, 255, 255, 0.15);
+  background: white;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff;
+  color: black;
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
   transition: all 0.2s ease;
+  font-family: 'Bebas Neue', cursive;
 }
 
+.soft-btn-Chinese {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: black;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  font-weight: 550;
+}
+
+
 .soft-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.25);
+  background: #f7f7f7;
+  color: #111;
+  border-color: rgba(255, 255, 255, 0.35);
   transform: translateY(-1px);
 }
 
@@ -385,7 +661,7 @@ watch(gameId, async () => {
 }
 
 .soft-btn.primary {
-  background: linear-gradient(120deg, #8a7dff, #5dd8ff);
+  background:white;
   border: none;
   color: #141414;
   font-weight: 600;
@@ -393,26 +669,34 @@ watch(gameId, async () => {
 
 .coding-mode-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1.5fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 0.8fr 2fr 0.8fr;
+  grid-template-rows: 1fr;
+  grid-auto-rows: 1fr;
+  gap: 1rem;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
 }
 
 .coding-panel {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 24px;
-  padding: 1.5rem;
+  border-radius: 0;
+  padding: 0.5rem;
   backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.25rem;
 }
 
 .panel-label {
@@ -420,12 +704,16 @@ watch(gameId, async () => {
   letter-spacing: 0.2em;
   font-size: 0.65rem;
   color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
 }
 
 .panel-title {
   font-size: 1.2rem;
   font-weight: 600;
   color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .panel-subtle {
@@ -436,27 +724,38 @@ watch(gameId, async () => {
 .game-stage {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
 }
 
 .game-frame-box {
   width: 100%;
-  max-width: 420px;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   margin: 0 auto;
-  aspect-ratio: 9 / 16;
-  border-radius: 20px;
+  border-radius: 0;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.45);
   position: relative;
 }
 
+.game-frame-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .coding-game-frame {
-  width: 100%;
-  height: 100%;
   border: none;
   background: #000;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .game-placeholder {
@@ -474,25 +773,51 @@ watch(gameId, async () => {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .code-search,
 .code-file-selector {
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: #fff;
+  border: 1px solid #ccc;
+  color: #111;
   border-radius: 999px;
-  padding: 0.35rem 0.9rem;
-  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.code-actions .soft-btn {
+  background: #fff;
+  color: #111;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  height: 42px;
+  padding: 0 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.code-actions .soft-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  transform: none;
 }
 
 .code-content {
   flex: 1;
   min-height: 0;
   background: rgba(0, 0, 0, 0.4);
-  border-radius: 18px;
+  border-radius: 0;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 1rem;
+  padding: 0.5rem;
   color: #f8f8f2;
   font-family: 'Fira Code', Consolas, monospace;
   overflow: hidden;
@@ -504,18 +829,68 @@ watch(gameId, async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .file-name {
   font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
 }
 
 .code-view {
   flex: 1;
   overflow: auto;
   margin: 0;
-  white-space: pre-wrap;
+  white-space: pre;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+:deep(.hljs) {
+  display: block;
+  padding: 0.75rem;
+  line-height: 1.5;
+  background: transparent;
+  color: #e8edf2;
+}
+
+:deep(.hljs-comment),
+:deep(.hljs-quote) {
+  color: #6a9955;
+}
+
+:deep(.hljs-keyword),
+:deep(.hljs-selector-tag),
+:deep(.hljs-literal),
+:deep(.hljs-name) {
+  color: #c586c0;
+}
+
+:deep(.hljs-string),
+:deep(.hljs-doctag),
+:deep(.hljs-template-variable),
+:deep(.hljs-meta .hljs-string) {
+  color: #ce9178;
+}
+
+:deep(.hljs-title),
+:deep(.hljs-section),
+:deep(.hljs-type) {
+  color: #4ec9b0;
+}
+
+:deep(.hljs-number),
+:deep(.hljs-attr) {
+  color: #b5cea8;
+}
+
+:deep(.hljs-attribute) {
+  color: #9cdcfe;
 }
 
 .code-placeholder {
@@ -553,15 +928,30 @@ watch(gameId, async () => {
 .chat-message .bubble {
   max-width: 90%;
   padding: 0.75rem 1rem;
-  border-radius: 18px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
   font-size: 0.9rem;
 }
 
+.chat-message .bubble-content {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chat-message .bubble.pending {
+  opacity: 0.9;
+  font-style: italic;
+}
+
+.chat-message .bubble p {
+  margin: 0;
+}
+
 .chat-message.user .bubble {
-  background: linear-gradient(120deg, rgba(138, 125, 255, 0.9), rgba(93, 216, 255, 0.9));
+  background: white;
   color: #161616;
   font-weight: 600;
 }
@@ -575,22 +965,260 @@ watch(gameId, async () => {
 
 .chat-input {
   margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
 }
 
-.chat-input textarea {
-  width: 100%;
-  border-radius: 16px;
+.chat-composer {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.35));
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.context-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e7edf5;
+  min-width: 0;
+  flex: 1;
+}
+
+.context-pill.muted {
+  opacity: 0.65;
+}
+
+.context-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-tag {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.context-add {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 0.8rem;
-  background: rgba(0, 0, 0, 0.4);
-  color: #fff;
+  color: #e7edf5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.context-add:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.chat-textarea {
+  width: 100%;
+  border: none;
+  padding: 0.5rem 0.15rem;
+  background: transparent;
+  color: #f6f8fb;
   resize: none;
+  font-size: 1rem;
+  line-height: 1.6;
+  min-height: 68px;
+}
+
+.chat-textarea:focus {
+  outline: none;
+}
+
+.chat-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ghost-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: #e7edf5;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ghost-pill:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.model-inline {
+  position: relative;
+}
+
+.model-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.model-dropdown {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  background: #0f1116;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  min-width: 230px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  padding: 0.35rem;
+  z-index: 10;
+}
+
+.model-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #e9efff;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.model-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.model-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.option-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-sub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.option-check {
+  margin-left: auto;
+  color: #8fe3c9;
+}
+
+.ghost-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e7edf5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ghost-icon:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e7edf5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-btn.primary {
+  background:white;
+  border: none;
+  color: #0b0c10;
+  box-shadow: 0 8px 20px rgba(38, 193, 242, 0.35);
+}
+
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.icon-btn:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 @media (max-width: 1280px) {
+  .coding-mode-page {
+    height: calc(100vh - var(--navbar-height));
+    margin-top: var(--navbar-height);
+    overflow: hidden;
+  }
+
+  .coding-mode-grid {
+    flex: none;
+  }
+
   .coding-mode-grid {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }

@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
     <!-- 侧边栏 -->
-    <Sidebar ref="sidebarRef" />
+    <Sidebar v-if="showSidebar" ref="sidebarRef" />
     
     <!-- 主内容区域 -->
     <div ref="mainContent" class="main-content">
@@ -29,7 +29,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import TopNavbar from './components/TopNavbar.vue'
 import GameModal from './components/GameModal.vue'
@@ -43,7 +44,9 @@ import { useAuthStore } from './stores/auth'
 const authStore = useAuthStore()
 const sidebarRef = ref(null)
 const mainContent = ref(null)
+const route = useRoute()
 
+const showSidebar = computed(() => !route.meta?.hideSidebar)
 
 onMounted(async () => {
   await authStore.checkAuthStatus()
@@ -67,6 +70,12 @@ onMounted(async () => {
     }
   })
 })
+
+watch(showSidebar, (visible) => {
+  if (!visible && mainContent.value) {
+    mainContent.value.style.marginLeft = '0px'
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -81,6 +90,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   margin-left: 0; /* 默认无边距 */
+  margin-top: 4rem; /* 为固定导航栏留出空间 */
   transition: margin-left 0.3s ease;
 }
 
@@ -94,6 +104,19 @@ onMounted(async () => {
   .main-content {
     margin-left: 0; /* 默认无边距，侧边栏完全隐藏 */
     transition: margin-left 0.3s ease;
+  }
+}
+
+/* 小屏幕下的导航栏调整 */
+@media (max-width: 768px) {
+  .main-content {
+    margin-top: 3.5rem; /* 移动端稍小的高度 */
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    margin-top: 3rem; /* 更小屏幕下的高度 */
   }
 }
 </style>

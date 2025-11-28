@@ -1,11 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Games from '../views/Games.vue'
+import Blog from '../views/Blog.vue'
 import Account from '../views/Account.vue'
 import AdminPanel from '../components/AdminPanel.vue'
 import UserManagement from '../components/UserManagement.vue'
 import GameManagement from '../components/GameManagement.vue'
 import CodingMode from '../views/CodingMode.vue'
+import DocsPlaceholder from '../views/DocsPlaceholder.vue'
 
 const routes = [
   {
@@ -17,6 +19,11 @@ const routes = [
     path: '/games',
     name: 'Games',
     component: Games
+  },
+  {
+    path: '/blog',
+    name: 'Blog',
+    component: Blog
   },
   {
     path: '/account',
@@ -45,7 +52,13 @@ const routes = [
     path: '/coding/:id',
     name: 'CodingMode',
     component: CodingMode,
-    props: true
+    props: true,
+    meta: { hideSidebar: true }
+  },
+  {
+    path: '/docs',
+    name: 'Docs',
+    component: DocsPlaceholder
   }
 ]
 

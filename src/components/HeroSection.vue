@@ -7,8 +7,14 @@
     <!-- Banner title pinned to section bottom -->
     <div class="hero-heading">
       <h1 ref="heroTitle" class="hero-title uppercase" aria-label="DPCC GAMING">
-        <span class="hero-title-line hero-title-line--small">DPCC</span>
-        <span class="hero-title-line hero-title-line--large">GAMING</span>
+        <FuzzyText
+          class="hero-title-line hero-title-line--small"
+          text="DPCC"
+        />
+        <FuzzyText
+          class="hero-title-line hero-title-line--large"
+          text="GAMING"
+        />
       </h1>
     </div>
     <!-- Content on top -->
@@ -43,6 +49,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import FuzzyText from './FuzzyText.vue'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -54,7 +61,7 @@ const heroSubtitle = ref(null)
 const heroImage = ref(null)
 const heroActions = ref(null)
 
-const heroSubtitleText = '为个人开发者打造的游戏聚合平台'
+const heroSubtitleText = 'A game aggregation platform for individual developers'
 
 let heroTimeline = null
 
@@ -470,8 +477,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
   .hero-section {
-    /* 暗色模式（默认） */
     background-color: #000000;
     padding: 0;
     height: 94vh;
@@ -481,7 +489,6 @@ onUnmounted(() => {
     transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* 亮色模式下的hero section */
   [data-theme="light"] .hero-section {
     background-color: #ffffff;
   }
@@ -508,14 +515,13 @@ onUnmounted(() => {
   bottom: 0;
   padding: 0 1rem clamp(1.25rem, 3vh, 2.5rem);
   z-index: 20;
-  pointer-events: none;
 }
 
 .hero-title {
   display: flex;
   flex-direction: row;
   align-items: baseline;
-  justify-content: flex-start;
+  justify-content: center;
   gap: clamp(1rem, 2vw, 2rem);
   width: 100%;
   white-space: nowrap;
@@ -523,48 +529,61 @@ onUnmounted(() => {
   margin-bottom: 15px;
 }
 
-  .hero-title-line {
-    display: block;
-    line-height: 0.8;
-    letter-spacing: 0.04em;
+:deep(.hero-title-line) {
+  display: block;
+  line-height: 0.8;
+  letter-spacing: 0.04em;
+  transform: scaleY(1.3);
+  transform-origin: bottom center;
+  font-family: 'Bebas Neue', cursive;
+}
+@media (max-width: 640px) {
+  :deep(.hero-title-line--small),
+  :deep(.hero-title-line--large) {
+    font-size: clamp(48px, 18vw, 150px);
     transform: scaleY(1.3);
-    transform-origin: bottom center;
   }
-  @media (max-width: 640px) {
-    .hero-title-line--small,
-    .hero-title-line--large {
-      font-size: clamp(48px, 18vw, 150px);
-      transform: scaleY(1.3);
-    }
-  }
+}
 
-.hero-title-line--small,
-.hero-title-line--large {
+:deep(.hero-title-line--small),
+:deep(.hero-title-line--large) {
   font-size: clamp(110px, min(12vw, 26vh), 280px);
   font-weight: 900;
   letter-spacing: 0.04em;
-  /* 暗色模式（默认） */
   color: #fff9f9;
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 亮色模式下的标题颜色 */
-[data-theme="light"] .hero-title-line--small,
-[data-theme="light"] .hero-title-line--large {
+:deep([data-theme="light"] .hero-title-line--small),
+:deep([data-theme="light"] .hero-title-line--large) {
   color: #000000;
+  font-weight: 800;
+  font-family: "Bebas Neue", Gadget, sans-serif;
+  letter-spacing: 0.1em;
+  transform: translateX(6px);
+}
+
+:deep([data-theme="dark"] .hero-title-line--small),
+:deep([data-theme="dark"] .hero-title-line--large) {
+  color: #ffffff;
+  font-weight: 800;
+  font-family: "Bebas Neue", Gadget, sans-serif;
+  letter-spacing: 0.1em;
+  transform: translateX(6px);
 }
 /* Remove gradient; use solid black text */
 
 .hero-subtitle {
   font-size: clamp(1rem, 2vw, 1.35rem);
-  /* 暗色模式（默认） */
   color: #ffffff;
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: "Bebas Neue", Gadget, sans-serif;
 }
 
-/* 亮色模式下的subtitle颜色 */
+
 [data-theme="light"] .hero-subtitle {
   color: #000000;
+  font-family: "Bebas Neue", Gadget, sans-serif;
 }
 
 .hero-image-wrapper {

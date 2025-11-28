@@ -148,13 +148,13 @@ const navItems = ref([
   {
     name: '游戏库',
     path: '/games',
-    icon: 'fa fa-gamepad',
+    icon: 'fa fa-laptop',
     description: '浏览所有游戏，发现有趣的HTML5游戏'
   },
   {
     name: '账户详情',
     path: '/account',
-    icon: 'fa fa-user',
+    icon: 'fa fa-users',
     description: '管理您的账户信息和个人设置'
   }
 ])
@@ -348,7 +348,7 @@ defineExpose({
   left: 20px;
   transform: translateY(-50%);
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(29, 29, 31);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -362,6 +362,15 @@ defineExpose({
   min-height: 300px;
   transition: width 0.4s ease;
   overflow: hidden;
+}
+
+/* 亮色模式下的悬浮侧边栏毛玻璃效果 */
+[data-theme="light"] .floating-sidebar {
+  background: rgba(240, 242, 245, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .floating-sidebar.sidebar-expanded {
@@ -409,14 +418,31 @@ defineExpose({
   width: 50px;
   height: 50px;
   border-radius: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(40, 40, 45, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
   transition: all 0.3s ease;
   cursor: pointer;
+}
+
+/* 亮色模式下的导航图标 */
+[data-theme="light"] .nav-icon {
+  background: rgba(250, 250, 252, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="light"] .nav-icon:hover {
+  background: rgba(240, 240, 245, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  color: rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="light"] .nav-icon-active {
+  background: rgba(220, 220, 225, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  color: rgba(0, 0, 0, 0.9);
 }
 
 .nav-icon:hover {
@@ -452,9 +478,7 @@ defineExpose({
 }
 
 .details-content {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(50, 50, 55, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 15px;
   padding: 20px;
@@ -466,6 +490,15 @@ defineExpose({
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* 亮色模式下的详细信息面板 */
+[data-theme="light"] .details-content {
+  background: rgba(248, 249, 250, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .details-icon {
@@ -496,6 +529,24 @@ defineExpose({
   margin: 0 0 8px 0;
 }
 
+.details-icon i {
+  color: white;
+  font-size: 24px;
+}
+
+/* 亮色模式下的详细信息文字颜色 */
+[data-theme="light"] .details-icon i {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] .details-title {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="light"] .details-description {
+  color: rgba(0, 0, 0, 0.7);
+}
+
 .details-description {
   color: rgba(255, 255, 255, 0.8);
   font-size: 14px;
@@ -516,6 +567,12 @@ defineExpose({
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+}
+
+/* 亮色模式下的移动端侧边栏 */
+[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-mobile {

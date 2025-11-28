@@ -50,7 +50,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div class="text-center">
                     <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-gamepad text-2xl text-[#1d1d1f]"></i>
+                      <i class="fa fa-laptop text-2xl text-[#1d1d1f]"></i>
                     </div>
                     <div class="text-2xl font-bold text-white">{{ totalGamesPlayed }}</div>
                     <div class="text-sm text-white/80">总游戏次数</div>
@@ -77,7 +77,7 @@
                 <div>
                   <h4 class="text-lg font-bold text-white mb-4">最近游戏记录</h4>
                   <div v-if="recentGames.length === 0" class="text-center py-8 text-white/80">
-                    <i class="fa fa-gamepad text-4xl mb-4"></i>
+                    <i class="fa fa-laptop text-4xl mb-4"></i>
                     <p>还没有游戏记录</p>
                   </div>
                   <div v-else class="space-y-3">
@@ -87,7 +87,7 @@
                       class="flex items-center justify-between p-3 bg-white/10 backdrop-blur-sm rounded-lg">
                       <div class="flex items-center">
                         <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center mr-3">
-                          <i class="fa fa-gamepad text-[#1d1d1f]"></i>
+                          <i class="fa fa-laptop text-[#1d1d1f]"></i>
                         </div>
                         <div>
                           <div class="font-medium text-white">{{ game.title }}</div>

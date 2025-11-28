@@ -142,6 +142,20 @@ npm start
 4. 游戏文件需要放在`games/`目录下
 5. 详细配置说明请查看 `CONFIG_CHECKLIST.md`
 
+### AI 助手配置（火山方舟 Doubao）
+
+在项目根目录创建或更新 `.env` 文件，新增以下键值（可根据需要覆盖默认值）：
+
+```bash
+ARK_API_KEY=904fb2f6-8bfc-4c0b-baff-41a85380fd9e
+# ARK_API_URL=https://ark.cn-beijing.volces.com/api/v3/chat/completions
+# ARK_MODEL_ID=doubao-seed-1-6-251015
+# ARK_MAX_TOKENS=2048
+# ARK_REASONING_LEVEL=medium
+```
+
+保存后重启后端（`npm run server` 或 `npm start`），即可通过 `/api/ai/code-assistant` 接口调用 Doubao 模型，为 Coding 模式提供真实的 AI 解析。
+
 ## 更新日志
 
 - v1.0.0 - 初始Vue版本发布

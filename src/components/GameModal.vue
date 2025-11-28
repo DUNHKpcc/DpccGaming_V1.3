@@ -4,7 +4,7 @@
     @click="handleBackdropClick">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
     <div
-      class="relative bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl w-full md:w-[96vw] lg:w-[85vw] max-w-none h-[90vh] flex flex-col transform scale-100 transition-transform duration-300 overflow-hidden"
+      class="relative bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl w-full md:w-[96vw] lg:w-[85vw] max-w-none h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] mt-[90px] mb-[20px] flex flex-col transform scale-100 transition-transform duration-300 overflow-hidden"
       @click.stop>
       <div class="flex justify-between items-center p-6 border-b border-white/20">
         <h3 class="text-2xl font-bold text-white">{{ currentGame?.title || '游戏标题' }}</h3>
@@ -52,8 +52,8 @@
         </div>
 
         <!-- 评论区域 -->
-        <div class="md:flex-[3] border-l border-white/20 overflow-y-auto bg-white/5 backdrop-blur-sm h-full rounded-2xl md:rounded-tl-none md:rounded-bl-none md:rounded-tr-2xl md:rounded-br-2xl mt-4 md:mt-0 min-h-0">
-          <div class="p-6">
+        <div class="md:flex-[3] border-l border-white/20 bg-white/5 backdrop-blur-sm h-full rounded-2xl md:rounded-tl-none md:rounded-bl-none md:rounded-tr-2xl md:rounded-br-2xl mt-4 md:mt-0 min-h-0 flex flex-col overflow-hidden">
+          <div class="p-6 flex flex-col h-full min-h-0">
             <h4 class="text-lg font-bold mb-4 text-white">评论&评价</h4>
 
             <!-- 评论表单 -->
@@ -87,7 +87,7 @@
             </div>
 
             <!-- 评论列表 -->
-            <div class="space-y-4">
+            <div class="space-y-4 flex-1 min-h-0 overflow-y-auto pr-2">
               <div v-if="commentsLoading" class="text-center py-4 text-white/80">加载评论...</div>
               <div v-else-if="comments.length === 0" class="text-center py-4 text-white/80">暂无评论，成为第一个评论者吧！</div>
               <div v-else v-for="comment in comments" :key="comment.id" :id="`comment-${comment.id}`" class="mb-4 pb-4 border-b border-white/20">
@@ -523,14 +523,13 @@ const scrollToComment = (commentId) => {
 }
 
 // 进入编程模式
-const enterCodingMode = () => {
-  if (currentGame.value) {
-    // 关闭当前模态框
-    closeModal()
-    // 导航到CodingMode页面，传递游戏ID
-    router.push({ name: 'CodingMode', params: { id: currentGame.value.game_id || currentGame.value.id } })
+  const enterCodingMode = () => {
+    if (currentGame.value) {
+      closeModal()
+      // 导航到CodingMode页面，传递游戏ID
+      router.push({ name: 'CodingMode', params: { id: currentGame.value.game_id || currentGame.value.id } })
+    }
   }
-}
 
 // 游戏iframe相关方法
 const onGameFrameLoad = () => {
@@ -692,11 +691,14 @@ div[id^="reply-"].highlight-comment {
 .game-frame-wrapper {
   position: relative;
   width: 100%;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 16px;
   background: rgba(0, 0, 0, 0.2);
   overflow: hidden;
-  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .game-loading-overlay {

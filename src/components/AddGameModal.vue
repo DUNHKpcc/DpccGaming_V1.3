@@ -107,14 +107,15 @@ const isOpen = computed(() => modalStore.activeModal === 'addGame')
 const fileInput = ref(null)
 const codeFileInput = ref(null)
 
-// 表单数据 增加 engine, codeType, video
+// 表单数据 增加 engine, codeType, video, codeArchive
 const form = ref({
   title: '',
   category: '',
   description: '',
   engine: '',
   codeType: '',
-  video: null
+  video: null,
+  codeArchive: null
 })
 
 const handleSubmit = async () => {
@@ -146,14 +147,39 @@ const handleSubmit = async () => {
     formData.append('engine', form.value.engine)
     formData.append('codeType', form.value.codeType)
     if(form.value.video) formData.append('video', form.value.video)
-    if (codeFileInput.value?.files?.length) {
-      formData.append('codeArchive', codeFileInput.value.files[0])
+    
+    // 🔍 源码文件上传调试
+    console.log('🔍 前端源码文件检查:');
+    console.log('  - form.value.codeArchive:', form.value.codeArchive);
+    console.log('  - form.value.codeArchive.name:', form.value.codeArchive?.name);
+    console.log('  - form.value.codeArchive.size:', form.value.codeArchive?.size);
+    console.log('  - form.value.codeArchive.type:', form.value.codeArchive?.type);
+    
+    if (form.value.codeArchive) {
+      formData.append('codeArchive', form.value.codeArchive)
+      console.log('✅ 源码文件已添加到FormData:', form.value.codeArchive.name);
+      
+      // 验证FormData中是否包含该字段
+      console.log('📋 FormData包含的字段:');
+      for (let [key, value] of formData.entries()) {
+        console.log(`  - ${key}: ${value.name || value}`);
+      }
+    } else {
+      console.log('❌ 源码文件为空，跳过添加');
     }
 
     // 显示上传中状态
     notificationStore.info('正在上传...', '请稍候，正在处理您的游戏文件')
 
     // 发送请求
+    console.log('🚀 准备发送请求到 /api/games');
+    console.log('🔍 最终FormData字段列表:');
+    const formDataEntries = [];
+    for (let [key, value] of formData.entries()) {
+      formDataEntries.push({ key, value: value.name || value });
+      console.log(`  - ${key}: ${value.name || value}`);
+    }
+    
     const response = await fetch('/api/games', {
       method: 'POST',
       headers: {
@@ -197,7 +223,8 @@ const closeModal = () => {
     description: '',
     engine: '',
     codeType: '',
-    video: null
+    video: null,
+    codeArchive: null
   }
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -219,6 +246,7 @@ const onVideoChange = (e) => {
 }
 
 const onCodeArchiveChange = (e) => {
-  if (!e.target.files?.length) return
+  form.value.codeArchive = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+  console.log('📁 源码文件已选择:', form.value.codeArchive?.name);
 }
 </script>

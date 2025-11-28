@@ -118,7 +118,7 @@ const loadGames = async () => {
     console.error('加载游戏失败:', error)
     games.value = [{
       id: 'web-mobile-001',
-      title: '像素逃生',
+      title: '像素逃生(test)',
       description: '骑士挥舞刺刀击败骷髅.',
       average_rating: '0.0',
       play_count: 0,

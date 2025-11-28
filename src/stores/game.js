@@ -29,6 +29,9 @@ export const useGameStore = defineStore('game', () => {
       if (game?.game_id) {
         map.set(game.game_id, game)
       }
+      if (game?.id) {
+        map.set(game.id.toString(), game)
+      }
     })
     return map
   })
