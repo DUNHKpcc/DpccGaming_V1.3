@@ -140,16 +140,22 @@ const detailsPanel = ref(null)
 // 导航数据
 const navItems = ref([
   {
-    name: '主页面',
+    name: '主页',
     path: '/',
     icon: 'fa fa-home',
     description: '返回首页，查看平台概览和最新动态'
   },
   {
-    name: '游戏库',
+    name: '游戏区',
     path: '/games',
     icon: 'fa fa-laptop',
     description: '浏览所有游戏，发现有趣的HTML5游戏'
+  },
+  {
+    name: '蓝图模式',
+    path: '/blueprint',
+    icon: 'fa fa-diagram-project',
+    description: '用节点式逻辑快速搭建玩法蓝图'
   },
   {
     name: '账户详情',

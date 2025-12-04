@@ -8,6 +8,7 @@ import UserManagement from '../components/UserManagement.vue'
 import GameManagement from '../components/GameManagement.vue'
 import CodingMode from '../views/CodingMode.vue'
 import DocsPlaceholder from '../views/DocsPlaceholder.vue'
+import BlueprintMode from '../views/BlueprintMode.vue'
 
 const routes = [
   {
@@ -24,6 +25,12 @@ const routes = [
     path: '/blog',
     name: 'Blog',
     component: Blog
+  },
+  {
+    path: '/blueprint',
+    name: 'BlueprintMode',
+    component: BlueprintMode,
+    meta: { hideSidebar: true }
   },
   {
     path: '/account',

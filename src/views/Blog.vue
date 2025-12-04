@@ -61,7 +61,7 @@ const handleImageLoad = (event, imageId) => {
 }
 
 const handleImageError = (event, imageId) => {
-  imagesLoaded[imageId] = true // 即使错误也设为true以隐藏loading
+  imagesLoaded[imageId] = true 
   imageErrors[imageId] = true
   console.warn(`Failed to load image for post ${imageId}:`, event.target.src)
 }
@@ -72,7 +72,7 @@ const preloadImages = () => {
     img.onload = () => handleImageLoad(img, post.id)
     img.onerror = () => handleImageError(img, post.id)
     img.src = post.image
-    imagesLoaded[post.id] = false // 初始化加载状态
+    imagesLoaded[post.id] = false 
   })
 }
 
@@ -81,6 +81,14 @@ onMounted(() => {
 })
 
 const posts = [
+  {
+    id: 1,
+    title: '蓝图模式优化',
+    date: '2025-11-29 SunJiaHao',
+    image: `${BLOG_BASE_URL}/BluePrint.webp`,
+    summary:
+      '让游戏像搭积木一样简单'
+  },
   {
     id: 1,
     title: 'Coding模式优化',

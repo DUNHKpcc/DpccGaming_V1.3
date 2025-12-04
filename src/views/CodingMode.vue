@@ -625,7 +625,7 @@ watch(gameId, async () => {
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 530;
   white-space: nowrap;
   transition: all 0.2s ease;
   font-family: 'Bebas Neue', cursive;
@@ -641,7 +641,7 @@ watch(gameId, async () => {
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 480;
   white-space: nowrap;
   transition: all 0.2s ease;
   font-weight: 550;
