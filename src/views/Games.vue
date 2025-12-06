@@ -176,7 +176,11 @@
                   <span>游戏类别: {{ categoryToZh(game.category || 'action') }}</span>
                   <i class="fa fa-cogs mr-2 ml-4"></i>
                   <span>游戏引擎: {{ getEngine(game) || 'Cocos' }}</span>
-                  <i class="fa fa-code mr-2 ml-4"></i>
+                  <img
+                    :src="getCodeTypeIcon(game)"
+                    alt="编程语言"
+                    class="code-type-icon ml-4 mr-2"
+                  />
                   <span>编程语言: {{ getCodeType(game) || 'TypeScript' }}</span>
                 </div>
                 <div class="flex justify-between items-center">
@@ -296,6 +300,17 @@ const normalizeCodeType = val => {
   if (['c#', 'csharp', 'cs'].includes(v)) return 'c#'
   if (['other', 'others', '其他'].includes(v)) return 'other'
   return v
+}
+
+const codeTypeIconMap = {
+  typescript: '/codeType/typescript.jpg',
+  javascript: '/codeType/js.webp',
+  'c#': '/codeType/csharp.webp'
+}
+
+const getCodeTypeIcon = game => {
+  const normalized = normalizeCodeType(getCodeType(game)) || 'typescript'
+  return codeTypeIconMap[normalized] || codeTypeIconMap.typescript
 }
 
 // Apply filters to games
@@ -797,6 +812,13 @@ watch([selectedEngine, selectedCodeType, games], () => {
   z-index: 2;
 }
 
+.code-type-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: inline-flex;
+}
+
 .glass-overlay {
   position: absolute;
   left: 0;
@@ -887,4 +909,3 @@ watch([selectedEngine, selectedCodeType, games], () => {
   }
 }
 </style>
-
