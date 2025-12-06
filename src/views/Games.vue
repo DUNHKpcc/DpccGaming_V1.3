@@ -67,10 +67,10 @@
                     active:
                       (currentSliderType === 'engine' &&
                         (selectedEngine === opt ||
-                          (selectedEngine === 'all' && opt === 'ȫ��'))) ||
+                          (selectedEngine === 'all' && opt === '其它'))) ||
                       (currentSliderType === 'code' &&
                         (selectedCodeType === opt ||
-                          (selectedCodeType === 'all' && opt === 'ȫ��')))
+                          (selectedCodeType === 'all' && opt === '其它')))
                   }
                 ]"
                 @click="onSliderSelect(opt)"
