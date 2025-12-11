@@ -1,6 +1,6 @@
 <template>
   <div v-if="isOpen" 
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
+    class="fixed inset-0 z-[9999] flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
     @click="handleBackdropClick">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
     <div

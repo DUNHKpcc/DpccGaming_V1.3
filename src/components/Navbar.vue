@@ -1,5 +1,5 @@
 <template>
-  <header class="fixed w-full z-50 bg-white shadow-sm">
+  <header class="fixed w-full z-[1000] bg-white shadow-sm">
     <nav class="container mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center">
         <img src="/logo.png" alt="DpccGaming Logo" class="w-8 h-8 mr-2">
