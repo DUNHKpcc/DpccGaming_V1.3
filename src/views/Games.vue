@@ -174,7 +174,11 @@
                 <div class="flex items-center text-sm text-white/80 mb-4">
                   <i class="fa fa-tag mr-2"></i>
                   <span>游戏类别: {{ categoryToZh(game.category || 'action') }}</span>
-                  <i class="fa fa-cogs mr-2 ml-4"></i>
+                  <img
+                    :src="getEngineIcon(game)"
+                    alt="游戏引擎"
+                    class="engine-type-icon ml-4 mr-2"
+                  />
                   <span>游戏引擎: {{ getEngine(game) || 'Cocos' }}</span>
                   <img
                     :src="getCodeTypeIcon(game)"
@@ -308,9 +312,21 @@ const codeTypeIconMap = {
   'c#': '/codeType/csharp.webp'
 }
 
+const engineIconMap = {
+  godot: '/engineType/godot.webp',
+  unity: '/engineType/unity.webp',
+  cocos: '/engineType/cocos.webp',
+  other: '/engineType/cocos.webp'
+}
+
 const getCodeTypeIcon = game => {
   const normalized = normalizeCodeType(getCodeType(game)) || 'typescript'
   return codeTypeIconMap[normalized] || codeTypeIconMap.typescript
+}
+
+const getEngineIcon = game => {
+  const normalized = normalizeEngine(getEngine(game)) || 'cocos'
+  return engineIconMap[normalized] || engineIconMap.cocos
 }
 
 // Apply filters to games
@@ -361,7 +377,6 @@ const onOptionsBarLeave = () => {
   overlay.value.hoverKey = null
 }
 
-// Scroll cards area to the grid anchor
 const scrollToGrid = () => {
   const scrollContainer = document.querySelector('.games-cards-scroll')
   const gridEl = document.querySelector('.games-grid-anchor')
@@ -815,6 +830,13 @@ watch([selectedEngine, selectedCodeType, games], () => {
 .code-type-icon {
   width: 20px;
   height: 20px;
+  object-fit: contain;
+  display: inline-flex;
+}
+
+.engine-type-icon{
+  width: 30px;
+  height: 30px;
   object-fit: contain;
   display: inline-flex;
 }
