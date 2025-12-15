@@ -234,7 +234,6 @@ const videoStates = reactive({})
 const videoRefs = new Map()
 const initializedVideos = new Set()
 
-// Slider state
 const sliderVisible = ref(false)
 const currentSliderType = ref('engine')
 const currentOptions = ref([])
@@ -247,7 +246,7 @@ const overlay = ref({
   hoverKey: null
 })
 
-// Open sliders
+
 const openEngineSlider = () => {
   currentSliderType.value = 'engine'
   currentOptions.value = engines
@@ -260,7 +259,6 @@ const openCodeSlider = () => {
   sliderVisible.value = true
 }
 
-// Slider selection
 const onSliderSelect = opt => {
   if (currentSliderType.value === 'engine') {
     selectedEngine.value = opt === '全部' ? 'all' : opt
@@ -269,12 +267,10 @@ const onSliderSelect = opt => {
   }
   applyFilters()
 
-  // Scroll only the cards area to the grid anchor
   requestAnimationFrame(() => scrollToGrid())
   sliderVisible.value = false
 }
 
-// Helpers for engine / code fields
 const getEngine = game =>
   (game.engine || game.game_engine || '').toString().trim()
 
@@ -283,7 +279,6 @@ const getCodeType = game =>
     .toString()
     .trim()
 
-// Normalization helpers
 const normalizeEngine = val => {
   const v = (val || '').toString().trim().toLowerCase()
   if (!v) return ''
@@ -636,11 +631,11 @@ watch([selectedEngine, selectedCodeType, games], () => {
   position: relative;
   margin-top: var(--topbar-gap);
   z-index: 10;
-  height: 100%;
+  height: calc(100% - var(--topbar-gap));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-height: 100vh;
+  max-height: calc(100vh - var(--topbar-gap));
 }
 
 .games-main {
@@ -650,7 +645,8 @@ watch([selectedEngine, selectedCodeType, games], () => {
   gap: 16px;
   height: 100%;
   overflow: hidden;
-  max-height: 100vh;
+  max-height: none;
+  min-height: 0;
 } 
 
 .games-header {
@@ -664,7 +660,8 @@ watch([selectedEngine, selectedCodeType, games], () => {
   flex: 1;
   min-height: 0;
   overflow-y: auto; 
-  padding-bottom: 24px;
+  padding-bottom: 96px;
+  scroll-padding-bottom: 96px;
 }
 
 .games-cards-scroll::-webkit-scrollbar {
