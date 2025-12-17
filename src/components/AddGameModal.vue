@@ -59,7 +59,7 @@
             <option value="TypeScript">TypeScript</option>
             <option value="JavaScript">JavaScript</option>
             <option value="C#">C#</option>
-            <option value="其他">其他</option>
+            <option value="其他">其他</option>8
           </select>
         </div>
         <div class="mb-4">

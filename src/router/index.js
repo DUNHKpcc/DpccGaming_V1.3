@@ -9,6 +9,7 @@ import GameManagement from '../components/GameManagement.vue'
 import CodingMode from '../views/CodingMode.vue'
 import DocsPlaceholder from '../views/DocsPlaceholder.vue'
 import BlueprintMode from '../views/BlueprintMode.vue'
+import CookiePolicy from '../views/CookiePolicy.vue'
 
 const routes = [
   {
@@ -66,6 +67,12 @@ const routes = [
     path: '/docs',
     name: 'Docs',
     component: DocsPlaceholder
+  },
+  {
+    path: '/cookie-policy',
+    name: 'CookiePolicy',
+    component: CookiePolicy,
+    meta: { hideSidebar: true }
   }
 ]
 

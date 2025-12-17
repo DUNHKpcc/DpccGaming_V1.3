@@ -83,6 +83,14 @@ onMounted(() => {
 const posts = [
   {
     id: 1,
+    title: '更新Cookie，更新代码，引擎图标样式',
+    date: '2025-12-17 SunJiaHao',
+    image: `${BLOG_BASE_URL}/Cookie.webp`,
+    summary:
+      '🤮Cookie和图标，懒得写了'
+  },
+  {
+    id: 1,
     title: '蓝图模式优化',
     date: '2025-11-29 SunJiaHao',
     image: `${BLOG_BASE_URL}/BluePrint.webp`,

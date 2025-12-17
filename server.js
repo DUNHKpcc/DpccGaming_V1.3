@@ -21,6 +21,7 @@ const commentRoutes = require('./backend/routes/comments');
 const notificationRoutes = require('./backend/routes/notifications');
 const aiRoutes = require('./backend/routes/ai');
 const debugRoutes = require('./backend/routes/debug');
+const cookieRoutes = require('./backend/routes/cookies');
 
 const app = express();
 
@@ -59,9 +60,9 @@ process.env.UPLOADS_PATH = process.env.UPLOADS_PATH || uploadsPath;
 process.env.GAMES_ROOT_PATH = process.env.GAMES_ROOT_PATH || gamesPath;
 process.env.CODE_ROOT_PATH = process.env.CODE_ROOT_PATH || codePath;
 
-console.log('📁 Upload root:', process.env.UPLOADS_PATH);
-console.log('📁 Games root:', process.env.GAMES_ROOT_PATH);
-console.log('🧩 Code root:', process.env.CODE_ROOT_PATH);
+console.log('Upload root:', process.env.UPLOADS_PATH);
+console.log('Games root:', process.env.GAMES_ROOT_PATH);
+console.log('Code root:', process.env.CODE_ROOT_PATH);
 
 app.use(cors({
   origin: appConfig.cors.origins,
@@ -93,6 +94,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/debug', debugRoutes);
+app.use('/api/cookies', cookieRoutes);
 
 app.use(errorHandler);
 
@@ -102,9 +104,9 @@ app.use('*', (req, res) => {
 
 async function startServer() {
   try {
-    console.log('🗄️ 初始化数据库连接...');
+    console.log('初始化数据库连接...');
     await initDatabase();
-    console.log('✅ 数据库连接初始化成功');
+    console.log('数据库连接初始化成功');
 
     const server = app.listen(appConfig.server.port, () => {
       const port = appConfig.server.port;

@@ -25,6 +25,7 @@
     
     <!-- 通知组件 -->
     <Notification />
+    <CookieConsentBanner />
   </div>
 </template>
 
@@ -40,6 +41,7 @@ import RegisterModal from './components/RegisterModal.vue'
 import FullscreenGame from './components/FullscreenGame.vue'
 import Notification from './components/Notification.vue'
 import { useAuthStore } from './stores/auth'
+import CookieConsentBanner from './components/CookieConsentBanner.vue'
 
 const authStore = useAuthStore()
 const sidebarRef = ref(null)

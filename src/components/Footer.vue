@@ -55,7 +55,9 @@
                 <a href="#" class="footer-link">隐私政策</a>
               </li>
               <li>
-                <a href="#" class="footer-link">Cookie 政策</a>
+               <router-link to="/cookie-policy" class="footer-link">
+                  <span>Cookie 政策</span>
+                </router-link>
               </li>
             </ul>
           </div>
