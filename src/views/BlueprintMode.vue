@@ -2,6 +2,10 @@
   <div class="blueprint-shell">
     <header class="blueprint-bar">
       <div class="bar-left">
+        <button class="ghost-btn back-btn" @click="goBack">
+          <i class="fa fa-arrow-left"></i>
+          <span>返回</span>
+        </button>
         <span class="logo-dot"></span>
         <div>
           <div class="bar-title">蓝图模式 · 生成</div>
@@ -323,9 +327,11 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores/game'
 import { resolveMediaUrl } from '../utils/media'
 
+const router = useRouter()
 const gameStore = useGameStore()
 const promptPositive = ref('融合已选游戏的核心玩法与节奏，生成一款操作流畅、视觉统一的新作品。')
 const promptNegative = ref('水印, 文本, 版权, 抄袭, 低质量')
@@ -811,6 +817,15 @@ const addNodeAtContext = (type) => {
   closeContextMenu()
 }
 
+const goBack = () => {
+  const hasHistory = typeof window !== 'undefined' && window.history.length > 1
+  if (hasHistory) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
+
 onMounted(async () => {
   await ensureGames()
   window.addEventListener('click', closeContextMenu)
@@ -875,6 +890,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
 }
 
 .logo-dot {

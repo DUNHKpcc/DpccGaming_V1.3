@@ -1,11 +1,23 @@
-<template>
+﻿<template>
   <div class="coding-mode-page">
     <header class="coding-mode-header">
-      <div>
+      <div class="header-left">
         <p class="text-xs uppercase tracking-[0.3em] text-white/60 mb-1">Coding 模式</p>
-        <h1 class="text-2xl font-bold text-white">{{ codingGame?.title || '加载中…' }}</h1>
+        <div class="title-row">
+          <h1 class="text-2xl font-bold text-white">{{ codingGame?.title || '加载中…' }}</h1>
+        </div>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="header-meta">
+        <div class="meta-chip">
+          <img v-if="engineIcon" :src="engineIcon" alt="游戏引擎" class="meta-icon" />
+          <span>游戏引擎: {{ engineLabel }}</span>
+        </div>
+        <div class="meta-chip">
+          <img v-if="codeTypeIcon" :src="codeTypeIcon" alt="游戏代码" class="meta-icon" />
+          <span>游戏代码: {{ codeTypeLabel }}</span>
+        </div>
+      </div>
+      <div class="header-actions flex items-center gap-3">
         <button
           class="soft-btn-Chinese"
           @click="reloadCodeBundle"
@@ -154,9 +166,6 @@
                   {{ selectedFile?.path}}
                 </span>
               </div>
-              <button type="button" class="context-add" title="?????">
-                <i class="fa fa-plus"></i>
-              </button>
             </div>
             <textarea
               v-model="userInput"
@@ -166,10 +175,6 @@
             ></textarea>
             <div class="composer-footer">
               <div class="footer-left">
-                <button type="button" class="ghost-pill">
-                  <span>Agent</span>
-                  <i class="fa fa-chevron-down"></i>
-                </button>
                 <div class="model-inline" tabindex="0" @blur="modelDropdownOpen = false">
                   <button type="button" class="ghost-pill" @click="modelDropdownOpen = !modelDropdownOpen">
                     <img
@@ -198,9 +203,6 @@
                     </button>
                   </div>
                 </div>
-                <button type="button" class="ghost-icon" title="???????">
-                  <i class="fa fa-screwdriver-wrench"></i>
-                </button>
               </div>
               <div class="footer-right">
                 <button
@@ -273,6 +275,55 @@ const modelDropdownOpen = ref(false)
 const selectedModelOption = computed(() =>
   modelOptions.find(item => item.value === selectedModel.value) || modelOptions[0]
 )
+const getEngine = (game) =>
+  (game?.engine || game?.game_engine || game?.gameEngine || '')
+    .toString()
+    .trim()
+const getCodeType = (game) =>
+  (game?.code_type || game?.codeType || game?.code_category || '')
+    .toString()
+    .trim()
+const normalizeEngine = (val) => {
+  const v = (val || '').toString().trim().toLowerCase()
+  if (!v) return ''
+  if (['godot'].includes(v)) return 'godot'
+  if (['unity'].includes(v)) return 'unity'
+  if (['cocos', 'cocos2d', 'cocos-creator', 'cocos creator'].includes(v)) {
+    return 'cocos'
+  }
+  if (['other', 'others', '其他'].includes(v)) return 'other'
+  return v
+}
+const normalizeCodeType = (val) => {
+  const v = (val || '').toString().trim().toLowerCase()
+  if (!v) return ''
+  if (['typescript', 'ts'].includes(v)) return 'typescript'
+  if (['javascript', 'js'].includes(v)) return 'javascript'
+  if (['c#', 'csharp', 'cs'].includes(v)) return 'c#'
+  if (['other', 'others', '其他'].includes(v)) return 'other'
+  return v
+}
+const codeTypeIconMap = {
+  typescript: '/codeType/typescript.jpg',
+  javascript: '/codeType/js.webp',
+  'c#': '/codeType/csharp.webp'
+}
+const engineIconMap = {
+  godot: '/engineType/godot.webp',
+  unity: '/engineType/unity.webp',
+  cocos: '/engineType/cocos.webp',
+  other: '/engineType/cocos.webp'
+}
+const engineLabel = computed(() => getEngine(codingGame.value) || '未知')
+const codeTypeLabel = computed(() => getCodeType(codingGame.value) || '未知')
+const engineIcon = computed(() => {
+  const normalized = normalizeEngine(engineLabel.value)
+  return normalized ? engineIconMap[normalized] || '' : ''
+})
+const codeTypeIcon = computed(() => {
+  const normalized = normalizeCodeType(codeTypeLabel.value)
+  return normalized ? codeTypeIconMap[normalized] || '' : ''
+})
 
 const chatMessages = ref([
   {
@@ -610,9 +661,58 @@ watch(gameId, async () => {
 }
 
 .coding-mode-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
+  column-gap: 1rem;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-width: 0;
+  justify-self: center;
+}
+
+.header-actions {
+  justify-self: end;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.meta-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: inline-flex;
 }
 
 .soft-btn {
@@ -625,7 +725,7 @@ watch(gameId, async () => {
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 0.9rem;
-  font-weight: 530;
+  font-weight: 600;
   white-space: nowrap;
   transition: all 0.2s ease;
   font-family: 'Bebas Neue', cursive;
@@ -1236,3 +1336,4 @@ watch(gameId, async () => {
   }
 }
 </style>
+

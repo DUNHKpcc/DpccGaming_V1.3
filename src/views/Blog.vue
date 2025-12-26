@@ -83,6 +83,14 @@ onMounted(() => {
 const posts = [
   {
     id: 1,
+    title: '优化Cookie，完善Coding页面，引擎图标样式',
+    date: '2025-12-26 SunJiaHao',
+    image: `${BLOG_BASE_URL}/LightSwitch.webp`,
+    summary:
+      '✨优化用户体验，完善功能细节，cookie新增保存主题功能，coding页面新增代码/游戏引擎分类，精简功能按钮，完善页脚设计，CooKiePolicy'
+  },
+  {
+    id: 1,
     title: '更新Cookie，更新代码，引擎图标样式',
     date: '2025-12-17 SunJiaHao',
     image: `${BLOG_BASE_URL}/Cookie.webp`,
@@ -140,7 +148,7 @@ const posts = [
    {
     id: 6,
     title: '新增 Light/Dark 主题切换',
-    date: '2025-11-11 SunJiaHao', 
+    date: '2025-9-11 SunJiaHao', 
     image: `${BLOG_BASE_URL}/LightSwitch.webp`,
     summary:
       '用户现在可以在 Light 和 Dark 主题之间切换，提升使用体验。'
@@ -148,7 +156,7 @@ const posts = [
   {
     id: 7,
     title: '更流畅的GSAP动画效果',
-    date: '2025-11-09 SunJiaHao', 
+    date: '2025-8-09 SunJiaHao', 
     image: `${BLOG_BASE_URL}/GSAP.webp`,
     summary:
       '优化GSAP动画，提升界面交互的流畅度和视觉效果。'

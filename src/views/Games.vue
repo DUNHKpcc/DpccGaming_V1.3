@@ -22,18 +22,30 @@
           >
             <div class="filter-group">
               <button
-                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90"
+                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90 flex items-center gap-2"
                 @click="openEngineSlider"
               >
-                <i class="fa fa-cogs mr-2"></i>游戏引擎
+                <img
+                  v-if="getEngineFilterIcon()"
+                  :src="getEngineFilterIcon()"
+                  alt="游戏引擎"
+                  class="filter-btn-icon"
+                />
+                <span>游戏引擎</span>
               </button>
             </div>
             <div class="filter-group">
               <button
-                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90"
+                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90 flex items-center gap-2"
                 @click="openCodeSlider"
               >
-                <i class="fa fa-code mr-2"></i>编程语言
+                <img
+                  v-if="getCodeFilterIcon()"
+                  :src="getCodeFilterIcon()"
+                  alt="编程语言"
+                  class="filter-btn-icon"
+                />
+                <span>编程语言</span>
               </button>
             </div>
           </div>
@@ -75,7 +87,19 @@
                 ]"
                 @click="onSliderSelect(opt)"
               >
-                {{ opt }}
+                <img
+                  v-if="currentSliderType === 'engine' && getEngineOptionIcon(opt)"
+                  :src="getEngineOptionIcon(opt)"
+                  alt="游戏引擎"
+                  class="option-chip-icon"
+                />
+                <img
+                  v-if="currentSliderType === 'code' && getCodeOptionIcon(opt)"
+                  :src="getCodeOptionIcon(opt)"
+                  alt="编程语言"
+                  class="option-chip-icon"
+                />
+                <span>{{ opt }}</span>
               </button>
             </div>
           </div>
@@ -327,6 +351,32 @@ const getCodeTypeIcon = game => {
 const getEngineIcon = game => {
   const normalized = normalizeEngine(getEngine(game)) || 'cocos'
   return engineIconMap[normalized] || engineIconMap.cocos
+}
+
+const getEngineFilterIcon = () => {
+  if (selectedEngine.value === 'all') return ''
+  const normalized = normalizeEngine(selectedEngine.value)
+  if (normalized === 'other') return ''
+  return engineIconMap[normalized] || ''
+}
+
+const getCodeFilterIcon = () => {
+  if (selectedCodeType.value === 'all') return ''
+  const normalized = normalizeCodeType(selectedCodeType.value)
+  if (normalized === 'other') return ''
+  return codeTypeIconMap[normalized] || ''
+}
+
+const getEngineOptionIcon = opt => {
+  if (opt === '全部' || opt === '其他') return ''
+  const normalized = normalizeEngine(opt)
+  return engineIconMap[normalized]
+}
+
+const getCodeOptionIcon = opt => {
+  if (opt === '全部' || opt === '其他') return ''
+  const normalized = normalizeCodeType(opt)
+  return codeTypeIconMap[normalized]
 }
 
 // Apply filters to games
@@ -636,11 +686,11 @@ watch([selectedEngine, selectedCodeType, games], () => {
   position: relative;
   margin-top: var(--topbar-gap);
   z-index: 10;
-  height: 100%;
+  height: calc(100vh - var(--topbar-gap));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-height: 100vh;
+  max-height: calc(100vh - var(--topbar-gap));
 }
 
 .games-main {
@@ -650,7 +700,7 @@ watch([selectedEngine, selectedCodeType, games], () => {
   gap: 16px;
   height: 100%;
   overflow: hidden;
-  max-height: 100vh;
+  max-height: 100%;
 } 
 
 .games-header {
@@ -664,7 +714,7 @@ watch([selectedEngine, selectedCodeType, games], () => {
   flex: 1;
   min-height: 0;
   overflow-y: auto; 
-  padding-bottom: 24px;
+  padding-bottom: 40px;
 }
 
 .games-cards-scroll::-webkit-scrollbar {
@@ -770,6 +820,9 @@ watch([selectedEngine, selectedCodeType, games], () => {
 
 .option-chip {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
   padding: 10px 16px;
   border-radius: 9999px;
@@ -795,6 +848,20 @@ watch([selectedEngine, selectedCodeType, games], () => {
   background: #ffffff;
   color: #1d1d1f;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06) inset;
+}
+
+.filter-btn-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: inline-flex;
+}
+
+.option-chip-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: inline-flex;
 }
 
 .video-wrapper .game-video {

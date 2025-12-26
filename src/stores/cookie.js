@@ -4,7 +4,8 @@ const defaultPreferences = () => ({
   necessary: true,
   analytics: false,
   marketing: false,
-  functional: false
+  functional: false,
+  theme: 'dark'
 });
 
 export const useCookieStore = defineStore('cookie', {
@@ -150,6 +151,15 @@ export const useCookieStore = defineStore('cookie', {
         lastSyncedAt: this.lastSyncedAt
       };
       localStorage.setItem('cookiePreferences', JSON.stringify(snapshot));
+    },
+    async setThemePreference(theme, options = {}) {
+      const normalized = theme === 'light' ? 'light' : 'dark';
+      this.preferences = { ...this.preferences, theme: normalized };
+      const shouldSync =
+        options.sync !== false && this.consentStatus && this.preferences.functional;
+      if (shouldSync) {
+        await this.saveConsent(this.consentStatus, { theme: normalized });
+      }
     }
   }
 });

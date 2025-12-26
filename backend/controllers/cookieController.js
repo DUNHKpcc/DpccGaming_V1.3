@@ -7,18 +7,23 @@ const defaultPreferences = {
   necessary: true,
   analytics: false,
   marketing: false,
-  functional: false
+  functional: false,
+  theme: 'dark'
 };
 
+const normalizeTheme = (value) => (value === 'light' ? 'light' : 'dark');
+
 const sanitizePreferences = (preferences = {}) => {
-  return {
-    ...defaultPreferences,
-    ...Object.entries(preferences || {}).reduce((acc, [key, value]) => {
-      acc[key] = Boolean(value);
-      return acc;
-    }, {}),
-    necessary: true
-  };
+  const normalized = { ...defaultPreferences };
+  Object.entries(preferences || {}).forEach(([key, value]) => {
+    if (key === 'theme') {
+      normalized.theme = normalizeTheme(value);
+    } else {
+      normalized[key] = Boolean(value);
+    }
+  });
+  normalized.necessary = true;
+  return normalized;
 };
 
 const extractUserId = (headers = {}) => {

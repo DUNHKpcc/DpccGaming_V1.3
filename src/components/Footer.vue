@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <footer class="bg_footer text-gray-300 pt-16 pb-8">
     <div class="container mx-auto px-4">
       <!-- 顶部 CTA 区域 -->
@@ -23,7 +23,6 @@
           <span class="text-2xl leading-none">→</span>
         </a>
       </div>
-
 
       <div class="border-t border-gray-800 pt-10">
         <div
@@ -55,7 +54,7 @@
                 <a href="#" class="footer-link">隐私政策</a>
               </li>
               <li>
-               <router-link to="/cookie-policy" class="footer-link">
+                <router-link to="/cookie-policy" class="footer-link">
                   <span>Cookie 政策</span>
                 </router-link>
               </li>
@@ -86,7 +85,7 @@
               </li>
             </ul>
           </div>
-          
+
           <div>
             <h3 class="text-gray-400 font-semibold mb-3">联系我们</h3>
             <ul class="space-y-2">
@@ -104,14 +103,7 @@
               </li>
               <li>
                 <a href="#" class="footer-link flex items-center gap-2">
-                  <i class="fa-brands fa-x-twitter text-sm" />
-                  <span>X</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" class="footer-link flex items-center gap-2">
-                  <i class="fa-brands fa-instagram text-sm" />
-                  <span>Instagram</span>
+                  <span>哔哩哔哩</span>
                 </a>
               </li>
             </ul>
@@ -130,7 +122,7 @@
                 rel="noopener noreferrer"
                 class="footer-link inline-block"
               >
-                闽ICP备2025115401号
+                皖ICP备025115401号
               </a>
             </p>
           </div>
@@ -141,7 +133,7 @@
             @click="scrollToTop"
           >
             <span>Back to top</span>
-            <span class="text-base">○</span>
+            <span class="text-base">↑</span>
           </button>
         </div>
       </div>
