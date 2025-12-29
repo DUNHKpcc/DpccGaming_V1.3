@@ -4,9 +4,9 @@
     <Sidebar v-if="showSidebar" ref="sidebarRef" />
     
     <!-- 主内容区域 -->
-    <div ref="mainContent" class="main-content">
+    <div ref="mainContent" class="main-content" :class="{ 'main-content--no-topbar': !showTopbar }">
       <!-- 顶部导航栏 -->
-      <TopNavbar />
+      <TopNavbar v-if="showTopbar" />
       
       <!-- 页面内容 -->
       <main class="page-content">
@@ -15,17 +15,17 @@
     </div>
     
     <!-- 模态框组件 -->
-    <GameModal />
-    <AddGameModal />
-    <LoginModal />
-    <RegisterModal />
+    <GameModal v-if="showOverlays" />
+    <AddGameModal v-if="showOverlays" />
+    <LoginModal v-if="showOverlays" />
+    <RegisterModal v-if="showOverlays" />
     
     <!-- 全屏游戏容器 -->
-    <FullscreenGame />
+    <FullscreenGame v-if="showOverlays" />
     
     <!-- 通知组件 -->
-    <Notification />
-    <CookieConsentBanner />
+    <Notification v-if="showOverlays" />
+    <CookieConsentBanner v-if="showOverlays" />
   </div>
 </template>
 
@@ -49,6 +49,8 @@ const mainContent = ref(null)
 const route = useRoute()
 
 const showSidebar = computed(() => !route.meta?.hideSidebar)
+const showTopbar = computed(() => !route.meta?.hideTopbar)
+const showOverlays = computed(() => !route.meta?.hideOverlays)
 
 onMounted(async () => {
   await authStore.checkAuthStatus()
@@ -96,6 +98,14 @@ watch(showSidebar, (visible) => {
   transition: margin-left 0.3s ease;
 }
 
+.main-content--no-topbar {
+  margin-top: 0;
+}
+
+.main-content--no-topbar .page-content {
+  min-height: 100vh;
+}
+
 .page-content {
   flex: 1;
   min-height: calc(100vh - 4rem);
@@ -114,11 +124,17 @@ watch(showSidebar, (visible) => {
   .main-content {
     margin-top: 3.5rem; /* 移动端稍小的高度 */
   }
+  .main-content--no-topbar {
+    margin-top: 0;
+  }
 }
 
 @media (max-width: 480px) {
   .main-content {
     margin-top: 3rem; /* 更小屏幕下的高度 */
+  }
+  .main-content--no-topbar {
+    margin-top: 0;
   }
 }
 </style>

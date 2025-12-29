@@ -90,10 +90,8 @@
             <h3 class="text-gray-400 font-semibold mb-3">联系我们</h3>
             <ul class="space-y-2">
               <li>
-                <a href="#" class="footer-link flex items-center gap-2">
-                  <i class="fa-regular fa-message text-sm" />
-                  <span>反馈与建议</span>
-                </a>
+                  <i class="fa-regular fa-message text-sm mr-2" />
+                  <span>反馈与建议 邮箱：sjh2329952249@163.com</span>
               </li>
               <li>
                 <a href="#" class="footer-link flex items-center gap-2">
@@ -102,7 +100,8 @@
                 </a>
               </li>
               <li>
-                <a href="#" class="footer-link flex items-center gap-2">
+                <a href="https://space.bilibili.com/397853169?spm_id_from=333.788.upinfo.head.click" class="footer-link flex items-center gap-2">
+                  <img src="/SocialMediaLogo/bilibili.png" alt="Bilibili Logo" class="w-10 h-5"/>
                   <span>哔哩哔哩</span>
                 </a>
               </li>

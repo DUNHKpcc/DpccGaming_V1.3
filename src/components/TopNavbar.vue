@@ -65,7 +65,7 @@
                 <i class="fa fa-user"></i>
                 账户详情
               </router-link>
-              <router-link v-if="isAdmin" to="/admin" class="dropdown-item" @click="closeDropdown">
+              <router-link v-if="isAdmin" to="/admin" class="dropdown-item" target="_blank" rel="noopener" @click="closeDropdown">
                 <i class="fa fa-cog"></i>
                 管理后台
               </router-link>

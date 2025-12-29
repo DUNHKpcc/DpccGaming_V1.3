@@ -42,19 +42,19 @@ const routes = [
     path: '/admin',
     name: 'Admin',
     component: AdminPanel,
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true, requiresAdmin: true, hideSidebar: true, hideTopbar: true, hideOverlays: true }
   },
   {
     path: '/admin/users',
     name: 'UserManagement',
     component: UserManagement,
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true, requiresAdmin: true, hideSidebar: true, hideTopbar: true, hideOverlays: true }
   },
   {
     path: '/admin/games',
     name: 'GameManagement',
     component: GameManagement,
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true, requiresAdmin: true, hideSidebar: true, hideTopbar: true, hideOverlays: true }
   },
   {
     path: '/coding/:id',

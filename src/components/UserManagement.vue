@@ -326,40 +326,8 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   font-family: 'Quicksand', sans-serif;
-  background-color: #e493d0;
-  background-image: 
-    radial-gradient(closest-side, rgb(42, 8, 233), rgba(235, 105, 78, 0)),
-    radial-gradient(closest-side, rgb(189, 6, 239), rgba(243, 11, 164, 0)),
-    radial-gradient(closest-side, rgb(183, 0, 255), rgba(254, 234, 131, 0)),
-    radial-gradient(closest-side, rgba(170, 142, 245, 1), rgba(170, 142, 245, 0)),
-    radial-gradient(closest-side, rgb(237, 164, 255), rgba(55, 0, 119, 0));
-  background-size: 
-    130vmax 130vmax,
-    80vmax 80vmax,
-    90vmax 90vmax,
-    110vmax 110vmax,
-    90vmax 90vmax;
-  background-position:
-    -80vmax -80vmax,
-    60vmax -30vmax,
-    10vmax 10vmax,
-    -30vmax -10vmax,
-    50vmax 50vmax;
-  background-repeat: no-repeat;
-  animation: 10s movement linear infinite;
-}
-
-.admin-page::after {
-  content: '';
-  display: block;
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 0;
+  background: #0b0b0b;
+  color: #f8fafc;
 }
 
 .content-wrapper {
@@ -368,70 +336,15 @@ onMounted(() => {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #111827;
+  border: 1px solid #1f2937;
   border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
 }
 
-@keyframes movement {
-  0%, 100% {
-    background-size: 
-      130vmax 130vmax,
-      80vmax 80vmax,
-      90vmax 90vmax,
-      110vmax 110vmax,
-      90vmax 90vmax;
-    background-position:
-      -80vmax -80vmax,
-      60vmax -30vmax,
-      10vmax 10vmax,
-      -30vmax -10vmax,
-      50vmax 50vmax;
-  }
-  25% {
-    background-size: 
-      100vmax 100vmax,
-      90vmax 90vmax,
-      100vmax 100vmax,
-      90vmax 90vmax,
-      60vmax 60vmax;
-    background-position:
-      -60vmax -90vmax,
-      50vmax -40vmax,
-      0vmax -20vmax,
-      -40vmax -20vmax,
-      40vmax 60vmax;
-  }
-  50% {
-    background-size: 
-      80vmax 80vmax,
-      120vmax 120vmax,
-      80vmax 80vmax,
-      100vmax 100vmax,
-      100vmax 100vmax;
-    background-position:
-      -40vmax -100vmax,
-      40vmax -50vmax,
-      -10vmax -30vmax,
-      -50vmax -30vmax,
-      30vmax 70vmax;
-  }
-  75% {
-    background-size: 
-      120vmax 120vmax,
-      70vmax 70vmax,
-      110vmax 110vmax,
-      80vmax 80vmax,
-      80vmax 80vmax;
-    background-position:
-      -20vmax -110vmax,
-      30vmax -60vmax,
-      -20vmax -40vmax,
-      -60vmax -40vmax,
-      20vmax 80vmax;
-  }
+:deep(html[data-theme="light"]) .admin-page {
+  background: #ffffff;
+  color: #0f172a;
 }
+
 </style>
