@@ -16,6 +16,10 @@
           <img v-if="codeTypeIcon" :src="codeTypeIcon" alt="游戏代码" class="meta-icon" />
           <span>游戏代码: {{ codeTypeLabel }}</span>
         </div>
+         <div class="meta-chip">
+          <i class="fa-brands fa-github"></i>
+          <span>GitHub</span>
+        </div>
       </div>
       <div class="header-actions flex items-center gap-3">
         <button

@@ -233,8 +233,8 @@
             </div>
              <!-- 节点详情 -->
             <div class="node-body" v-else-if="node.type === 'decode'">
-              <p class="small-title">VAE Decode</p>
-              <p class="muted-text">LATENT -> IMAGE</p>
+              <p class="small-title">游戏玩法</p>
+              <p class="muted-text">LATENT -> IMAG</p>
             </div>
 
             <div class="node-body" v-else-if="node.type === 'save'">
