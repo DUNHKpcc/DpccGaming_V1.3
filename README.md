@@ -2,6 +2,8 @@
 
 这是DpccGaming游戏平台的Vue 3版本，使用现代化的前端技术栈重构。
 
+立即体验https://dpccgaming.xyz/
+
 ## 技术栈
 
 - **Vue 3** - 渐进式JavaScript框架
