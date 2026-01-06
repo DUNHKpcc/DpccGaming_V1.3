@@ -41,6 +41,14 @@
         </div>
       </div>
     </div>
+    <!-- 新年快乐悬浮小组件 -->
+    <div class="new-year-widget">
+      <div class="widget-content">
+        <div class="widget-text">
+          <span class="greeting">新年快乐</span>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -853,5 +861,77 @@ a-waves::before {
 .fade-in-up {
   opacity: 0;
   transform: translateY(40px);
+}
+
+/* 新年快乐悬浮小组件样式 */
+.new-year-widget {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  z-index: 10000;
+}
+
+.widget-content {
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  border-radius: 50px;
+  padding: 12px 30px;
+  box-shadow: 
+    0 4px 15px rgba(255, 0, 0, 0.3),
+    0 0 0 2px rgba(255, 255, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.widget-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.greeting {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffff00;
+  text-shadow: 
+    1px 1px 0 #cc0000,
+    0 0 8px rgba(255, 255, 0, 0.5);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .new-year-widget {
+    top: 80px;
+    right: 10px;
+  }
+  
+  .widget-content {
+    padding: 10px 25px;
+  }
+  
+  .greeting {
+    font-size: 0.9rem;
+    letter-spacing: 1.5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .new-year-widget {
+    top: 70px;
+    right: 5px;
+  }
+  
+  .widget-content {
+    padding: 8px 20px;
+  }
+  
+  .greeting {
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+  }
 }
 </style>

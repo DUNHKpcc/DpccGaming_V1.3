@@ -83,6 +83,14 @@ onMounted(() => {
 const posts = [
   {
     id: 1,
+    title: '新年快乐',
+    date: '2026-1-1 SunJiaHao',
+    image: `${BLOG_BASE_URL}/NewYear.webp`,
+    summary:
+      '🎇'
+  },
+  {
+    id: 1,
     title: '优化Cookie，完善Coding页面，引擎图标样式',
     date: '2025-12-26 SunJiaHao',
     image: `${BLOG_BASE_URL}/LightSwitch.webp`,
