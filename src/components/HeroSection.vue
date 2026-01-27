@@ -41,11 +41,11 @@
         </div>
       </div>
     </div>
-    <!-- 新年快乐悬浮小组件 -->
+    <!-- 悬浮小组件 -->
     <div class="new-year-widget">
       <div class="widget-content">
         <div class="widget-text">
-          <span class="greeting">新年快乐</span>
+          <span class="greeting">蓝图模式正在完善中....</span>
         </div>
       </div>
     </div>
@@ -863,7 +863,7 @@ a-waves::before {
   transform: translateY(40px);
 }
 
-/* 新年快乐悬浮小组件样式 */
+
 .new-year-widget {
   position: fixed;
   top: 100px;
@@ -872,12 +872,12 @@ a-waves::before {
 }
 
 .widget-content {
-  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  background: black;
   border-radius: 50px;
   padding: 12px 30px;
   box-shadow: 
-    0 4px 15px rgba(255, 0, 0, 0.3),
-    0 0 0 2px rgba(255, 255, 0, 0.2);
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(109, 108, 108, 0.2);
   position: relative;
   overflow: hidden;
 }
@@ -893,10 +893,7 @@ a-waves::before {
 .greeting {
   font-size: 1rem;
   font-weight: 700;
-  color: #ffff00;
-  text-shadow: 
-    1px 1px 0 #cc0000,
-    0 0 8px rgba(255, 255, 0, 0.5);
+  color: #0add50;
   letter-spacing: 2px;
   text-transform: uppercase;
   white-space: nowrap;

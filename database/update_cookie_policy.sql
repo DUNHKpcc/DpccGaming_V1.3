@@ -1,5 +1,5 @@
 -- Cookie 同意记录数据表
-CREATE TABLE IF NOT EXISTS cookie_consents (
+CREATE TABLE IF NOT EXISTS cookie_consents undifind(
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   cookie_id CHAR(36) NOT NULL UNIQUE,
   user_id INT UNSIGNED NULL,
