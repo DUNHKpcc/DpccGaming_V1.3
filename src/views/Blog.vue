@@ -81,6 +81,14 @@ onMounted(() => {
 })
 
 const posts = [
+{
+    id: 1,
+    title: '优化Mac和Win下的字体差异',
+    date: '2026-2-24 SunJiaHao',
+    image: `${BLOG_BASE_URL}/Mac.webp`,
+    summary:
+      '好久没更新了，一直在优化后端，顺便提一句，主播换mac了😊'
+  },
   {
     id: 1,
     title: '新年快乐',

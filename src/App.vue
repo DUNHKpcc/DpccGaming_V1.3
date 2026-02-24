@@ -14,7 +14,7 @@
       </main>
     </div>
     
-    <!-- 模态框组件 -->
+    
     <GameModal v-if="showOverlays" />
     <AddGameModal v-if="showOverlays" />
     <LoginModal v-if="showOverlays" />

@@ -485,7 +485,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
   .hero-section {
     background-color: #000000;
@@ -543,7 +544,7 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
   transform: scaleY(1.3);
   transform-origin: bottom center;
-  font-family: 'Bebas Neue', cursive;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
 }
 @media (max-width: 640px) {
   :deep(.hero-title-line--small),
@@ -566,7 +567,7 @@ onUnmounted(() => {
 :deep([data-theme="light"] .hero-title-line--large) {
   color: #000000;
   font-weight: 800;
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
   letter-spacing: 0.1em;
   transform: translateX(6px);
 }
@@ -575,7 +576,7 @@ onUnmounted(() => {
 :deep([data-theme="dark"] .hero-title-line--large) {
   color: #ffffff;
   font-weight: 800;
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
   letter-spacing: 0.1em;
   transform: translateX(6px);
 }
@@ -585,13 +586,17 @@ onUnmounted(() => {
   font-size: clamp(1rem, 2vw, 1.35rem);
   color: #ffffff;
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif !important;
+  font-smooth: always !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
 }
 
 
 [data-theme="light"] .hero-subtitle {
   color: #000000;
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
 }
 
 .hero-image-wrapper {
@@ -893,7 +898,7 @@ a-waves::before {
 .greeting {
   font-size: 1rem;
   font-weight: 700;
-  color: #0add50;
+  color: #ffffff;
   letter-spacing: 2px;
   text-transform: uppercase;
   white-space: nowrap;
