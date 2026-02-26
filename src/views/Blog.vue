@@ -48,8 +48,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-
-const BLOG_BASE_URL = '/Blog'
+import { blogPosts } from '../data/blogPosts'
 
 
 const imagesLoaded = reactive({})
@@ -80,105 +79,10 @@ onMounted(() => {
   preloadImages()
 })
 
-const posts = [
-{
-    id: 1,
-    title: '优化Mac和Win下的字体差异',
-    date: '2026-2-24 SunJiaHao',
-    image: `${BLOG_BASE_URL}/Mac.webp`,
-    summary:
-      '好久没更新了，一直在优化后端，顺便提一句，主播换mac了😊'
-  },
-  {
-    id: 1,
-    title: '新年快乐',
-    date: '2026-1-1 SunJiaHao',
-    image: `${BLOG_BASE_URL}/NewYear.webp`,
-    summary:
-      '🎇'
-  },
-  {
-    id: 1,
-    title: '优化Cookie，完善Coding页面，引擎图标样式',
-    date: '2025-12-26 SunJiaHao',
-    image: `${BLOG_BASE_URL}/LightSwitch.webp`,
-    summary:
-      '✨优化用户体验，完善功能细节，cookie新增保存主题功能，coding页面新增代码/游戏引擎分类，精简功能按钮，完善页脚设计，CooKiePolicy'
-  },
-  {
-    id: 1,
-    title: '更新Cookie，更新代码，引擎图标样式',
-    date: '2025-12-17 SunJiaHao',
-    image: `${BLOG_BASE_URL}/Cookie.webp`,
-    summary:
-      '🤮Cookie和图标，懒得写了'
-  },
-  {
-    id: 1,
-    title: '蓝图模式优化',
-    date: '2025-11-29 SunJiaHao',
-    image: `${BLOG_BASE_URL}/BluePrint.webp`,
-    summary:
-      '让游戏像搭积木一样简单'
-  },
-  {
-    id: 1,
-    title: 'Coding模式优化',
-    date: '2025-11-25 SunJiaHao',
-    image: `${BLOG_BASE_URL}/CodingPanelNew1.webp`,
-    summary:
-      '优化游戏界面'
-  },
-  {
-    id: 2,
-    title: '全新的主界面',
-    date: '2025-11-23 SunJiaHao',
-    image: `${BLOG_BASE_URL}/GameModal.webp`,
-    summary:
-      '优化游戏界面'
-  },
-  {
-    id: 3,
-    title: '全新的主界面',
-    date: '2025-11-22 SunJiaHao',
-    image: `${BLOG_BASE_URL}/HeroSection.webp`,
-    summary:
-      '完成首页重构、游戏聚合展示和账号系统集成，DpccGaming 平台正式对外开放测试。'
-  },
-  {
-    id: 4,
-    title: '页脚更新',
-    date: '2025-11-21 SunJiaHao',
-    image: `${BLOG_BASE_URL}/Footer.webp`,
-    summary:
-      '新增更多连接方式，Discord 服务器、GitHub 代码库和更新日志入口一应俱全。'
-  },
-  {
-    id: 5,
-    title: '引入 Coding 模式与嵌入式编辑器',
-    date: '2025-11-15 SunJiaHao',
-    image: `${BLOG_BASE_URL}/Coding.webp`,
-    summary:
-      '为部分游戏开放代码查看和 Coding 模式，让学习和二次创作变得更加简单。'
-  },
-   {
-    id: 6,
-    title: '新增 Light/Dark 主题切换',
-    date: '2025-9-11 SunJiaHao', 
-    image: `${BLOG_BASE_URL}/LightSwitch.webp`,
-    summary:
-      '用户现在可以在 Light 和 Dark 主题之间切换，提升使用体验。'
-  },
-  {
-    id: 7,
-    title: '更流畅的GSAP动画效果',
-    date: '2025-8-09 SunJiaHao', 
-    image: `${BLOG_BASE_URL}/GSAP.webp`,
-    summary:
-      '优化GSAP动画，提升界面交互的流畅度和视觉效果。'
-  }
-
-]
+const posts = blogPosts.map(p => ({
+  ...p,
+  image: `/Blog/${p.imageName}`
+}))
 </script>
 
 <style scoped>

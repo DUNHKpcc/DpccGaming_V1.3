@@ -512,7 +512,7 @@ onUnmounted(() => {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: center; 
   justify-content: center;
   gap: clamp(1rem, 3vh, 2.5rem);
 }
