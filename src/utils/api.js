@@ -1,17 +1,5 @@
 import { useAuthStore } from '../stores/auth'
-
-const resolveApiBase = () => {
-  const envBase = typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL
-  if (envBase && /^https?:\/\//i.test(envBase)) {
-    return envBase.replace(/\/+$/, '')
-  }
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/api`
-  }
-  return '/api'
-}
-
-const API_BASE_URL = resolveApiBase()
+const API_BASE_URL = 'https://dpccgaming.xyz/api'
 
 export async function apiCall(endpoint, options = {}) {
   const authStore = useAuthStore()
@@ -40,15 +28,7 @@ export async function apiCall(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, finalOptions)
-    const contentType = response.headers.get('content-type') || ''
-    let data
-    if (contentType.includes('application/json')) {
-      data = await response.json()
-    } else {
-      const text = await response.text()
-      const snippet = text.slice(0, 200).replace(/\s+/g, ' ')
-      throw new Error(`非JSON响应 (${response.status}): ${snippet}`)
-    }
+    const data = await response.json()
 
     // 处理认证错误
     if (response.status === 401 || response.status === 403) {
