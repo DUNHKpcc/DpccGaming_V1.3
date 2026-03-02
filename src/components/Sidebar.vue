@@ -1,12 +1,5 @@
 <template>
   <div>
-    <!-- 移动端遮罩 -->
-    <div 
-      v-if="isMobile && isOpen" 
-      class="sidebar-overlay"
-      @click="closeSidebar">
-    </div>
-    
     <!-- 桌面端悬浮侧边栏 -->
     <aside 
       v-if="!isMobile"
@@ -590,15 +583,25 @@ defineExpose({
   transform: translateX(0);
 }
 
-/* 遮罩层 */
-.sidebar-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 999;
+[data-theme="light"] .sidebar-mobile,
+[data-theme="light"] .sidebar-mobile .nav-item,
+[data-theme="light"] .sidebar-mobile .nav-item span,
+[data-theme="light"] .sidebar-mobile .sidebar-header,
+[data-theme="light"] .sidebar-mobile .sidebar-header * ,
+[data-theme="light"] .sidebar-mobile .user-info,
+[data-theme="light"] .sidebar-mobile .login-prompt,
+[data-theme="light"] .sidebar-mobile .nav-item i {
+  color: #000 !important;
+}
+
+[data-theme="light"] .sidebar-mobile .nav-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #000 !important;
+}
+
+[data-theme="light"] .sidebar-mobile .nav-item-active {
+  color: #000 !important;
+  border-color: rgba(0, 0, 0, 0.25);
 }
 
 /* 侧边栏头部 */
