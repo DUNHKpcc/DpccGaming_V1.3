@@ -3,15 +3,10 @@
     <div class="brand-reveal-sticky" :style="stickyStyle">
       <div class="brand-reveal-bg" :style="backgroundStyle" />
 
-      <div class="footer-blocker" :style="blockerStyle">
-        <div class="footer-blocker-line" />
-        <p class="footer-blocker-title">SCROLL TO BREAK THROUGH</p>
-        <p class="footer-blocker-hint">Footer has ended. Keep scrolling.</p>
-      </div>
-
+      <!-- 中间的大 Logo -->
       <div class="logo-stage" :style="logoStageStyle">
         <div class="brand-logo-shell" aria-hidden="true">
-          <p class="brand-logo" :style="logoStyle">DPCC</p>
+          <p class="brand-logo" :style="logoStyle">DPCC GAMING</p>
         </div>
       </div>
     </div>
@@ -30,13 +25,7 @@ let onMotionChange = null
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value))
 
-const blockerProgress = computed(() => clamp(progress.value / 0.62))
-const revealProgress = computed(() => clamp((progress.value - 0.62) / 0.38))
-
-const easedBlockerProgress = computed(() => {
-  const p = blockerProgress.value
-  return 1 - Math.pow(1 - p, 3)
-})
+const revealProgress = computed(() => clamp((progress.value - 0.2) / 0.8))
 
 const easedRevealProgress = computed(() => {
   const p = revealProgress.value
@@ -45,45 +34,28 @@ const easedRevealProgress = computed(() => {
 
 const logoStyle = computed(() => {
   const p = easedRevealProgress.value
-  const y = prefersReducedMotion.value ? (1 - p) * 6 : (1 - p) * 26
-  const scale = prefersReducedMotion.value ? 1 : 0.94 + p * 0.06
-  const clipTop = (1 - p) * 100
-
+  // 减少位移，使其更稳定地停在中间
+  const y = prefersReducedMotion.value ? 0 : (1 - p) * 100 
+  // 最终放大倍数
+  const scale = prefersReducedMotion.value ? 1 : 0.8 + p * 0.2
+  
   return {
     transform: `translate3d(0, ${y}px, 0) scale(${scale})`,
-    opacity: (0.1 + p * 0.9).toFixed(3),
-    clipPath: `inset(${clipTop}% 0 0 0)`
+    opacity: (0.2 + p * 0.8).toFixed(3)
   }
 })
 
-const blockerStyle = computed(() => {
-  const p = easedBlockerProgress.value
-  const reveal = easedRevealProgress.value
-  return {
-    opacity: (0.22 + (1 - reveal) * 0.78).toFixed(3),
-    transform: `translate3d(0, ${prefersReducedMotion.value ? 0 : -p * 8}px, 0)`
-  }
-})
-
-const logoStageStyle = computed(() => {
-  const p = easedRevealProgress.value
-  const y = prefersReducedMotion.value ? (1 - p) * 4 : (1 - p) * 36
-  return {
-    opacity: (0.06 + p * 0.94).toFixed(3),
-    transform: `translate3d(-50%, ${y}px, 0)`
-  }
-})
+const logoStageStyle = computed(() => ({
+  zIndex: 1
+}))
 
 const stickyStyle = computed(() => ({
-  '--reveal-progress': easedRevealProgress.value.toFixed(3),
-  '--blocker-progress': easedBlockerProgress.value.toFixed(3)
+  '--reveal-progress': easedRevealProgress.value.toFixed(3)
 }))
 
 const backgroundStyle = computed(() => {
   const p = easedRevealProgress.value
-  const subtleLift = prefersReducedMotion.value ? 0 : (1 - p) * 12
   return {
-    transform: `translate3d(0, ${subtleLift}px, 0)`,
     opacity: (0.8 + p * 0.2).toFixed(3)
   }
 })
@@ -123,6 +95,7 @@ onMounted(() => {
   window.addEventListener('resize', requestUpdate)
   requestUpdate()
 })
+
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', requestUpdate)
   window.removeEventListener('resize', requestUpdate)
@@ -136,163 +109,104 @@ onBeforeUnmount(() => {
     mediaQuery.removeListener(onMotionChange)
   }
 })
-
 </script>
 
 <style scoped>
 .brand-reveal-section {
   position: relative;
-  height: 185vh;
-  margin-top: -1px;
+  height: 50vh;
+  min-height: 360px;
+  margin-top: 0;
 }
 
 .brand-reveal-sticky {
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 50vh;
   overflow: hidden;
-  padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 4vw, 2.5rem);
+  padding: 4rem 6vw; /* 调整内边距 */
   isolation: isolate;
   background: var(--brand-bg, #000000);
+  color: var(--brand-text, #ffffff);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .brand-reveal-bg {
   position: absolute;
   inset: 0;
   z-index: -1;
-  will-change: transform, opacity;
-  background:
-    radial-gradient(circle at 50% 106%, rgba(255, 255, 255, 0.12), transparent 44%),
-    linear-gradient(180deg, rgba(17, 17, 18, 1) 0%, rgba(0, 0, 0, 1) 100%);
+  background: #000000;
+  transition: background-color 0.3s ease;
+}
+
+[data-theme="dark"] .brand-reveal-sticky {
+  --brand-bg: #000000;
+  --brand-text: #ffffff;
+}
+
+[data-theme="dark"] .brand-reveal-bg {
+  background: #000000;
 }
 
 [data-theme="light"] .brand-reveal-sticky {
   --brand-bg: #ffffff;
+  --brand-text: #000000;
 }
 
 [data-theme="light"] .brand-reveal-bg {
-  background:
-    radial-gradient(circle at 50% 106%, rgba(0, 0, 0, 0.06), transparent 44%),
-    linear-gradient(180deg, rgba(248, 248, 249, 1) 0%, rgba(255, 255, 255, 1) 100%);
+  background: #ffffff;
 }
 
-.footer-blocker {
-  position: absolute;
-  inset: auto 0 0;
-  height: clamp(8.2rem, 22vh, 12rem);
-  z-index: 3;
-  padding: clamp(0.9rem, 2vh, 1.25rem) clamp(1rem, 3vw, 1.8rem);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0) 0%,
-      rgba(0, 0, 0, 0.48) 24%,
-      rgba(0, 0, 0, 0.78) 100%
-    );
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 -14px 30px rgba(0, 0, 0, 0.34);
-  will-change: transform, opacity;
-}
-
-[data-theme="light"] .footer-blocker {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(245, 245, 247, 0.72) 24%,
-      rgba(255, 255, 255, 0.9) 100%
-    );
-  border-top-color: rgba(0, 0, 0, 0.12);
-  box-shadow: 0 -10px 22px rgba(0, 0, 0, 0.1);
-}
-
-.footer-blocker-line {
-  width: min(72vw, 920px);
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.9) 50%, transparent 100%);
-}
-
-[data-theme="light"] .footer-blocker-line {
-  background: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.82) 50%, transparent 100%);
-}
-
-.footer-blocker-title {
-  margin: clamp(0.62rem, 1.6vh, 0.82rem) 0 0;
-  font-size: clamp(0.74rem, 1.4vw, 0.9rem);
-  letter-spacing: 0.3em;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.84);
-  text-transform: uppercase;
-}
-
-[data-theme="light"] .footer-blocker-title {
-  color: rgba(0, 0, 0, 0.78);
-}
-
-.footer-blocker-hint {
-  margin: 0.28rem 0 0;
-  font-size: clamp(0.66rem, 1.2vw, 0.82rem);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.56);
-}
-
-[data-theme="light"] .footer-blocker-hint {
-  color: rgba(0, 0, 0, 0.5);
-}
-
+/* 中间 Logo */
 .logo-stage {
   position: absolute;
-  left: 50%;
-  bottom: clamp(0.35rem, 1.2vh, 0.8rem);
-  z-index: 2;
-  will-change: transform, opacity;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  padding: 0 1vw;
 }
 
 .brand-logo-shell {
-  position: relative;
-  display: inline-block;
-  width: max-content;
-  max-width: 96vw;
-  overflow: hidden;
-  border-radius: 8px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: visible;
 }
 
 .brand-logo {
   margin: 0;
-  line-height: 0.78;
-  letter-spacing: 0.08em;
-  font-size: clamp(4.2rem, 18vw, 13rem);
-  font-weight: 900;
-  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
+  max-width: 100%;
+  line-height: 0.82;
+  font-size: clamp(4.4rem, 14.5vw, 18rem);
+  font-weight: 700;
+  font-family: 'Bebas Neue', 'Segoe UI', sans-serif;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  color: #ffffff;
-  transform-origin: center bottom;
+  color: inherit;
   will-change: transform, opacity;
-  user-select: none;
+  text-align: center;
 }
 
-[data-theme="light"] .brand-logo {
-  color: #000000;
-}
-
+/* 响应式调整 */
 @media (max-width: 768px) {
   .brand-reveal-section {
-    height: 168vh;
+    min-height: 320px;
   }
-
-  .footer-blocker {
-    height: clamp(7.2rem, 20vh, 9.2rem);
-  }
-
+  
   .brand-logo {
-    letter-spacing: 0.05em;
-    font-size: clamp(3.6rem, 24vw, 7.8rem);
+    font-size: clamp(3rem, 13.8vw, 8.6rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-logo {
+    font-size: clamp(2.4rem, 12.8vw, 5.8rem);
   }
 }
 </style>

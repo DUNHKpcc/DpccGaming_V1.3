@@ -1,6 +1,6 @@
 <template>
   <div v-if="notifications.length > 0" class="notification-container">
-    <TransitionGroup name="notification" tag="div">
+    <TransitionGroup name="notification" tag="div" class="notification-list">
       <div
         v-for="notification in notifications"
         :key="notification.id"
@@ -52,17 +52,22 @@ const removeNotification = (id) => {
 .notification-container {
   position: fixed;
   top: 20px;
-  right: 20px;
-  z-index: 9999;
-  max-width: 400px;
-  width: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30000;
+  width: min(92vw, 460px);
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .notification {
   display: flex;
   align-items: flex-start;
   padding: 16px;
-  margin-bottom: 12px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   cursor: pointer;
@@ -72,7 +77,7 @@ const removeNotification = (id) => {
 }
 
 .notification:hover {
-  transform: translateX(-5px);
+  transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
@@ -144,17 +149,17 @@ const removeNotification = (id) => {
 /* 动画效果 */
 .notification-enter-active,
 .notification-leave-active {
-  transition: all 0.3s ease;
+  transition: all 0.32s ease;
 }
 
 .notification-enter-from {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateY(-24px) scale(0.98);
 }
 
 .notification-leave-to {
   opacity: 0;
-  transform: translateX(100%);
+  transform: translateY(-18px) scale(0.98);
 }
 
 .notification-move {
@@ -165,9 +170,7 @@ const removeNotification = (id) => {
 @media (max-width: 480px) {
   .notification-container {
     top: 10px;
-    right: 10px;
-    left: 10px;
-    max-width: none;
+    width: min(94vw, 460px);
   }
   
   .notification {

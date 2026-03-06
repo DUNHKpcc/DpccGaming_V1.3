@@ -179,7 +179,7 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: 20000;
   background: rgb(29, 29, 31);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
@@ -489,7 +489,7 @@ onUnmounted(() => {
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   min-width: 12rem;
-  z-index: 50;
+  z-index: 20001;
 }
 
 [data-theme="light"] .dropdown-menu {

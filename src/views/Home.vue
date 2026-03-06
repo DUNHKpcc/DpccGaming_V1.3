@@ -15,7 +15,7 @@
 import HeroSection from '../components/HeroSection.vue'
 import GameShowcase from '../components/GameShowcase.vue'
 import Footer from '../components/Footer.vue'
-import BrandRevealSection from '../components/BrandRevealSection.vue';
+import BrandRevealSection from '../components/BrandRevealSection.vue'
 </script>
 
 <style scoped>

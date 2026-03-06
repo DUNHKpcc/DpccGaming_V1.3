@@ -1,6 +1,13 @@
 export const blogPosts = [
   {
     id: 1,
+    title: '优化多项小细节，重做Footer样式，修改提示小组件功能',
+    date: '2026-3-6 SunJiaHao',
+    imageName: 'Footer.webp',
+    summary: '好久没更新了，一直在优化后端，顺便提一句，主播换mac了😊'
+  },
+  {
+    id: 1,
     title: '优化Mac和Win下的字体差异',
     date: '2026-2-24 SunJiaHao',
     imageName: 'Mac.webp',

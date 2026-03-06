@@ -870,10 +870,10 @@ a-waves::before {
 
 
 .new-year-widget {
-  position: fixed;
-  top: 100px;
+  position: absolute;
+  top: 20px;
   right: 20px;
-  z-index: 10000;
+  z-index: 12;
 }
 
 .widget-content {
@@ -907,8 +907,8 @@ a-waves::before {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .new-year-widget {
-    top: 80px;
-    right: 10px;
+    top: 14px;
+    right: 12px;
   }
   
   .widget-content {
@@ -923,8 +923,8 @@ a-waves::before {
 
 @media (max-width: 480px) {
   .new-year-widget {
-    top: 70px;
-    right: 5px;
+    top: 12px;
+    right: 8px;
   }
   
   .widget-content {
