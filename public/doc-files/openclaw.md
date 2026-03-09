@@ -49,7 +49,7 @@ base url（华北，美国，新加坡）的区域和api的区别（普通api和
 复制全选替换即可（api和base url要注意替换）
 
 
-![config](/docsPhoto/OpenClaw/config.webp)
+![Config](/docsPhoto/OpenClaw/Config.webp)
 
 6.配置好后可以直接在宝塔面板中打开终端，输入以下命令 openclaw doctor（一键诊断命令）检查是否有错误,如果提示里没有error，就说明配置成功了，运行此命令检查网关是否启动 openclaw gateway status，默认已在运行，可以查看以下图片，运行在18789端口
 
