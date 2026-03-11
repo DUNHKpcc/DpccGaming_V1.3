@@ -22,6 +22,7 @@ const notificationRoutes = require('./backend/routes/notifications');
 const aiRoutes = require('./backend/routes/ai');
 const debugRoutes = require('./backend/routes/debug');
 const cookieRoutes = require('./backend/routes/cookies');
+const discussionRoutes = require('./backend/routes/discussion');
 
 const app = express();
 
@@ -95,6 +96,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/cookies', cookieRoutes);
+app.use('/api/discussion', discussionRoutes);
 
 app.use(errorHandler);
 
@@ -128,6 +130,7 @@ async function startServer() {
       console.log('   - /api/ai/* (AI助手)');
       console.log('   - /api/admin/* (管理员功能)');
       console.log('   - /api/debug/* (调试工具)');
+      console.log('   - /api/discussion/* (讨论模式/好友/匹配)');
       console.log('   - /uploads/* (静态文件)');
       console.log('   - /games/* (游戏文件)');
       console.log('='.repeat(50));

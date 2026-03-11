@@ -1,10 +1,10 @@
 export const blogPosts = [
   {
     id: 1,
-    title: '完善Docs文档，上传了一些常用的教程',
+    title: '完善AiDocs文档，上传了一些常用的教程',
     date: '2026-3-7 SunJiaHao',
     imageName: 'Docs.webp',
-    summary: 'Brand New Docs Documentation & Forward-Looking Tech AI Tutorials'
+    summary: 'Brand New AiDocs Documentation & Forward-Looking Tech AI Tutorials'
   },
   {
     id: 1,

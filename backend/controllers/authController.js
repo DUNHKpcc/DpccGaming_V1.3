@@ -1,6 +1,30 @@
 const bcrypt = require('bcryptjs');
 const { executeQuery } = require('../config/database');
 const { generateToken } = require('../middleware/auth');
+const appConfig = require('../config/app');
+
+const AUTH_COOKIE_NAME = appConfig.jwt.cookieName || 'dpcc_auth_token';
+const AUTH_COOKIE_MAX_AGE = Number(appConfig.jwt.cookieDays || 30) * 24 * 60 * 60 * 1000;
+const isProduction = appConfig.server.nodeEnv === 'production';
+
+function setAuthCookie(res, token) {
+  res.cookie(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: AUTH_COOKIE_MAX_AGE
+  });
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/'
+  });
+}
 
 async function register(req, res) {
   try {
@@ -34,6 +58,7 @@ async function register(req, res) {
     );
 
     const token = generateToken({ id: result.insertId, username });
+    setAuthCookie(res, token);
 
     res.status(201).json({
       message: '注册成功',
@@ -75,6 +100,7 @@ async function login(req, res) {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token);
 
     res.json({
       message: '登录成功',
@@ -136,8 +162,15 @@ async function getUserProfile(req, res) {
 }
 
 function verifyTokenEndpoint(req, res) {
+  const token = generateToken({
+    id: req.user.userId,
+    username: req.user.username
+  });
+  setAuthCookie(res, token);
+
   res.json({
     valid: true,
+    token,
     user: {
       id: req.user.userId,
       username: req.user.username
@@ -145,10 +178,16 @@ function verifyTokenEndpoint(req, res) {
   });
 }
 
+function logout(req, res) {
+  clearAuthCookie(res);
+  res.json({ message: '退出登录成功' });
+}
+
 module.exports = {
   register,
   login,
   getCurrentUser,
   getUserProfile,
-  verifyTokenEndpoint
+  verifyTokenEndpoint,
+  logout
 };

@@ -3,10 +3,42 @@ const { getPool } = require('../config/database');
 const appConfig = require('../config/app');
 
 const JWT_SECRET = appConfig.jwt.secret;
+const AUTH_COOKIE_NAME = appConfig.jwt.cookieName || 'dpcc_auth_token';
+
+function parseCookies(cookieHeader = '') {
+  if (!cookieHeader) return {};
+  return cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex <= 0) return acc;
+      const key = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      if (!key) return acc;
+      try {
+        acc[key] = decodeURIComponent(value);
+      } catch (error) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+}
+
+function extractToken(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const bearerToken = authHeader.split(' ')[1];
+    if (bearerToken) return bearerToken;
+  }
+
+  const cookies = parseCookies(req.headers.cookie || '');
+  return cookies[AUTH_COOKIE_NAME] || null;
+}
 
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = extractToken(req);
 
   if (!token) {
     return res.status(401).json({
@@ -79,7 +111,7 @@ function generateToken(user) {
   return jwt.sign(
     { userId: user.id, username: user.username },
     JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: appConfig.jwt.expiresIn || '30d' }
   );
 }
 
@@ -124,5 +156,6 @@ module.exports = {
   checkAdminPermission,
   generateToken,
   verifyToken,
+  extractToken,
   errorHandler
 };

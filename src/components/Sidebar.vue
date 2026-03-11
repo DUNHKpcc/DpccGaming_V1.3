@@ -151,6 +151,12 @@ const navItems = ref([
     description: '用节点式逻辑快速搭建玩法蓝图'
   },
   {
+    name: '团队讨论',
+    path: '/discussion',
+    icon: 'fa fa-comments',
+    description: '进入多人讨论房间，围绕当前游戏协作交流'
+  },
+  {
     name: '账户详情',
     path: '/account',
     icon: 'fa fa-users',
@@ -231,6 +237,8 @@ const handleSidebarLeave = () => {
 }
 
 const collapseSidebar = () => {
+  if (!isExpanded.value) return
+
   isExpanded.value = false
   
   // 清除定时器
@@ -240,32 +248,35 @@ const collapseSidebar = () => {
   }
   
   if (floatingSidebar.value && detailsPanel.value) {
-    // 详细信息面板隐藏动画
-    gsap.to(detailsPanel.value, {
+    gsap.killTweensOf([floatingSidebar.value, detailsPanel.value])
+
+    const tl = gsap.timeline({
+      defaults: { overwrite: "auto" },
+      onStart: () => {
+        gsap.set(floatingSidebar.value, { willChange: "width" })
+        gsap.set(detailsPanel.value, { willChange: "opacity, transform" })
+      },
+      onComplete: () => {
+        gsap.set(floatingSidebar.value, { willChange: "auto" })
+        gsap.set(detailsPanel.value, { willChange: "auto" })
+      }
+    })
+
+    // 先快速隐藏右侧内容，再平滑收回宽度，减轻收回时重绘压力
+    tl.to(detailsPanel.value, {
       opacity: 0,
-      x: -20,
-      scale: 0.9,
-      duration: 0.15,
-      ease: "power2.out"
-    })
-    
-    // 侧边栏收缩动画
-    gsap.to(floatingSidebar.value, {
+      x: -12,
+      duration: 0.1,
+      ease: "power1.out"
+    }).to(floatingSidebar.value, {
       width: 80,
-      duration: 0.25,
-      ease: "power2.out",
-      delay: 0.05
-    })
-    
-    // 重置所有图标缩放
+      duration: 0.26,
+      ease: "power2.inOut"
+    }, 0.03)
+
+    // 直接重置图标缩放，避免额外动画占用帧预算
     const iconElements = document.querySelectorAll('.nav-icon')
-    iconElements.forEach(icon => {
-      gsap.to(icon, {
-        scale: 1,
-        duration: 0.15,
-        ease: "power2.out"
-      })
-    })
+    gsap.set(iconElements, { scale: 1 })
   }
 }
 
@@ -352,14 +363,17 @@ defineExpose({
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 20px;
-  padding: 20px 10px;
+  padding: 20px 0;
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-sizing: border-box;
   width: 80px;
   height: auto;
-  min-height: 300px;
-  transition: width 0.4s ease;
+  max-height: 86vh;
+  display: flex;
+  align-items: flex-start;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
 }
 
@@ -381,15 +395,18 @@ defineExpose({
 }
 
 .floating-nav {
-  position: absolute;
+  position: relative;
   left: 0;
   top: 0;
   width: 80px;
-  height: 100%;
+  height: auto;
+  max-height: calc(86vh - 40px);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
+  overflow-y: auto;
+  padding: 20px 0;
   z-index: 10;
 }
 
@@ -399,13 +416,14 @@ defineExpose({
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 14px;
   align-items: center;
 }
 
 .nav-icon-item {
   position: relative;
   display: flex;
+  width: 80px;
   justify-content: center;
   align-items: center;
 }
@@ -566,6 +584,7 @@ defineExpose({
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* 亮色模式下的移动端侧边栏 */
@@ -613,6 +632,8 @@ defineExpose({
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 1rem;
 }
 

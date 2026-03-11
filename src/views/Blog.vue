@@ -31,9 +31,13 @@
                 <h2 class="text-xl font-bold text-white mb-2">
                   {{ post.title }}
                 </h2>
-                <p class="text-sm text-white/60 mb-3">
-                  {{ post.date }}
-                </p>
+                <div class="post-meta mb-3">
+                  <span class="post-date">{{ post.dateLabel }}</span>
+                  <span class="post-author">
+                    <img src="/Ai/Sun.jpeg" alt="SunJiaHao" class="author-avatar" />
+                    <span>{{ post.author }}</span>
+                  </span>
+                </div>
                 <p class="text-sm text-white/80 leading-relaxed flex-1">
                   {{ post.summary }}
                 </p>
@@ -81,7 +85,13 @@ onMounted(() => {
 
 const posts = blogPosts.map(p => ({
   ...p,
-  image: `/Blog/${p.imageName}`
+  image: `/Blog/${p.imageName}`,
+  dateLabel: p.date?.includes(' ')
+    ? p.date.slice(0, p.date.lastIndexOf(' '))
+    : p.date,
+  author: p.date?.includes(' ')
+    ? p.date.slice(p.date.lastIndexOf(' ') + 1)
+    : 'SunJiaHao'
 }))
 </script>
 
@@ -93,8 +103,14 @@ const posts = blogPosts.map(p => ({
     radial-gradient(circle at bottom, rgba(0, 0, 0, 0.7), #050509);
 }
 
+[data-theme="light"] .blog-page {
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 54%),
+    radial-gradient(circle at bottom, rgba(148, 163, 184, 0.2), #eef3fb);
+}
+
 .content-wrapper {
-  padding-top: 5rem;
+  padding-top: 0;
   height: 100%;
 }
 
@@ -108,6 +124,64 @@ const posts = blogPosts.map(p => ({
   flex: 1;
   overflow-y: auto;
   padding-bottom: 2rem;
+}
+
+.blog-card {
+  border-radius: 12px;
+}
+
+.post-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.post-date {
+  flex: 1;
+  min-width: 0;
+}
+
+.post-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+}
+
+.author-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+[data-theme="light"] .blog-header h1 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .blog-content h2 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .blog-content p {
+  color: rgba(30, 41, 59, 0.86);
+}
+
+[data-theme="light"] .post-meta {
+  color: rgba(71, 85, 105, 0.86);
+}
+
+[data-theme="light"] .post-author {
+  color: rgba(30, 41, 59, 0.86);
+}
+
+[data-theme="light"] .author-avatar {
+  border-color: rgba(100, 116, 139, 0.35);
 }
 
 @media (min-width: 1024px) {
@@ -135,6 +209,19 @@ const posts = blogPosts.map(p => ({
   transform: translateY(-4px);
   background: rgba(255, 255, 255, 0.12);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  box-shadow: 0 8px 24px rgba(148, 163, 184, 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme="light"] .glass-card:hover {
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(148, 163, 184, 0.3);
 }
 
 .blog-image-wrapper {
@@ -168,6 +255,10 @@ const posts = blogPosts.map(p => ({
   backdrop-filter: blur(8px);
 }
 
+[data-theme="light"] .image-loading {
+  background: rgba(243, 247, 255, 0.72);
+}
+
 .loading-spinner {
   width: 32px;
   height: 32px;
@@ -175,6 +266,11 @@ const posts = blogPosts.map(p => ({
   border-radius: 50%;
   border-top-color: #fff;
   animation: spin 1s ease-in-out infinite;
+}
+
+[data-theme="light"] .loading-spinner {
+  border: 3px solid rgba(100, 116, 139, 0.3);
+  border-top-color: #334155;
 }
 
 @keyframes spin {

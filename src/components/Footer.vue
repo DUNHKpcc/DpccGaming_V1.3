@@ -65,9 +65,9 @@
             <h3 class="font-semibold mb-3 section-subtitle">资源</h3>
             <ul class="space-y-2">
               <li>
-                <router-link to="/docs" class="footer-link flex items-center gap-2">
+                <router-link to="/aidocs" class="footer-link flex items-center gap-2">
                   <i class="fa-solid fa-book-open text-sm" />
-                  <span>开发文档</span>
+                  <span>AiDocs 文档</span>
                 </router-link>
               </li>
               <li>

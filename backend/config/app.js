@@ -30,6 +30,13 @@ const jwtSecret = getEnv(
   'JWT_SECRET',
   isProduction ? '' : `dev-${crypto.randomBytes(32).toString('hex')}`
 );
+const jwtExpiresIn = getEnv('JWT_EXPIRES_IN', '30d');
+const jwtCookieName = getEnv('JWT_COOKIE_NAME', 'dpcc_auth_token');
+const parsedJwtCookieDays = Number(process.env.JWT_COOKIE_DAYS || 30);
+const jwtCookieDays =
+  Number.isFinite(parsedJwtCookieDays) && parsedJwtCookieDays > 0
+    ? parsedJwtCookieDays
+    : 30;
 
 if (isProduction) {
   const missing = [];
@@ -69,7 +76,9 @@ const config = {
 
   jwt: {
     secret: jwtSecret,
-    expiresIn: '24h'
+    expiresIn: jwtExpiresIn,
+    cookieName: jwtCookieName,
+    cookieDays: jwtCookieDays
   },
 
   paths: {

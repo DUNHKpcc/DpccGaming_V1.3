@@ -1,7 +1,7 @@
 export const docsList = [
   {
     id: 'custom',
-    title: '小白也会的云端OpenClaw部署教程',
+    title: '云端OpenClaw部署教程',
     tag: '🦞',
     summary: '超快，超详细',
     cover: '/docsPhoto/OpenClaw/OpenClaw.webp',
@@ -19,7 +19,7 @@ export const docsList = [
     id: 'content-publish',
     title: '内容发布规范',
     tag: '文档与资源管理',
-    summary: '统一 Blog / Docs 资源命名、封面尺寸和发布流程，降低维护成本。',
+    summary: '统一 Blog / AiDocs 资源命名、封面尺寸和发布流程，降低维护成本。',
     cover: '/Blog/Footer.webp',
     file: '/doc-files/content-publish.md'
   },

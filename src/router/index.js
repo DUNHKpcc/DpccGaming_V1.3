@@ -8,6 +8,7 @@ import UserManagement from '../components/UserManagement.vue'
 import GameManagement from '../components/GameManagement.vue'
 import CodingMode from '../views/CodingMode.vue'
 import DocsPlaceholder from '../views/DocsPlaceholder.vue'
+import DiscussionMode from '../views/DiscussionMode.vue'
 import BlueprintMode from '../views/BlueprintMode.vue'
 import CookiePolicy from '../views/CookiePolicy.vue'
 
@@ -64,15 +65,30 @@ const routes = [
     meta: { hideSidebar: true }
   },
   {
-    path: '/docs',
-    name: 'Docs',
+    path: '/discussion/:id?',
+    name: 'DiscussionMode',
+    component: DiscussionMode,
+    props: true,
+    meta: { hideSidebar: true }
+  },
+  {
+    path: '/aidocs',
+    name: 'AiDocs',
     component: DocsPlaceholder
+  },
+  {
+    path: '/docs',
+    redirect: '/aidocs'
   },
   {
     path: '/cookie-policy',
     name: 'CookiePolicy',
     component: CookiePolicy,
     meta: { hideSidebar: true }
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 
@@ -85,34 +101,87 @@ const router = createRouter({
   }
 })
 
+const CHUNK_RELOAD_KEY = '__dpcc_chunk_reload__'
+
+const clearLocalAuth = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('authToken')
+  localStorage.removeItem('currentUser')
+}
+
+const restoreSessionFromCookie = async () => {
+  try {
+    const response = await fetch('/api/verify-token', {
+      method: 'GET',
+      credentials: 'include'
+    })
+    if (!response.ok) return false
+
+    const data = await response.json()
+    if (data?.token) {
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('authToken', data.token)
+    }
+    if (data?.user) {
+      localStorage.setItem('currentUser', JSON.stringify(data.user))
+    }
+    return !!data?.token
+  } catch (error) {
+    console.error('恢复登录会话失败:', error)
+    return false
+  }
+}
+
+router.onError((error) => {
+  const message = (error && error.message) ? error.message : ''
+  const isChunkLoadFailure =
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    /Importing a module script failed/i.test(message) ||
+    /Loading chunk [\d]+ failed/i.test(message)
+
+  if (!isChunkLoadFailure) return
+
+  const alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1'
+  if (alreadyReloaded) {
+    sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+    return
+  }
+
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+  window.location.reload()
+})
+
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
-  const token = localStorage.getItem('token')
+  let token = localStorage.getItem('token')
 
   // 检查是否需要认证
   if (to.meta.requiresAuth && !token) {
-    next('/')
-    return
+    const restored = await restoreSessionFromCookie()
+    if (!restored) {
+      clearLocalAuth()
+      next('/')
+      return
+    }
+    token = localStorage.getItem('token')
   }
 
   // 检查管理员权限
   if (to.meta.requiresAdmin) {
-    if (!token) {
-      next('/')
-      return
-    }
-
     try {
       // 调用API检查管理员权限
+      const headers = {}
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
       const response = await fetch('/api/admin/check-permission', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include',
+        headers
       })
 
       if (!response.ok) {
         // 权限不足，重定向到首页
-        localStorage.removeItem('token')
+        clearLocalAuth()
         next('/')
         return
       }
@@ -125,6 +194,12 @@ router.beforeEach(async (to, from, next) => {
     }
   } else {
     next()
+  }
+})
+
+router.afterEach(() => {
+  if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+    sessionStorage.removeItem(CHUNK_RELOAD_KEY)
   }
 })
 

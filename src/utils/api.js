@@ -6,6 +6,7 @@ export async function apiCall(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`
 
   const defaultOptions = {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },

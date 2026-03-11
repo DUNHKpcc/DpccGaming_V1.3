@@ -25,8 +25,8 @@
           <router-link to="/blog" class="nav-link" active-class="nav-link-active">
             Blog
           </router-link>
-          <router-link to="/docs" class="nav-link" active-class="nav-link-active">
-            Docs
+          <router-link to="/aidocs" class="nav-link" active-class="nav-link-active">
+            AiDocs
           </router-link>
         </nav>
       </div>
@@ -102,16 +102,16 @@ const currentLogo = computed(() => (isDark.value ? '/logo.png' : '/logo_light.pn
 
 const checkAdminPermission = async () => {
   const token = localStorage.getItem('token')
-  if (!token) {
-    isAdmin.value = false
-    return
-  }
 
   try {
+    const headers = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
     const response = await fetch('/api/admin/check-permission', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      credentials: 'include',
+      headers
     })
 
     if (response.ok) {
