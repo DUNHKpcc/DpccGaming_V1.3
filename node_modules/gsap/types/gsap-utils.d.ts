@@ -74,11 +74,11 @@ declare namespace gsap.utils {
    * });
    * ```
    *
-   * @param {DistributeConfig} config
+   * @param {DistributeConfig | NumberValue} config
    * @returns {FunctionBasedValue<number>} The clamped number or function to clamp to given range
    * @memberof gsap.utils
    */
-  function distribute(config: DistributeConfig): FunctionBasedValue<number>;
+  function distribute(config: DistributeConfig | NumberValue): FunctionBasedValue<number>;
 
   /**
    * Returns unit of a given string where the number comes first, then the unit.
