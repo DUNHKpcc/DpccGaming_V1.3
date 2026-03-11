@@ -1,27 +1,77 @@
-// 应用配置
+const crypto = require('crypto');
+
+const nodeEnv = process.env.NODE_ENV || 'development';
+const isProduction = nodeEnv === 'production';
+
+const getEnv = (key, fallback = '') => {
+  const value = process.env[key];
+  return typeof value === 'string' ? value.trim() : fallback;
+};
+
+const parseCorsOrigins = () => {
+  const raw = getEnv('CORS_ORIGINS', '');
+  if (!raw) {
+    return [
+      'http://localhost:8000',
+      'http://127.0.0.1:8000',
+      'http://localhost:3000',
+      'https://localhost:3000',
+      'http://localhost:8080',
+      'http://127.0.0.1:8080',
+      'http://dpccgaming.xyz',
+      'https://dpccgaming.xyz'
+    ];
+  }
+  return raw.split(',').map((item) => item.trim()).filter(Boolean);
+};
+
+const dbPassword = getEnv('DB_PASSWORD', '');
+const jwtSecret = getEnv(
+  'JWT_SECRET',
+  isProduction ? '' : `dev-${crypto.randomBytes(32).toString('hex')}`
+);
+
+if (isProduction) {
+  const missing = [];
+  if (!dbPassword) missing.push('DB_PASSWORD');
+  if (!jwtSecret) missing.push('JWT_SECRET');
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables in production: ${missing.join(', ')}`);
+  }
+}
+
+if (!isProduction) {
+  if (!dbPassword) {
+    console.warn('[config] DB_PASSWORD 未设置，数据库连接可能失败。建议在 .env 中配置。');
+  }
+  if (!process.env.JWT_SECRET) {
+    console.warn('[config] JWT_SECRET 未设置，已使用随机开发密钥（重启后会变化）。');
+  } else if (jwtSecret.length < 32) {
+    console.warn('[config] JWT_SECRET 长度小于 32，建议提高复杂度。');
+  }
+}
+
 const config = {
-  // 服务器配置
+
   server: {
     port: process.env.PORT || 3000,
-    nodeEnv: process.env.NODE_ENV || 'development'
+    nodeEnv
   },
 
-  // 数据库配置
   database: {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'dpccgaming',
-    password: process.env.DB_PASSWORD || 'kWc77NmN74AeKymB',
+    port: Number(process.env.DB_PORT || 3306),
+    password: dbPassword,
     database: process.env.DB_NAME || 'dpccgaming',
-    connectionLimit: 10
+    connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10)
   },
 
-  // JWT配置
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+    secret: jwtSecret,
     expiresIn: '24h'
   },
 
-  // 文件路径配置
   paths: {
     uploads: process.env.UPLOADS_PATH || 'uploads',
     games: process.env.GAMES_ROOT_PATH || 'games',
@@ -38,18 +88,7 @@ const config = {
 
   // CORS配置
   cors: {
-    origins: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',')
-      : [
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'http://localhost:3000',
-        'https://localhost:3000',
-        'http://localhost:8080',
-        'http://127.0.0.1:8080',
-        'http://dpccgaming.xyz',
-        'https://dpccgaming.xyz'
-      ]
+    origins: parseCorsOrigins()
   },
 
   // 管理员白名单

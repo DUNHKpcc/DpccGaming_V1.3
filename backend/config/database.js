@@ -6,10 +6,12 @@ const appConfig = require('./app');
 // 数据库连接配置 - 宝塔面板环境
 const dbConfig = {
   host: appConfig.database.host,
+  port: appConfig.database.port,
   user: appConfig.database.user,
   password: appConfig.database.password,
   database: appConfig.database.database,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
+  connectionLimit: appConfig.database.connectionLimit
 };
 
 // 数据库连接池

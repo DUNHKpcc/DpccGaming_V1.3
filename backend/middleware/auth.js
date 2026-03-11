@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../config/database');
+const appConfig = require('../config/app');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'DpccGaming2024SecretKey20060606';
+const JWT_SECRET = appConfig.jwt.secret;
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization;

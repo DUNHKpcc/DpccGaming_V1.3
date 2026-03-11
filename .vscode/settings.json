@@ -3,12 +3,23 @@
         {
             "mysqlOptions": {
                 "authProtocol": "default",
-                "enableSsl": "Disabled"
+                "enableSsl": "Enabled",
+                "ssl": {
+                    "crl": "",
+                    "ca": "/Users/dpccskisw/.ssh/id_rsa"
+                }
             },
-            "ssh": "Disabled",
+            "ssh": "Enabled",
             "previewLimit": 50,
-            "server": "localhost",
+            "server": "127.0.0.1",
             "port": 3306,
+            "sshOptions": {
+                "port": 22,
+                "host": "39.96.164.116",
+                "username": "root",
+                "password": "kWc77NmN74AeKymB",
+                "privateKeyPath": "/Users/dpccskisw/.ssh/id_rsa"
+            },
             "driver": "MySQL",
             "name": "dpccgaming",
             "username": "dpccgaming",

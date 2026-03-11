@@ -280,13 +280,13 @@ app.use('/api/', limiter);
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'dpccgaming', // 宝塔面板数据库用户名
-  password: process.env.DB_PASSWORD || 'kWc77NmN74AeKymB', // 宝塔面板数据库密码
+  password: process.env.DB_PASSWORD || '', // 不再使用硬编码密码
   database: process.env.DB_NAME || 'dpccgaming',
   charset: 'utf8mb4'
 };
 
-// JWT密钥（生产环境中应该使用环境变量）
-const JWT_SECRET = process.env.JWT_SECRET || 'DpccGaming2024SecretKey20060606';
+// JWT密钥（开发环境未配置时使用临时随机值）
+const JWT_SECRET = process.env.JWT_SECRET || `dev-${require('crypto').randomBytes(32).toString('hex')}`;
 
 // 数据库连接池
 let pool;
