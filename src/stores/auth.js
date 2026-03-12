@@ -1,17 +1,26 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiCall } from '../utils/api'
+import { DEFAULT_AVATAR_URL } from '../utils/avatar'
 
 export const useAuthStore = defineStore('auth', () => {
+  const normalizeUser = (user) => {
+    if (!user) return null
+    return {
+      ...user,
+      avatar_url: user.avatar_url || DEFAULT_AVATAR_URL
+    }
+  }
+
   // 从localStorage恢复用户状态
-  const currentUser = ref(JSON.parse(localStorage.getItem('currentUser') || 'null'))
+  const currentUser = ref(normalizeUser(JSON.parse(localStorage.getItem('currentUser') || 'null')))
   const authToken = ref(localStorage.getItem('authToken') || localStorage.getItem('token'))
 
   const isLoggedIn = computed(() => !!authToken.value && !!currentUser.value)
 
   const persistAuth = (token, user) => {
     authToken.value = token || null
-    currentUser.value = user || null
+    currentUser.value = normalizeUser(user)
 
     if (authToken.value) {
       localStorage.setItem('authToken', authToken.value)
@@ -25,6 +34,14 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
     } else {
       localStorage.removeItem('currentUser')
+    }
+  }
+
+  const updateCurrentUser = (patch) => {
+    const base = currentUser.value || {}
+    currentUser.value = normalizeUser({ ...base, ...patch })
+    if (currentUser.value) {
+      localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
     }
   }
 
@@ -102,13 +119,53 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const uploadAvatar = async (file) => {
+    if (!file) {
+      return { success: false, message: '请选择头像文件' }
+    }
+
+    const formData = new FormData()
+    formData.append('avatar', file)
+
+    const token = localStorage.getItem('token') || authToken.value
+    const headers = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    try {
+      const response = await fetch('/api/user/avatar', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: formData
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || data.message || '头像上传失败')
+      }
+
+      if (data.user) {
+        updateCurrentUser(data.user)
+      }
+
+      return { success: true, message: data.message || '头像更新成功' }
+    } catch (error) {
+      console.error('上传头像失败:', error)
+      return { success: false, message: error.message || '头像上传失败' }
+    }
+  }
+
   return {
     currentUser,
     authToken,
     isLoggedIn,
+    updateCurrentUser,
     login,
     register,
     logout,
-    checkAuthStatus
+    checkAuthStatus,
+    uploadAvatar
   }
 })

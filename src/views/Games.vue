@@ -9,7 +9,7 @@
             <h1 class="text-3xl font-bold text-white">游戏库</h1>
             <button
               @click="openAddGameModal"
-              class="bg-white hover:bg-white/90 text-[#1d1d1f] px-6 py-3 rounded-lg transition-colors duration-300 flex items-center gap-2"
+              class="add-game-btn bg-white hover:bg-white/90 text-[#1d1d1f] px-6 py-3 rounded-lg transition-colors duration-300 flex items-center gap-2"
             >
               <i class="fa fa-plus"></i>
               添加游戏
@@ -175,7 +175,7 @@
                   </template>
                 </div>
                 <div
-                  class="absolute top-4 right-4 bg-white text-[#1d1d1f] text-sm font-bold px-3 py-1 rounded-full border border-black/10 shadow-sm"
+                  class="game-tag-badge absolute top-4 right-4 bg-white text-[#1d1d1f] text-sm font-bold px-3 py-1 rounded-full border border-black/10 shadow-sm"
                 >
                   {{ categoryToZh(game.category || 'action') }}
                 </div>
@@ -195,6 +195,17 @@
                 <p class="text-white/80 text-sm mb-4">
                   {{ game.description }}
                 </p>
+                <div class="card-author-line mb-4">
+                  <img
+                    :src="getAvatarUrl(game.uploaded_by_avatar_url)"
+                    alt="作者头像"
+                    class="card-author-avatar"
+                    @error="handleAvatarError"
+                  />
+                  <span class="card-author-text">
+                    By {{ game.uploaded_by_username || '匿名开发者' }}
+                  </span>
+                </div>
                 <div class="flex items-center text-sm text-white/80 mb-4">
                   <i class="fa fa-tag mr-2"></i>
                   <span>游戏类别: {{ categoryToZh(game.category || 'action') }}</span>
@@ -241,6 +252,7 @@ import { useModalStore } from '../stores/modal'
 import { resolveMediaUrl } from '../utils/media'
 import { gsap } from 'gsap'
 import { categoryToZh } from '../utils/category'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 
 const gameStore = useGameStore()
 const modalStore = useModalStore()
@@ -653,14 +665,53 @@ watch([selectedEngine, selectedCodeType, games], () => {
 .games-page {
   /* Distance from topbar; adjust if needed */
   --topbar-gap: 72px;
+  --games-bg: #000000;
+  --games-text: #f3f4f6;
+  --games-text-80: rgba(243, 244, 246, 0.82);
+  --games-text-30: rgba(243, 244, 246, 0.34);
+  --games-overlay: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.42),
+    rgba(0, 0, 0, 0.72)
+  );
+  --games-card-bg: linear-gradient(150deg, #151517, #101012 58%, #0b0b0c);
+  --games-card-hover-bg: linear-gradient(150deg, #1c1c20, #141418 58%, #101013);
+  --games-card-border: rgba(255, 255, 255, 0.12);
+  --games-ui-bg: #ffffff;
+  --games-ui-bg-hover: rgba(255, 255, 255, 0.9);
+  --games-ui-text: #1d1d1f;
+  --games-ui-border: rgba(0, 0, 0, 0.14);
+  --games-control-bg: rgba(0, 0, 0, 0.55);
+  --games-scrollbar: rgba(255, 255, 255, 0.2);
   min-height: 100vh;
   height: 100vh;
   position: fixed;
   width: 100%;
   overflow: hidden; 
   font-family: 'Quicksand', sans-serif;
-  background-color: #000;
-  color: #f3f4f6;
+  background-color: var(--games-bg);
+  color: var(--games-text);
+}
+
+[data-theme='light'] .games-page {
+  --games-bg: #ffffff;
+  --games-text: #111111;
+  --games-text-80: rgba(17, 17, 17, 0.8);
+  --games-text-30: rgba(17, 17, 17, 0.34);
+  --games-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.22)
+  );
+  --games-card-bg: linear-gradient(145deg, #ffffff, #f2f7ff 58%, #fff4e7);
+  --games-card-hover-bg: linear-gradient(145deg, #ffffff, #ebf3ff 58%, #ffeccf);
+  --games-card-border: rgba(17, 17, 17, 0.12);
+  --games-ui-bg: #ffffff;
+  --games-ui-bg-hover: #f7f9ff;
+  --games-ui-text: #111111;
+  --games-ui-border: rgba(17, 17, 17, 0.16);
+  --games-control-bg: rgba(255, 255, 255, 0.86);
+  --games-scrollbar: rgba(17, 17, 17, 0.24);
 }
 
 @media (max-width: 768px) {
@@ -673,18 +724,13 @@ watch([selectedEngine, selectedCodeType, games], () => {
   content: '';
   position: fixed;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.45),
-    rgba(0, 0, 0, 0.75)
-  );
+  background: var(--games-overlay);
   pointer-events: none;
   z-index: 0;
 }
 
 .content-wrapper {
   position: relative;
-  margin-top: var(--topbar-gap);
   z-index: 10;
   height: calc(100vh - var(--topbar-gap));
   display: flex;
@@ -722,7 +768,7 @@ watch([selectedEngine, selectedCodeType, games], () => {
 }
 
 .games-cards-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--games-scrollbar);
   border-radius: 9999px;
 }
 
@@ -748,8 +794,8 @@ watch([selectedEngine, selectedCodeType, games], () => {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--games-card-bg);
+  border: 1px solid var(--games-card-border);
   border-radius: 0;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   background-clip: padding-box;
@@ -761,8 +807,58 @@ watch([selectedEngine, selectedCodeType, games], () => {
 }
 
 .glass-card:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--games-card-hover-bg);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+.games-page .text-white {
+  color: var(--games-text) !important;
+}
+
+.games-page .text-white\/80 {
+  color: var(--games-text-80) !important;
+}
+
+.games-page .text-white\/30 {
+  color: var(--games-text-30) !important;
+}
+
+.games-page :is(.add-game-btn, .filter-btn, .play-game-btn, .game-tag-badge, .option-chip, .video-control-panel .control-btn) {
+  background: var(--games-ui-bg) !important;
+  color: var(--games-ui-text) !important;
+  border-color: var(--games-ui-border) !important;
+}
+
+.games-page :is(.add-game-btn, .filter-btn, .play-game-btn, .option-chip, .video-control-panel .control-btn):hover,
+.games-page .game-tag-badge:hover {
+  background: var(--games-ui-bg-hover) !important;
+}
+
+.games-page .video-control-panel {
+  background: var(--games-control-bg) !important;
+  border: 1px solid var(--games-ui-border);
+}
+
+.card-author-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-author-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  object-fit: cover;
+  border: 1px solid var(--games-card-border);
+  flex-shrink: 0;
+}
+
+.card-author-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--games-text-80);
+  line-height: 1;
 }
 
 .game-card {

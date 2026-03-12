@@ -2,11 +2,11 @@
   <div v-if="isOpen" 
     class="fixed inset-0 z-[9999] flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
     @click="handleBackdropClick">
-    <div class="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
+    <div class="absolute inset-0 bg-black/50"></div>
     <div
-      class="relative bg-white/15 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl w-full md:w-[96vw] lg:w-[85vw] max-w-none h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] mt-[90px] mb-[20px] flex flex-col transform scale-100 transition-transform duration-300 overflow-hidden"
+      class="relative game-modal-surface rounded-2xl shadow-2xl w-full md:w-[96vw] lg:w-[85vw] max-w-none h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] mt-[90px] mb-[20px] flex flex-col transform scale-100 transition-transform duration-300 overflow-hidden"
       @click.stop>
-      <div class="flex justify-between items-center p-6 border-b border-white/20">
+      <div class="flex justify-between items-center p-6 game-modal-header">
         <h3 class="text-2xl font-bold text-white">{{ currentGame?.title || '游戏标题' }}</h3>
         <div class="flex items-center gap-3">
           <button @click="enterFullscreen" 
@@ -29,7 +29,7 @@
 
       <div class="flex flex-col md:flex-row flex-1 h-full overflow-y-auto md:overflow-hidden min-h-0">
         <!-- 游戏区域 -->
-        <div class="md:flex-[7] bg-white/10 backdrop-blur-sm flex flex-col items-center justify-center p-4 overflow-hidden rounded-2xl md:rounded-tl-none md:rounded-bl-2xl md:rounded-tr-none md:rounded-br-none h-full min-h-0">
+        <div class="md:flex-[7] game-modal-game-pane flex flex-col items-center justify-center p-4 overflow-hidden rounded-2xl md:rounded-tl-none md:rounded-bl-2xl md:rounded-tr-none md:rounded-br-none h-full min-h-0">
           <div class="game-frame-wrapper">
             <div v-if="gameLoading" class="game-loading-overlay">
               <div class="text-center">
@@ -52,7 +52,7 @@
         </div>
 
         <!-- 评论区域 -->
-        <div class="md:flex-[3] border-l border-white/20 bg-white/5 backdrop-blur-sm h-full rounded-2xl md:rounded-tl-none md:rounded-bl-none md:rounded-tr-2xl md:rounded-br-2xl mt-4 md:mt-0 min-h-0 flex flex-col overflow-hidden">
+        <div class="md:flex-[3] game-modal-comments-pane h-full rounded-2xl md:rounded-tl-none md:rounded-bl-none md:rounded-tr-2xl md:rounded-br-2xl mt-4 md:mt-0 min-h-0 flex flex-col overflow-hidden">
           <div class="p-6 flex flex-col h-full min-h-0">
             <h4 class="text-lg font-bold mb-4 text-white">评论&评价</h4>
 
@@ -91,8 +91,16 @@
               <div v-if="commentsLoading" class="text-center py-4 text-white/80">加载评论...</div>
               <div v-else-if="comments.length === 0" class="text-center py-4 text-white/80">暂无评论，成为第一个评论者吧！</div>
               <div v-else v-for="comment in comments" :key="comment.id" :id="`comment-${comment.id}`" class="mb-4 pb-4 border-b border-white/20">
-                <div class="flex justify-between items-start mb-1">
-                  <div class="font-medium text-white">{{ comment.username }}</div>
+                <div class="flex justify-between items-start mb-1 gap-2">
+                  <div class="comment-user">
+                    <img
+                      :src="getAvatarUrl(comment.avatar_url)"
+                      alt="用户头像"
+                      class="comment-avatar"
+                      @error="handleAvatarError"
+                    />
+                    <div class="font-medium text-white">{{ comment.username }}</div>
+                  </div>
                   <div class="text-yellow-400 text-sm">
                     <i v-for="star in comment.rating" :key="star" class="fa fa-star"></i>
                     <i v-for="star in (5 - comment.rating)" :key="star" class="fa fa-star-o"></i>
@@ -133,8 +141,16 @@
                 <!-- 回复列表 -->
                 <div v-if="comment.replies?.length && !collapsedReplies.has(comment.id)" class="mt-3 ml-4 space-y-2">
                   <div v-for="reply in comment.replies" :key="reply.id" :id="`reply-${reply.id}`" class="pb-2 border-l-2 border-white/20 pl-3">
-                    <div class="flex justify-between items-start mb-1">
-                      <div class="font-medium text-sm text-white">{{ reply.username }}</div>
+                    <div class="flex justify-between items-start mb-1 gap-2">
+                      <div class="comment-user">
+                        <img
+                          :src="getAvatarUrl(reply.avatar_url)"
+                          alt="用户头像"
+                          class="reply-avatar"
+                          @error="handleAvatarError"
+                        />
+                        <div class="font-medium text-sm text-white">{{ reply.username }}</div>
+                      </div>
                       <button @click="showReplyForm(comment.id, reply.user_id, reply.id)" class="text-xs text-white/80 hover:text-white transition-colors duration-300">
                         回复
                       </button>
@@ -205,6 +221,7 @@ import { useGameStore } from '../stores/game'
 import { useNotificationStore } from '../stores/notification'
 import { setupGameEventHandling, focusGameIframe } from '../utils/gameEvents'
 import { resolveMediaUrl } from '../utils/media'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 
 const modalStore = useModalStore()
 const authStore = useAuthStore()
@@ -611,6 +628,125 @@ watch(isOpen, (newVal) => {
 </script>
 
 <style scoped>
+.game-modal-surface {
+  --gm-bg: #ffffff;
+  --gm-pane: #f4f4f5;
+  --gm-pane-strong: #ebebee;
+  --gm-border: rgba(0, 0, 0, 0.16);
+  --gm-text: #111111;
+  --gm-text-80: rgba(17, 17, 17, 0.8);
+  --gm-text-60: rgba(17, 17, 17, 0.6);
+  --gm-text-30: rgba(17, 17, 17, 0.32);
+  --gm-focus: rgba(0, 0, 0, 0.18);
+  background: var(--gm-bg);
+  color: var(--gm-text);
+  border: 1px solid var(--gm-border);
+}
+
+html[data-theme="dark"] .game-modal-surface {
+  --gm-bg: #0b0b0c;
+  --gm-pane: #151517;
+  --gm-pane-strong: #1d1d20;
+  --gm-border: rgba(255, 255, 255, 0.18);
+  --gm-text: #f5f5f5;
+  --gm-text-80: rgba(245, 245, 245, 0.82);
+  --gm-text-60: rgba(245, 245, 245, 0.62);
+  --gm-text-30: rgba(245, 245, 245, 0.35);
+  --gm-focus: rgba(255, 255, 255, 0.25);
+}
+
+.game-modal-header {
+  border-bottom: 1px solid var(--gm-border);
+}
+
+.game-modal-game-pane {
+  background: var(--gm-pane);
+}
+
+.game-modal-comments-pane {
+  border-left: 1px solid var(--gm-border);
+  background: var(--gm-pane);
+}
+
+.game-modal-surface .bg-white\/5,
+.game-modal-surface .bg-white\/10,
+.game-modal-surface .bg-white\/20 {
+  background: var(--gm-pane-strong) !important;
+}
+
+.game-modal-surface .hover\:bg-white\/30:hover {
+  background: var(--gm-pane) !important;
+}
+
+.game-modal-surface .border-white\/20,
+.game-modal-surface .border-white\/30 {
+  border-color: var(--gm-border) !important;
+}
+
+.game-modal-surface .backdrop-blur-sm,
+.game-modal-surface .backdrop-blur-xl {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.game-modal-surface .text-white {
+  color: var(--gm-text) !important;
+}
+
+.game-modal-surface .text-white\/80 {
+  color: var(--gm-text-80) !important;
+}
+
+.game-modal-surface .text-white\/60 {
+  color: var(--gm-text-60) !important;
+}
+
+.game-modal-surface .text-white\/30 {
+  color: var(--gm-text-30) !important;
+}
+
+.game-modal-surface .hover\:text-white:hover {
+  color: var(--gm-text) !important;
+}
+
+.game-modal-surface .hover\:text-white\/80:hover {
+  color: var(--gm-text-80) !important;
+}
+
+.game-modal-surface .placeholder-white\/60::placeholder {
+  color: var(--gm-text-60) !important;
+}
+
+.game-modal-surface textarea:focus {
+  border-color: var(--gm-border) !important;
+  box-shadow: 0 0 0 2px var(--gm-focus) !important;
+}
+
+.comment-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.comment-avatar,
+.reply-avatar {
+  border-radius: 9999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--gm-border);
+}
+
+.comment-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.reply-avatar {
+  width: 22px;
+  height: 22px;
+}
+
 /* 评论高亮样式 */
 .highlight-comment {
   background: rgba(108, 92, 231, 0.3) !important;

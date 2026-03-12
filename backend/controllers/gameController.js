@@ -5,21 +5,64 @@ const AdmZip = require('adm-zip');
 const { getPool } = require('../config/database');
 const { createNotification } = require('../utils/notification');
 
+const DEFAULT_AVATAR_URL = '/avatars/default-avatar.svg';
+let avatarColumnAvailableCache = null;
+
+const isAvatarColumnAvailable = async (pool) => {
+  if (avatarColumnAvailableCache !== null) {
+    return avatarColumnAvailableCache;
+  }
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) AS count
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'users'
+         AND COLUMN_NAME = 'avatar_url'`
+    );
+    avatarColumnAvailableCache = Number(rows?.[0]?.count || 0) > 0;
+  } catch (error) {
+    console.warn('检查游戏上传者头像字段失败，回退默认头像:', error.message);
+    avatarColumnAvailableCache = false;
+  }
+
+  return avatarColumnAvailableCache;
+};
+
 // 获取游戏列表
 const getGamesList = async (req, res) => {
   try {
     const pool = getPool();
-    const [games] = await pool.execute(`
-      SELECT 
-        g.*,
-        COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
-        COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count
-      FROM games g
-      LEFT JOIN comments c ON g.game_id = c.game_id
-      WHERE g.status = 'approved'
-      GROUP BY g.id
-      ORDER BY g.created_at DESC
-    `);
+    const hasAvatarColumn = await isAvatarColumnAvailable(pool);
+    const [games] = await pool.execute(
+      hasAvatarColumn
+        ? `SELECT 
+             g.*,
+             COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
+             COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count,
+             u.username AS uploaded_by_username,
+             COALESCE(u.avatar_url, ?) AS uploaded_by_avatar_url
+           FROM games g
+           LEFT JOIN comments c ON g.game_id = c.game_id
+           LEFT JOIN users u ON g.uploaded_by = u.id
+           WHERE g.status = 'approved'
+           GROUP BY g.id, u.username, u.avatar_url
+           ORDER BY g.created_at DESC`
+        : `SELECT 
+             g.*,
+             COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
+             COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count,
+             u.username AS uploaded_by_username,
+             ? AS uploaded_by_avatar_url
+           FROM games g
+           LEFT JOIN comments c ON g.game_id = c.game_id
+           LEFT JOIN users u ON g.uploaded_by = u.id
+           WHERE g.status = 'approved'
+           GROUP BY g.id, u.username
+           ORDER BY g.created_at DESC`,
+      [DEFAULT_AVATAR_URL]
+    );
 
     // 格式化游戏数据并检查源码状态
     const formattedGames = await Promise.all(games.map(async (game) => {
@@ -56,6 +99,8 @@ const getGamesList = async (req, res) => {
         average_rating: parseFloat(game.average_rating).toFixed(1),
         comment_count: game.comment_count,
         play_count: game.play_count || 0,
+        uploaded_by_username: game.uploaded_by_username || '匿名开发者',
+        uploaded_by_avatar_url: game.uploaded_by_avatar_url || DEFAULT_AVATAR_URL,
         code_package_url: codePackageUrl,
         code_exists: codeExists
       };
@@ -216,7 +261,7 @@ const downloadGameCode = async (req, res) => {
     const { gameId } = req.params;
     const codeRootPath = process.env.CODE_ROOT_PATH || path.join(process.cwd(), 'uploads', 'code');
     const predefinedZip = path.join(codeRootPath, `${gameId}.zip`);
-    
+
     if (fsSync.existsSync(predefinedZip)) {
       return res.sendFile(predefinedZip);
     }

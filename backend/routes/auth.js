@@ -1,16 +1,59 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const authController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
+
+const avatarStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadsRoot = process.env.UPLOADS_PATH || path.join(process.cwd(), 'uploads');
+    const avatarDir = path.join(uploadsRoot, 'avatars');
+    fs.mkdirSync(avatarDir, { recursive: true });
+    cb(null, avatarDir);
+  },
+  filename: function (req, file, cb) {
+    const safeUserId = req.user?.userId || 'user';
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `avatar-${safeUserId}-${uniqueSuffix}${path.extname(file.originalname || '')}`);
+  }
+});
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  },
+  fileFilter: function (req, file, cb) {
+    const mime = (file.mimetype || '').toLowerCase();
+    if (mime.startsWith('image/')) {
+      return cb(null, true);
+    }
+    return cb(new Error('只允许上传图片文件'), false);
+  }
+});
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
+router.post(
+  '/user/avatar',
+  authenticateToken,
+  (req, res, next) => {
+    uploadAvatar.single('avatar')(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || '头像上传失败' });
+      }
+      next();
+    });
+  },
+  authController.updateAvatar
+);
 
 router.get('/verify-token', authenticateToken, authController.verifyTokenEndpoint);
 router.get('/user/profile', authenticateToken, authController.getUserProfile);
 
-// 兼容新旧路由
 router.get('/auth/me', authenticateToken, authController.getCurrentUser);
 router.get('/me', authenticateToken, authController.getCurrentUser);
 

@@ -91,8 +91,15 @@
       <div class="sidebar-footer">
         <div v-if="isLoggedIn" class="user-info">
           <div class="flex items-center">
-            <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3">
-              <i class="fa fa-user text-[#1d1d1f] text-sm"></i>
+            <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center mr-3 overflow-hidden">
+              <img
+                v-if="currentUser?.avatar_url"
+                :src="getAvatarUrl(currentUser.avatar_url)"
+                alt="用户头像"
+                class="mobile-user-avatar"
+                @error="handleAvatarError"
+              />
+              <i v-else class="fa fa-user text-[#1d1d1f] text-sm"></i>
             </div>
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium text-white truncate">{{ currentUser.username }}</div>
@@ -117,6 +124,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { gsap } from 'gsap'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -676,6 +684,13 @@ defineExpose({
   padding: 0.5rem;
   background: transparent;
   border-radius: 0.5rem;
+}
+
+.mobile-user-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9999px;
 }
 
 .login-prompt {

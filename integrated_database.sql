@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100),
+    avatar_url VARCHAR(255) DEFAULT '/avatars/default-avatar.svg',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -86,6 +87,24 @@ DEALLOCATE PREPARE stmt;
 -- 创建用户角色索引
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+
+-- 添加头像字段
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'avatar_url') = 0,
+    'ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT ''/avatars/default-avatar.svg'' AFTER email',
+    'SELECT "avatar_url column already exists" as message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 旧用户默认头像兜底
+UPDATE users
+SET avatar_url = '/avatars/default-avatar.svg'
+WHERE avatar_url IS NULL OR TRIM(avatar_url) = '';
 
 -- ===========================================
 -- 3. 游戏上传和审核系统

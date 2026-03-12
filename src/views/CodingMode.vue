@@ -654,14 +654,90 @@ watch(gameId, async () => {
 <style scoped>
 .coding-mode-page {
   --navbar-height: 72px;
+  --coding-bg: #000000;
+  --coding-text: #ffffff;
+  --coding-text-soft: rgba(255, 255, 255, 0.62);
+  --coding-text-subtle: rgba(255, 255, 255, 0.55);
+  --coding-chip-bg: rgba(255, 255, 255, 0.1);
+  --coding-chip-border: rgba(255, 255, 255, 0.18);
+  --coding-chip-text: rgba(255, 255, 255, 0.85);
+  --coding-panel-bg: #0b0b0c;
+  --coding-panel-border: rgba(255, 255, 255, 0.2);
+  --coding-frame-bg: #000000;
+  --coding-frame-border: rgba(255, 255, 255, 0.25);
+  --coding-control-bg: rgba(255, 255, 255, 0.08);
+  --coding-control-border: rgba(255, 255, 255, 0.18);
+  --coding-control-text: #f6f8fb;
+  --coding-control-placeholder: rgba(255, 255, 255, 0.55);
+  --coding-ui-bg: #ffffff;
+  --coding-ui-bg-hover: #f5f5f5;
+  --coding-ui-text: #111111;
+  --coding-ui-border: rgba(255, 255, 255, 0.28);
+  --coding-code-bg: #101012;
+  --coding-code-border: rgba(255, 255, 255, 0.12);
+  --coding-code-text: #e8edf2;
+  --coding-chat-assistant-bg: rgba(255, 255, 255, 0.12);
+  --coding-chat-assistant-border: rgba(255, 255, 255, 0.15);
+  --coding-chat-assistant-text: #ffffff;
+  --coding-chat-user-bg: #ffffff;
+  --coding-chat-user-text: #161616;
+  --coding-dropdown-bg: #0f1116;
+  --coding-dropdown-hover: rgba(255, 255, 255, 0.08);
+  --coding-option-sub: rgba(255, 255, 255, 0.55);
+  --coding-option-check: #8fe3c9;
+  --coding-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
   height: calc(100vh - var(--navbar-height));
-  background: black;
+  background: var(--coding-bg);
+  color: var(--coding-text);
   padding: 1rem 0.75rem 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   overflow: hidden;
   box-sizing: border-box;
+}
+
+[data-theme='light'] .coding-mode-page {
+  --coding-bg: #ffffff;
+  --coding-text: #111111;
+  --coding-text-soft: rgba(17, 17, 17, 0.64);
+  --coding-text-subtle: rgba(17, 17, 17, 0.55);
+  --coding-chip-bg: rgba(17, 17, 17, 0.06);
+  --coding-chip-border: rgba(17, 17, 17, 0.15);
+  --coding-chip-text: rgba(17, 17, 17, 0.85);
+  --coding-panel-bg: #ffffff;
+  --coding-panel-border: rgba(17, 17, 17, 0.16);
+  --coding-frame-bg: #f7f7f8;
+  --coding-frame-border: rgba(17, 17, 17, 0.16);
+  --coding-control-bg: rgba(17, 17, 17, 0.04);
+  --coding-control-border: rgba(17, 17, 17, 0.16);
+  --coding-control-text: #111111;
+  --coding-control-placeholder: rgba(17, 17, 17, 0.48);
+  --coding-ui-bg: #111111;
+  --coding-ui-bg-hover: #262626;
+  --coding-ui-text: #ffffff;
+  --coding-ui-border: rgba(17, 17, 17, 0.2);
+  --coding-code-bg: #f3f4f6;
+  --coding-code-border: rgba(17, 17, 17, 0.14);
+  --coding-code-text: #111111;
+  --coding-chat-assistant-bg: #f3f4f6;
+  --coding-chat-assistant-border: rgba(17, 17, 17, 0.14);
+  --coding-chat-assistant-text: #111111;
+  --coding-chat-user-bg: #111111;
+  --coding-chat-user-text: #ffffff;
+  --coding-dropdown-bg: #ffffff;
+  --coding-dropdown-hover: rgba(17, 17, 17, 0.06);
+  --coding-option-sub: rgba(17, 17, 17, 0.55);
+  --coding-option-check: #0f766e;
+  --coding-shadow: 0 12px 24px rgba(17, 17, 17, 0.12);
+}
+
+.coding-mode-page .text-white {
+  color: var(--coding-text) !important;
+}
+
+.coding-mode-page .text-white\/60 {
+  color: var(--coding-text-soft) !important;
 }
 
 .coding-mode-header {
@@ -705,9 +781,9 @@ watch(gameId, async () => {
   gap: 0.4rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--coding-chip-bg);
+  border: 1px solid var(--coding-chip-border);
+  color: var(--coding-chip-text);
   font-size: 0.75rem;
   white-space: nowrap;
 }
@@ -723,9 +799,9 @@ watch(gameId, async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: white;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: black;
+  background: var(--coding-ui-bg);
+  border: 1px solid var(--coding-ui-border);
+  color: var(--coding-ui-text);
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 0.9rem;
@@ -739,9 +815,9 @@ watch(gameId, async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: white;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: black;
+  background: var(--coding-ui-bg);
+  border: 1px solid var(--coding-ui-border);
+  color: var(--coding-ui-text);
   padding: 0.5rem 1rem;
   border-radius: 999px;
   font-size: 0.9rem;
@@ -753,9 +829,16 @@ watch(gameId, async () => {
 
 
 .soft-btn:hover:not(:disabled) {
-  background: #f7f7f7;
-  color: #111;
-  border-color: rgba(255, 255, 255, 0.35);
+  background: var(--coding-ui-bg-hover);
+  color: var(--coding-ui-text);
+  border-color: var(--coding-ui-border);
+  transform: translateY(-1px);
+}
+
+.soft-btn-Chinese:hover:not(:disabled) {
+  background: var(--coding-ui-bg-hover);
+  color: var(--coding-ui-text);
+  border-color: var(--coding-ui-border);
   transform: translateY(-1px);
 }
 
@@ -765,9 +848,9 @@ watch(gameId, async () => {
 }
 
 .soft-btn.primary {
-  background:white;
+  background: var(--coding-ui-bg);
   border: none;
-  color: #141414;
+  color: var(--coding-ui-text);
   font-weight: 600;
 }
 
@@ -783,11 +866,10 @@ watch(gameId, async () => {
 }
 
 .coding-panel {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--coding-panel-bg);
+  border: 1px solid var(--coding-panel-border);
   border-radius: 0;
   padding: 0.5rem;
-  backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -807,14 +889,14 @@ watch(gameId, async () => {
   text-transform: uppercase;
   letter-spacing: 0.2em;
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--coding-text-soft);
   white-space: nowrap;
 }
 
 .panel-title {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--coding-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -822,7 +904,7 @@ watch(gameId, async () => {
 
 .panel-subtle {
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--coding-text-subtle);
 }
 
 .game-stage {
@@ -840,8 +922,8 @@ watch(gameId, async () => {
   margin: 0 auto;
   border-radius: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--coding-frame-border);
+  background: var(--coding-frame-bg);
   position: relative;
 }
 
@@ -856,7 +938,7 @@ watch(gameId, async () => {
 
 .coding-game-frame {
   border: none;
-  background: #000;
+  background: var(--coding-frame-bg);
   display: block;
   width: 100%;
   height: 100%;
@@ -869,7 +951,7 @@ watch(gameId, async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--coding-text);
   gap: 0.5rem;
 }
 
@@ -883,9 +965,9 @@ watch(gameId, async () => {
 
 .code-search,
 .code-file-selector {
-  background: #fff;
-  border: 1px solid #ccc;
-  color: #111;
+  background: var(--coding-ui-bg);
+  border: 1px solid var(--coding-ui-border);
+  color: var(--coding-ui-text);
   border-radius: 999px;
   padding: 0.5rem 1rem;
   font-size: 0.95rem;
@@ -899,9 +981,9 @@ watch(gameId, async () => {
 }
 
 .code-actions .soft-btn {
-  background: #fff;
-  color: #111;
-  border: 1px solid #ccc;
+  background: var(--coding-ui-bg);
+  color: var(--coding-ui-text);
+  border: 1px solid var(--coding-ui-border);
   border-radius: 999px;
   height: 42px;
   padding: 0 1.25rem;
@@ -911,18 +993,18 @@ watch(gameId, async () => {
 }
 
 .code-actions .soft-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--coding-ui-bg-hover);
   transform: none;
 }
 
 .code-content {
   flex: 1;
   min-height: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--coding-code-bg);
   border-radius: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--coding-code-border);
   padding: 0.5rem;
-  color: #f8f8f2;
+  color: var(--coding-code-text);
   font-family: 'Fira Code', Consolas, monospace;
   overflow: hidden;
   display: flex;
@@ -960,7 +1042,7 @@ watch(gameId, async () => {
   padding: 0.75rem;
   line-height: 1.5;
   background: transparent;
-  color: #e8edf2;
+  color: var(--coding-code-text);
 }
 
 :deep(.hljs-comment),
@@ -1004,7 +1086,7 @@ watch(gameId, async () => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--coding-text-soft);
   gap: 0.5rem;
 }
 
@@ -1033,9 +1115,9 @@ watch(gameId, async () => {
   max-width: 90%;
   padding: 0.75rem 1rem;
   border-radius: 0;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: var(--coding-chat-assistant-bg);
+  border: 1px solid var(--coding-chat-assistant-border);
+  color: var(--coding-chat-assistant-text);
   font-size: 0.9rem;
 }
 
@@ -1055,8 +1137,8 @@ watch(gameId, async () => {
 }
 
 .chat-message.user .bubble {
-  background: white;
-  color: #161616;
+  background: var(--coding-chat-user-bg);
+  color: var(--coding-chat-user-text);
   font-weight: 600;
 }
 
@@ -1072,14 +1154,14 @@ watch(gameId, async () => {
 }
 
 .chat-composer {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.35));
+  border: 1px solid var(--coding-control-border);
+  background: var(--coding-control-bg);
   border-radius: 12px;
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--coding-shadow);
 }
 
 .composer-header {
@@ -1095,9 +1177,9 @@ watch(gameId, async () => {
   gap: 0.4rem;
   padding: 0.45rem 0.65rem;
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.08);
-  color: #e7edf5;
+  border: 1px dashed var(--coding-control-border);
+  background: var(--coding-control-bg);
+  color: var(--coding-control-text);
   min-width: 0;
   flex: 1;
 }
@@ -1117,7 +1199,7 @@ watch(gameId, async () => {
   font-size: 0.75rem;
   padding: 0.1rem 0.55rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--coding-control-bg);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1129,16 +1211,16 @@ watch(gameId, async () => {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #e7edf5;
+  background: var(--coding-control-bg);
+  border: 1px solid var(--coding-control-border);
+  color: var(--coding-control-text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .context-add:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--coding-control-bg);
+  border-color: var(--coding-control-border);
 }
 
 .chat-textarea {
@@ -1146,7 +1228,7 @@ watch(gameId, async () => {
   border: none;
   padding: 0.5rem 0.15rem;
   background: transparent;
-  color: #f6f8fb;
+  color: var(--coding-control-text);
   resize: none;
   font-size: 1rem;
   line-height: 1.6;
@@ -1158,7 +1240,7 @@ watch(gameId, async () => {
 }
 
 .chat-textarea::placeholder {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--coding-control-placeholder);
 }
 
 .composer-footer {
@@ -1181,18 +1263,18 @@ watch(gameId, async () => {
   align-items: center;
   gap: 0.35rem;
   padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--coding-control-bg);
+  border: 1px solid var(--coding-control-border);
   border-radius: 10px;
-  color: #e7edf5;
+  color: var(--coding-control-text);
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .ghost-pill:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--coding-control-border);
+  background: var(--coding-control-bg);
 }
 
 .model-inline {
@@ -1210,8 +1292,8 @@ watch(gameId, async () => {
   position: absolute;
   bottom: calc(100% + 0.4rem);
   left: 0;
-  background: #0f1116;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--coding-dropdown-bg);
+  border: 1px solid var(--coding-control-border);
   border-radius: 10px;
   min-width: 230px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
@@ -1228,14 +1310,14 @@ watch(gameId, async () => {
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: #e9efff;
+  color: var(--coding-control-text);
   text-align: left;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .model-option:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--coding-dropdown-hover);
 }
 
 .model-copy {
@@ -1255,12 +1337,12 @@ watch(gameId, async () => {
 
 .option-sub {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--coding-option-sub);
 }
 
 .option-check {
   margin-left: auto;
-  color: #8fe3c9;
+  color: var(--coding-option-check);
 }
 
 .ghost-icon {
@@ -1270,16 +1352,16 @@ watch(gameId, async () => {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #e7edf5;
+  background: var(--coding-control-bg);
+  border: 1px solid var(--coding-control-border);
+  color: var(--coding-control-text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .ghost-icon:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--coding-control-border);
+  background: var(--coding-control-bg);
 }
 
 .icon-btn {
@@ -1289,18 +1371,18 @@ watch(gameId, async () => {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
-  color: #e7edf5;
+  border: 1px solid var(--coding-control-border);
+  background: var(--coding-control-bg);
+  color: var(--coding-control-text);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .icon-btn.primary {
-  background:white;
+  background: var(--coding-ui-bg);
   border: none;
-  color: #0b0c10;
-  box-shadow: 0 8px 20px rgba(38, 193, 242, 0.35);
+  color: var(--coding-ui-text);
+  box-shadow: none;
 }
 
 .icon-btn:disabled {
@@ -1340,4 +1422,3 @@ watch(gameId, async () => {
   }
 }
 </style>
-

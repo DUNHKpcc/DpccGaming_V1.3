@@ -5,8 +5,11 @@
   "main": "server.js",
   "scripts": {
     "dev": "vite",
+    "dev:test": "vite --config test/vite.react.config.js",
     "build": "vite build",
+    "build:test": "vite build --config test/vite.react.config.js",
     "preview": "vite preview",
+    "preview:test": "vite preview --config test/vite.react.config.js",
     "start": "node server.js",
     "server": "node server.js",
     "blog:optimize": "python3 py_script/blog-image-optimizer.py"
@@ -26,10 +29,15 @@
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.0",
     "pinia": "^2.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"
   },
   "devDependencies": {
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^4.3.4",
     "@vitejs/plugin-vue": "^5.0.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",

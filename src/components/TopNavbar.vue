@@ -52,7 +52,14 @@
         <div v-else class="user-menu">
           <div class="user-info">
             <div class="user-avatar">
-              <i class="fa fa-user"></i>
+              <img
+                v-if="currentUser?.avatar_url"
+                :src="getAvatarUrl(currentUser.avatar_url)"
+                alt="用户头像"
+                class="user-avatar-image"
+                @error="handleAvatarError"
+              />
+              <i v-else class="fa fa-user"></i>
             </div>
             <span class="username">{{ currentUser.username }}</span>
           </div>
@@ -86,6 +93,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { useThemeStore } from '../stores/theme'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -444,6 +452,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 0.875rem;
+}
+
+.user-avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 
 .username {

@@ -7,7 +7,7 @@
         <button 
           @click="markAllAsRead"
           v-if="unreadCount > 0"
-          class="text-xs bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded transition-colors">
+          class="text-xs notification-ghost-btn px-2 py-1 rounded transition-colors">
           全部已读
         </button>
       </div>
@@ -46,7 +46,7 @@
           <div v-if="notification.related_game_id" class="notification-actions">
             <button 
               @click="handleNotificationClick(notification)"
-              class="bg-white text-[#1d1d1f] hover:bg-white/90 px-3 py-1 rounded-md text-sm font-medium transition-colors">
+              class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors">
               <i :class="getActionIcon(notification.type)" class="mr-1"></i>
               {{ getActionText(notification.type) }}
             </button>
@@ -62,7 +62,7 @@
     <div v-if="shouldShowToggle" class="text-center mt-4">
       <button
         @click="toggleNotificationVisibility"
-        class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors">
+        class="notification-ghost-btn px-4 py-2 rounded-lg transition-colors">
         {{ showAllNotifications ? '收起通知' : '展开通知' }}
       </button>
     </div>
@@ -72,7 +72,7 @@
       <button 
         @click="loadMore"
         :disabled="loading"
-        class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+        class="notification-ghost-btn px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
         <i v-if="loading" class="fa fa-spinner fa-spin mr-2"></i>
         {{ loading ? '加载中...' : '加载更多' }}
       </button>
@@ -314,13 +314,60 @@ onMounted(() => {
 
 <style scoped>
 .notifications-section {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  --notify-card-bg: #111113;
+  --notify-card-border: rgba(255, 255, 255, 0.2);
+  --notify-card-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+  --notify-item-bg: rgba(255, 255, 255, 0.08);
+  --notify-item-bg-hover: rgba(255, 255, 255, 0.12);
+  --notify-item-border: rgba(255, 255, 255, 0.18);
+  --notify-unread-bg: rgba(255, 255, 255, 0.14);
+  --notify-unread-accent: #9ca3af;
+  --notify-icon-bg: #ffffff;
+  --notify-icon-text: #111111;
+  --notify-title: #ffffff;
+  --notify-text: rgba(255, 255, 255, 0.82);
+  --notify-time: rgba(255, 255, 255, 0.68);
+  --notify-ghost-bg: rgba(255, 255, 255, 0.12);
+  --notify-ghost-bg-hover: rgba(255, 255, 255, 0.2);
+  --notify-ghost-text: #ffffff;
+  --notify-action-bg: #ffffff;
+  --notify-action-bg-hover: #ececec;
+  --notify-action-text: #111111;
+  background: var(--notify-card-bg);
+  border: 1px solid var(--notify-card-border);
   border-radius: 20px;
   padding: 1.5rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--notify-card-shadow);
+}
+
+[data-theme='light'] .notifications-section {
+  --notify-card-bg: #ffffff;
+  --notify-card-border: rgba(17, 17, 17, 0.16);
+  --notify-card-shadow: 0 8px 24px rgba(17, 17, 17, 0.08);
+  --notify-item-bg: #f5f5f5;
+  --notify-item-bg-hover: #efefef;
+  --notify-item-border: rgba(17, 17, 17, 0.12);
+  --notify-unread-bg: #ececec;
+  --notify-unread-accent: #6b7280;
+  --notify-icon-bg: #111111;
+  --notify-icon-text: #ffffff;
+  --notify-title: #111111;
+  --notify-text: rgba(17, 17, 17, 0.8);
+  --notify-time: rgba(17, 17, 17, 0.62);
+  --notify-ghost-bg: rgba(17, 17, 17, 0.08);
+  --notify-ghost-bg-hover: rgba(17, 17, 17, 0.14);
+  --notify-ghost-text: #111111;
+  --notify-action-bg: #111111;
+  --notify-action-bg-hover: #2a2a2a;
+  --notify-action-text: #ffffff;
+}
+
+.notifications-section .text-white {
+  color: var(--notify-title) !important;
+}
+
+.notifications-section .text-white\/80 {
+  color: var(--notify-text) !important;
 }
 
 .notification-item {
@@ -328,29 +375,28 @@ onMounted(() => {
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--notify-item-bg);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--notify-item-border);
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
 }
 
 .notification-item:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--notify-item-bg-hover);
+  border-color: var(--notify-item-border);
 }
 
 .notification-item.unread {
-  border-left: 4px solid #6c5ce7;
-  background: rgba(108, 92, 231, 0.1);
+  border-left: 4px solid var(--notify-unread-accent);
+  background: var(--notify-unread-bg);
 }
 
 .notification-icon {
   width: 2.5rem;
   height: 2.5rem;
-  background: #ffffff;
+  background: var(--notify-icon-bg);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -360,7 +406,7 @@ onMounted(() => {
 
 .notification-icon i {
   font-size: 1.25rem;
-  color: #1d1d1f;
+  color: var(--notify-icon-text);
 }
 
 .notification-content {
@@ -377,20 +423,20 @@ onMounted(() => {
 
 .notification-title {
   font-weight: 600;
-  color: white;
+  color: var(--notify-title);
   margin: 0;
   font-size: 0.95rem;
 }
 
 .notification-time {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--notify-time);
   font-size: 0.8rem;
   white-space: nowrap;
   margin-left: 1rem;
 }
 
 .notification-text {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--notify-text);
   font-size: 0.9rem;
   line-height: 1.4;
   margin: 0 0 0.5rem 0;
@@ -406,8 +452,28 @@ onMounted(() => {
   right: 1rem;
   width: 0.5rem;
   height: 0.5rem;
-  background: #6c5ce7;
+  background: var(--notify-unread-accent);
   border-radius: 50%;
+}
+
+.notification-ghost-btn {
+  background: var(--notify-ghost-bg);
+  color: var(--notify-ghost-text);
+  border: 1px solid var(--notify-item-border);
+}
+
+.notification-ghost-btn:hover {
+  background: var(--notify-ghost-bg-hover);
+}
+
+.notification-action-btn {
+  background: var(--notify-action-bg);
+  color: var(--notify-action-text);
+  border: 1px solid var(--notify-item-border);
+}
+
+.notification-action-btn:hover {
+  background: var(--notify-action-bg-hover);
 }
 
 /* 响应式设计 */
