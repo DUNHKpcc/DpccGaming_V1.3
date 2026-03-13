@@ -31,7 +31,7 @@
         
         <!-- 通知图标 -->
         <div class="notification-icon">
-          <i :class="getNotificationIcon(notification.type)"></i>
+          <i :class="getNotificationIconByNotification(notification)"></i>
         </div>
 
         <!-- 通知内容 -->
@@ -40,15 +40,15 @@
             <h4 class="notification-title">{{ notification.title }}</h4>
             <span class="notification-time">{{ formatTime(notification.created_at) }}</span>
           </div>
-          <p class="notification-text">{{ notification.content }}</p>
+          <p class="notification-text">{{ displayNotificationText(notification) }}</p>
           
           <!-- 相关游戏链接 -->
           <div v-if="notification.related_game_id" class="notification-actions">
-            <button 
-              @click="handleNotificationClick(notification)"
-              class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors">
-              <i :class="getActionIcon(notification.type)" class="mr-1"></i>
-              {{ getActionText(notification.type) }}
+              <button 
+                @click="handleNotificationClick(notification)"
+                class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors">
+              <i :class="getNotificationActionIcon(notification)" class="mr-1"></i>
+              {{ getNotificationActionText(notification) }}
             </button>
           </div>
         </div>
@@ -82,10 +82,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 const modalStore = useModalStore()
@@ -209,10 +211,40 @@ const getNotificationIcon = (type) => {
   return icons[type] || 'fa fa-bell'
 }
 
+const getNotificationIconByNotification = (notification) => {
+  if (isDiscussionNotification(notification)) return 'fa fa-comments'
+  return getNotificationIcon(notification?.type)
+}
+
+const extractDiscussionRoomId = (content = '') => {
+  const matched = String(content).match(/\[discussion-room:(\d+)\]/i)
+  if (!matched) return null
+  const roomId = Number.parseInt(matched[1], 10)
+  return Number.isNaN(roomId) ? null : roomId
+}
+
+const isDiscussionNotification = (notification) => {
+  if (!notification) return false
+  if (notification.title === '讨论新消息') return true
+  return extractDiscussionRoomId(notification.content) !== null
+}
+
+const displayNotificationText = (notification) => {
+  return String(notification?.content || '').replace(/\[discussion-room:\d+\]\s*/i, '')
+}
+
 // 处理通知点击
 const handleNotificationClick = async (notification) => {
   // 先标记为已读
   await markAsRead(notification)
+
+  if (isDiscussionNotification(notification)) {
+    const roomId = extractDiscussionRoomId(notification.content)
+    if (roomId) {
+      router.push(`/discussion/${roomId}`)
+      return
+    }
+  }
   
   if (notification.type === 'comment_reply') {
     // 评论回复类型，跳转到游戏模态框并定位到评论
@@ -287,6 +319,16 @@ const getActionText = (type) => {
     'comment_reply': '查看评论'
   }
   return texts[type] || '查看游戏'
+}
+
+const getNotificationActionIcon = (notification) => {
+  if (isDiscussionNotification(notification)) return 'fa fa-comments'
+  return getActionIcon(notification.type)
+}
+
+const getNotificationActionText = (notification) => {
+  if (isDiscussionNotification(notification)) return '进入讨论'
+  return getActionText(notification.type)
 }
 
 // 格式化时间

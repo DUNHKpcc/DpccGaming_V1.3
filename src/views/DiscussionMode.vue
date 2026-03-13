@@ -1,948 +1,1112 @@
 <template>
-  <div class="discussion-page">
-    <header class="discussion-header">
-      <div class="header-left">
-        <p class="header-kicker">Team Discussion</p>
-        <h1 class="header-title">团队讨论模式</h1>
-      </div>
+  <div class="page">
+    <section class="left-side">
+      <div class="chat-layout">
+        <aside class="chat-list">
+          <div class="chat-list-search">
+            <div class="search-box">
+              <input v-model.trim="searchKeyword" type="text" placeholder="Search rooms" />
+            </div>
+          </div>
 
-      <div class="header-center">
-        <label class="field-label">当前游戏</label>
-        <select
-          v-model="selectedGameId"
-          class="game-select"
-          :disabled="isBootstrapping || !games.length"
-          @change="handleGameSelectChange"
-        >
-          <option v-for="game in games" :key="game.game_id" :value="game.game_id">
-            {{ game.title || game.name || game.game_id }}
-          </option>
-        </select>
-      </div>
+          <div
+            v-for="item in filteredChats"
+            :key="item.id"
+            class="chat-item"
+            :class="{ active: currentChatId === item.id }"
+            @click="selectChat(item.id)"
+          >
+            <div class="avatar" :style="{ background: item.avatarColor }">
+              {{ item.avatar }}
+            </div>
 
-      <div class="header-right">
-        <div class="status-chip">
-          <i class="fa fa-users"></i>
-          <span>{{ roomJoinedCount }}/{{ roomMaxMembers }} 人</span>
+            <div class="chat-item-main">
+              <div class="chat-item-top">
+                <div class="name-row">
+                  <span class="name">{{ item.name }}</span>
+                  <span v-if="item.verified" class="verified">✔</span>
+                </div>
+                <span class="time">{{ item.time }}</span>
+              </div>
+
+              <div class="chat-item-bottom">
+                <p class="preview">{{ item.preview }}</p>
+                <span v-if="item.unread > 0" class="unread">{{ item.unread }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="loadingRooms" class="chat-list-empty">正在加载讨论房间...</div>
+          <div v-else-if="!filteredChats.length" class="chat-list-empty">
+            {{ chats.length ? '没有匹配的房间' : '你还没有加入任何讨论房间' }}
+          </div>
+        </aside>
+
+        <main v-if="currentChat" class="chat-panel">
+          <header class="chat-header">
+            <div class="chat-user">
+              <div class="avatar small" :style="{ background: currentChat.avatarColor }">
+                {{ currentChat.avatar }}
+              </div>
+              <div>
+                <div class="chat-user-name">{{ currentChat.name }}</div>
+                <div class="chat-user-status">{{ currentChat.status }}</div>
+              </div>
+            </div>
+
+            <div class="chat-header-actions">
+              <button class="icon-btn">⋮</button>
+            </div>
+          </header>
+
+          <section ref="messagesPaneRef" class="chat-messages">
+            <div class="day-tag">Today</div>
+            <div v-if="loadingMessages" class="chat-empty">正在加载消息...</div>
+            <div v-else-if="!currentChat.messages.length" class="chat-empty">暂无消息，发送第一条开始讨论</div>
+
+            <div
+              v-for="message in currentChat.messages"
+              :key="message.id"
+              class="message-row"
+              :class="message.from === 'me' ? 'mine' : 'theirs'"
+            >
+              <img
+                v-if="message.from !== 'me'"
+                class="message-avatar"
+                :src="message.avatarUrl"
+                :alt="message.senderName"
+                @error="handleAvatarError"
+              />
+              <div class="message-bubble">
+                <div class="message-text">{{ message.text }}</div>
+                <div class="message-meta">
+                  <span>{{ message.time }}</span>
+                </div>
+              </div>
+              <img
+                v-if="message.from === 'me'"
+                class="message-avatar"
+                :src="message.avatarUrl"
+                :alt="message.senderName"
+                @error="handleAvatarError"
+              />
+            </div>
+
+            <div v-if="errorText" class="chat-error">{{ errorText }}</div>
+          </section>
+
+          <footer class="chat-input-bar">
+            <button class="icon-btn light">😊</button>
+            <input
+              v-model="draft"
+              type="text"
+              :placeholder="sendingMessage ? '发送中...' : 'Message'"
+              :disabled="sendingMessage"
+              @keyup.enter="sendMessage"
+            />
+            <button class="send-btn" :disabled="sendingMessage" @click="sendMessage">➤</button>
+          </footer>
+        </main>
+
+        <main v-else class="chat-panel chat-panel-empty">
+          <div class="chat-empty">暂无可用房间，请先加入一个讨论房间</div>
+        </main>
+      </div>
+    </section>
+
+    <section class="right-side">
+      <div class="code-header">
+        <div>
+          <h2>Code Preview</h2>
+          <p>显示当前房间的实时结构化数据，方便调试与联调。</p>
         </div>
-        <div class="status-chip" v-if="activeRoom?.room_code">
-          <i class="fa fa-hashtag"></i>
-          <span>{{ activeRoom.room_code }}</span>
-        </div>
-        <button class="soft-btn" @click="reloadAll" :disabled="isBootstrapping">
-          <i :class="isBootstrapping ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
-          <span>刷新</span>
+        <button class="run-btn" :disabled="sendingAi || !currentChat" @click="sendAiMessage">
+          {{ sendingAi ? 'Running...' : 'Run AI' }}
         </button>
       </div>
-    </header>
 
-    <div class="discussion-grid">
-      <section class="panel chat-panel">
-        <div class="panel-header">
-          <div>
-            <p class="panel-label">房间讨论</p>
-            <h3 class="panel-title">
-              {{ currentGame?.title || '未选择游戏' }}
-            </h3>
-          </div>
-          <div class="panel-subtle">
-            <span>{{ activeRoom?.status || 'waiting' }}</span>
-            <span v-if="activeRoom?.mode">· {{ activeRoom.mode }}</span>
-          </div>
-        </div>
+      <div class="code-toolbar">
+        <span class="file-name">{{ currentFileName }}</span>
+      </div>
 
-        <div class="chat-thread" ref="chatThreadRef">
-          <div
-            v-for="message in messages"
-            :key="message.id"
-            class="chat-message"
-            :class="message.sender_type"
-          >
-            <div class="bubble">
-              <div class="bubble-head">
-                <strong>{{ messageSenderLabel(message) }}</strong>
-                <small>{{ formatTime(message.created_at) }}</small>
-              </div>
-              <p>{{ message.content }}</p>
-            </div>
-          </div>
-          <div v-if="!messages.length" class="chat-empty">
-            <i class="fa fa-comments"></i>
-            <p>房间暂无消息，先发一句开始讨论吧。</p>
-          </div>
-        </div>
-
-        <div class="chat-composer">
-          <textarea
-            v-model="inputText"
-            rows="3"
-            class="chat-input"
-            placeholder="输入你的讨论内容..."
-            :disabled="sendingMessage || !activeRoom"
-          ></textarea>
-          <div class="composer-actions">
-            <button
-              class="soft-btn primary"
-              :disabled="sendingMessage || !inputText.trim() || !activeRoom"
-              @click="sendUserMessage"
-            >
-              <i :class="sendingMessage ? 'fa fa-spinner fa-spin' : 'fa fa-paper-plane'"></i>
-              <span>发送</span>
-            </button>
-            <button
-              class="soft-btn"
-              :disabled="askingAi || !inputText.trim() || !activeRoom"
-              @click="sendAiMessage"
-            >
-              <i :class="askingAi ? 'fa fa-spinner fa-spin' : 'fa fa-magic'"></i>
-              <span>问 AI</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel code-panel">
-        <div class="panel-header">
-          <div>
-            <p class="panel-label">游戏代码</p>
-            <h3 class="panel-title">当前游戏源码</h3>
-          </div>
-          <div class="code-tools">
-            <input
-              v-model="codeSearch"
-              type="text"
-              class="code-search"
-              placeholder="搜索文件..."
-            />
-            <button class="soft-btn" @click="reloadCodeFiles" :disabled="codeLoading || !selectedGameId">
-              <i :class="codeLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
-              <span>源码刷新</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="code-layout">
-          <aside class="code-files">
-            <button
-              v-for="file in filteredFiles"
-              :key="file.path"
-              class="file-item"
-              :class="{ active: selectedFilePath === file.path }"
-              @click="selectedFilePath = file.path"
-            >
-              {{ file.path }}
-            </button>
-            <div v-if="!filteredFiles.length" class="file-empty">
-              暂无可浏览源码
-            </div>
-          </aside>
-
-          <div class="code-view-wrap">
-            <div v-if="codeLoading" class="code-empty">
-              <i class="fa fa-spinner fa-spin"></i>
-              <p>正在加载源码...</p>
-            </div>
-            <div v-else-if="selectedFile" class="code-view-block">
-              <div class="code-meta">
-                <span>{{ selectedFile.path }}</span>
-                <button class="soft-btn" @click="copyCode">
-                  <i class="fa fa-copy"></i>
-                  <span>复制</span>
-                </button>
-              </div>
-              <pre class="code-view"><code class="hljs" v-html="highlightedCode"></code></pre>
-            </div>
-            <div v-else class="code-empty">
-              <i class="fa fa-code"></i>
-              <p>选择文件后即可查看代码。</p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
+      <pre class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
+    </section>
   </div>
 </template>
 
-<script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import hljs from 'highlight.js/lib/core';
-import javascript from 'highlight.js/lib/languages/javascript';
-import typescript from 'highlight.js/lib/languages/typescript';
-import xml from 'highlight.js/lib/languages/xml';
-import css from 'highlight.js/lib/languages/css';
-import json from 'highlight.js/lib/languages/json';
-import { useGameStore } from '../stores/game';
-import { useNotificationStore } from '../stores/notification';
-import { apiCall } from '../utils/api';
+<script>
+import { io } from 'socket.io-client'
+import hljs from 'highlight.js/lib/core'
+import json from 'highlight.js/lib/languages/json'
+import { apiCall, API_BASE_URL } from '../utils/api'
+import { getAvatarUrl, handleAvatarError as fallbackAvatar } from '../utils/avatar'
 
-hljs.registerLanguage('javascript', javascript);
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('css', css);
-hljs.registerLanguage('json', json);
-hljs.registerLanguage('html', xml);
-hljs.registerLanguage('xml', xml);
-hljs.registerLanguage('vue', xml);
+hljs.registerLanguage('json', json)
 
-const route = useRoute();
-const router = useRouter();
-const gameStore = useGameStore();
-const notificationStore = useNotificationStore();
+const MODE_LABELS = {
+  friend: '好友',
+  room: '房间',
+  match: '匹配'
+}
 
-const games = ref([]);
-const currentGame = ref(null);
-const selectedGameId = ref('');
+const STATUS_LABELS = {
+  waiting: '等待中',
+  active: '讨论中',
+  closed: '已关闭'
+}
 
-const activeRoom = ref(null);
-const messages = ref([]);
-const pollingTimer = ref(null);
+const AVATAR_COLORS = [
+  'linear-gradient(135deg, #8ab4ff, #4d7cff)',
+  'linear-gradient(135deg, #ffb199, #ff6a88)',
+  'linear-gradient(135deg, #6dd5ed, #2193b0)',
+  'linear-gradient(135deg, #a18cd1, #6a82fb)',
+  'linear-gradient(135deg, #f6d365, #fda085)'
+]
+const AI_AVATAR_URL = '/Ai/DouBaoSeed1.6.png'
 
-const codeFiles = ref([]);
-const selectedFilePath = ref('');
-const codeSearch = ref('');
+const toInt = (value) => {
+  const parsed = Number.parseInt(value, 10)
+  return Number.isNaN(parsed) ? null : parsed
+}
 
-const inputText = ref('');
-const isBootstrapping = ref(false);
-const sendingMessage = ref(false);
-const askingAi = ref(false);
-const codeLoading = ref(false);
+const formatClock = (value) => {
+  if (!value) return '--:--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--:--'
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
-const chatThreadRef = ref(null);
-const hasAuthToken = () => Boolean(localStorage.getItem('token'));
-const buildRoomStorageKey = (gameId) => `discussion_last_room_${gameId}`;
-const getSavedRoomId = (gameId) => {
-  if (!gameId) return null;
-  const raw = localStorage.getItem(buildRoomStorageKey(gameId));
-  const parsed = Number.parseInt(raw || '', 10);
-  return Number.isNaN(parsed) ? null : parsed;
-};
-const saveRoomId = (gameId, roomId) => {
-  if (!gameId || !roomId) return;
-  localStorage.setItem(buildRoomStorageKey(gameId), String(roomId));
-};
-const clearSavedRoomId = (gameId) => {
-  if (!gameId) return;
-  localStorage.removeItem(buildRoomStorageKey(gameId));
-};
-
-const roomJoinedCount = computed(() => Number(activeRoom.value?.joined_count || 0));
-const roomMaxMembers = computed(() => Number(activeRoom.value?.max_members || 4));
-
-const filteredFiles = computed(() => {
-  const keyword = codeSearch.value.trim().toLowerCase();
-  if (!keyword) return codeFiles.value;
-  return codeFiles.value.filter((file) => file.path.toLowerCase().includes(keyword));
-});
-
-const selectedFile = computed(
-  () => codeFiles.value.find((file) => file.path === selectedFilePath.value) || null
-);
-
-const detectLanguage = (path = '') => {
-  const ext = path.split('.').pop()?.toLowerCase();
-  if (['ts', 'tsx'].includes(ext)) return 'typescript';
-  if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) return 'javascript';
-  if (['vue'].includes(ext)) return 'vue';
-  if (['css', 'scss', 'less'].includes(ext)) return 'css';
-  if (['html', 'htm'].includes(ext)) return 'html';
-  if (['json'].includes(ext)) return 'json';
-  return 'text';
-};
-
-const highlightedCode = computed(() => {
-  if (!selectedFile.value) return '';
-  const language = selectedFile.value.language || detectLanguage(selectedFile.value.path);
-  const content = selectedFile.value.content || '';
-  try {
-    return hljs.highlight(content, { language }).value;
-  } catch (error) {
-    return hljs.highlightAuto(content).value;
-  }
-});
-
-const normalizeCodeResponse = (payload) => {
-  const files = Array.isArray(payload?.files) ? payload.files : [];
-  return files.map((file) => ({
-    path: file.path || file.name || '',
-    language: file.language || detectLanguage(file.path || file.name || ''),
-    content: file.content || ''
-  }));
-};
-
-const formatTime = (timeText) => {
-  if (!timeText) return '';
-  const date = new Date(timeText);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString();
-};
-
-const messageSenderLabel = (message) => {
-  if (message.sender_type === 'ai') return 'AI 助手';
-  if (message.sender_type === 'system') return '系统';
-  return message.username || '用户';
-};
-
-const scrollChatToBottom = () => {
-  nextTick(() => {
-    const el = chatThreadRef.value;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  });
-};
-
-const stopPollingMessages = () => {
-  if (!pollingTimer.value) return;
-  clearInterval(pollingTimer.value);
-  pollingTimer.value = null;
-};
-
-const startPollingMessages = () => {
-  stopPollingMessages();
-  pollingTimer.value = setInterval(async () => {
-    if (!activeRoom.value?.id) return;
-    await fetchMessages(true);
-  }, 4000);
-};
-
-const fetchGames = async () => {
-  if (!gameStore.gamesLoaded) {
-    await gameStore.loadGames();
-  }
-  games.value = gameStore.games || [];
-};
-
-const fetchCodeFiles = async () => {
-  if (!hasAuthToken()) {
-    codeFiles.value = [];
-    selectedFilePath.value = '';
-    return;
-  }
-
-  if (!selectedGameId.value) {
-    codeFiles.value = [];
-    selectedFilePath.value = '';
-    return;
-  }
-  codeLoading.value = true;
-  try {
-    const payload = await apiCall(`/games/${selectedGameId.value}/code`);
-    codeFiles.value = normalizeCodeResponse(payload);
-    if (!codeFiles.value.some((file) => file.path === selectedFilePath.value)) {
-      selectedFilePath.value = codeFiles.value[0]?.path || '';
+export default {
+  name: 'DiscussionMode',
+  props: {
+    id: {
+      type: [String, Number],
+      default: null
     }
-  } catch (error) {
-    codeFiles.value = [];
-    selectedFilePath.value = '';
-    notificationStore.warning('源码加载失败', error.message || '无法读取当前游戏源码');
-  } finally {
-    codeLoading.value = false;
-  }
-};
-
-const fetchMessages = async (silent = false) => {
-  if (!hasAuthToken()) return;
-
-  if (!activeRoom.value?.id) {
-    messages.value = [];
-    return;
-  }
-  try {
-    const payload = await apiCall(`/discussion/rooms/${activeRoom.value.id}/messages?limit=150`);
-    const nextMessages = Array.isArray(payload?.messages) ? payload.messages : [];
-    const hasNew = nextMessages.length > messages.value.length;
-    messages.value = nextMessages;
-    if (hasNew || !silent) {
-      scrollChatToBottom();
-    }
-  } catch (error) {
-    if (!silent) {
-      notificationStore.warning('消息加载失败', error.message || '无法读取房间消息');
-    }
-  }
-};
-
-const ensureRoomForCurrentGame = async () => {
-  if (!hasAuthToken()) {
-    activeRoom.value = null;
-    messages.value = [
-      {
-        id: 'auth-required',
-        sender_type: 'system',
-        content: '请先登录后加入团队讨论房间。',
-        created_at: new Date().toISOString()
-      }
-    ];
-    stopPollingMessages();
-    return;
-  }
-
-  if (!selectedGameId.value) {
-    activeRoom.value = null;
-    messages.value = [];
-    return;
-  }
-
-  try {
-    const savedRoomId = getSavedRoomId(selectedGameId.value);
-    if (savedRoomId) {
-      try {
-        const joinedSaved = await apiCall(`/discussion/rooms/${savedRoomId}/join`, { method: 'POST' });
-        if (joinedSaved?.room?.id) {
-          activeRoom.value = joinedSaved.room;
-          saveRoomId(selectedGameId.value, joinedSaved.room.id);
-          await fetchMessages();
-          startPollingMessages();
-          return;
-        }
-      } catch (savedJoinError) {
-        clearSavedRoomId(selectedGameId.value);
-      }
-    }
-
-    const roomList = await apiCall(`/discussion/games/${selectedGameId.value}/rooms`);
-    const candidate = (roomList.rooms || []).find((room) => {
-      const joined = Number(room.joined_count || 0);
-      const max = Number(room.max_members || 4);
-      return joined < max;
-    });
-
-    let roomPayload = null;
-    if (candidate) {
-      const joinedResult = await apiCall(`/discussion/rooms/${candidate.id}/join`, { method: 'POST' });
-      roomPayload = joinedResult.room;
-    } else {
-      const createdResult = await apiCall('/discussion/rooms', {
-        method: 'POST',
-        body: JSON.stringify({
-          gameId: selectedGameId.value,
-          mode: 'room',
-          visibility: 'public',
-          title: `${currentGame.value?.title || selectedGameId.value} 讨论房间`
-        })
-      });
-      roomPayload = createdResult.room;
-    }
-
-    activeRoom.value = roomPayload || null;
-    if (roomPayload?.id) {
-      saveRoomId(selectedGameId.value, roomPayload.id);
-    }
-    await fetchMessages();
-    startPollingMessages();
-  } catch (error) {
-    activeRoom.value = null;
-    messages.value = [];
-    stopPollingMessages();
-    clearSavedRoomId(selectedGameId.value);
-    notificationStore.error('房间初始化失败', error.message || '无法创建或加入讨论房间');
-  }
-};
-
-const bootstrapGameContext = async (gameId) => {
-  if (!gameId) return;
-  isBootstrapping.value = true;
-  try {
-    currentGame.value = gameStore.getGameById(gameId) || await gameStore.loadGameById(gameId);
-    await Promise.all([ensureRoomForCurrentGame(), fetchCodeFiles()]);
-  } finally {
-    isBootstrapping.value = false;
-  }
-};
-
-const handleGameSelectChange = async () => {
-  if (!selectedGameId.value) return;
-  if (route.params.id !== selectedGameId.value) {
-    await router.replace({ name: 'DiscussionMode', params: { id: selectedGameId.value } });
-  }
-};
-
-const sendUserMessage = async () => {
-  if (!hasAuthToken()) {
-    notificationStore.info('请先登录', '登录后才能发送讨论消息');
-    return;
-  }
-
-  const content = inputText.value.trim();
-  if (!content || !activeRoom.value?.id) return;
-  sendingMessage.value = true;
-  try {
-    await apiCall(`/discussion/rooms/${activeRoom.value.id}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({ content })
-    });
-    inputText.value = '';
-    await fetchMessages();
-  } catch (error) {
-    notificationStore.error('发送失败', error.message || '消息发送失败');
-  } finally {
-    sendingMessage.value = false;
-  }
-};
-
-const sendAiMessage = async () => {
-  if (!hasAuthToken()) {
-    notificationStore.info('请先登录', '登录后才能调用 AI 讨论助手');
-    return;
-  }
-
-  const prompt = inputText.value.trim();
-  if (!prompt || !activeRoom.value?.id) return;
-  askingAi.value = true;
-  try {
-    await apiCall(`/discussion/rooms/${activeRoom.value.id}/ai-message`, {
-      method: 'POST',
-      body: JSON.stringify({ prompt })
-    });
-    inputText.value = '';
-    await fetchMessages();
-  } catch (error) {
-    notificationStore.error('AI 调用失败', error.message || 'AI 暂时不可用');
-  } finally {
-    askingAi.value = false;
-  }
-};
-
-const copyCode = async () => {
-  if (!selectedFile.value) return;
-  try {
-    await navigator.clipboard.writeText(selectedFile.value.content);
-    notificationStore.success('复制成功', '代码已复制到剪贴板');
-  } catch (error) {
-    notificationStore.warning('复制失败', error.message || '请检查浏览器权限');
-  }
-};
-
-const reloadCodeFiles = async () => {
-  await fetchCodeFiles();
-};
-
-const reloadAll = async () => {
-  if (!selectedGameId.value) return;
-  await bootstrapGameContext(selectedGameId.value);
-  await Promise.all([fetchMessages(), fetchCodeFiles()]);
-};
-
-watch(
-  () => route.params.id,
-  async (paramId) => {
-    const nextId = paramId?.toString() || '';
-    if (!nextId && games.value.length) {
-      const fallback = games.value[0]?.game_id;
-      if (fallback) {
-        selectedGameId.value = fallback;
-        await router.replace({ name: 'DiscussionMode', params: { id: fallback } });
-      }
-      return;
-    }
-    if (!nextId) return;
-    selectedGameId.value = nextId;
-    await bootstrapGameContext(nextId);
   },
-  { immediate: true }
-);
+  data() {
+    return {
+      currentUserId: null,
+      currentUsername: 'You',
+      currentUserAvatarUrl: getAvatarUrl(''),
+      currentChatId: null,
+      draft: '',
+      searchKeyword: '',
+      chats: [],
+      loadingRooms: false,
+      loadingMessages: false,
+      sendingMessage: false,
+      sendingAi: false,
+      errorText: '',
+      socket: null,
+      subscribedRoomId: null
+    }
+  },
+  computed: {
+    currentChat() {
+      return this.chats.find(item => item.id === this.currentChatId) || null
+    },
+    filteredChats() {
+      const keyword = this.searchKeyword.toLowerCase()
+      if (!keyword) return this.chats
+      return this.chats.filter((item) => {
+        return (
+          item.name.toLowerCase().includes(keyword)
+          || item.preview.toLowerCase().includes(keyword)
+          || item.status.toLowerCase().includes(keyword)
+        )
+      })
+    },
+    currentFileName() {
+      if (!this.currentChat) return 'room-data.json'
+      return `room-${this.currentChat.id}.json`
+    },
+    codeText() {
+      if (!this.currentChat) {
+        return JSON.stringify({ message: '暂无房间可展示' }, null, 2)
+      }
 
-onMounted(async () => {
-  await fetchGames();
-  if (!route.params.id && games.value.length) {
-    selectedGameId.value = games.value[0].game_id;
-    await router.replace({ name: 'DiscussionMode', params: { id: selectedGameId.value } });
+      return JSON.stringify(
+        {
+          roomId: this.currentChat.id,
+          roomCode: this.currentChat.roomCode,
+          gameId: this.currentChat.gameId,
+          gameTitle: this.currentChat.gameTitle,
+          mode: this.currentChat.mode,
+          visibility: this.currentChat.visibility,
+          status: this.currentChat.statusRaw,
+          memberCount: this.currentChat.memberCount,
+          maxMembers: this.currentChat.maxMembers,
+          lastMessages: this.currentChat.messages.slice(-8).map((item) => ({
+            id: item.id,
+            from: item.senderType,
+            content: item.text,
+            time: item.time
+          }))
+        },
+        null,
+        2
+      )
+    },
+    highlightedCodeText() {
+      try {
+        return hljs.highlight(this.codeText, { language: 'json' }).value
+      } catch (error) {
+        return hljs.highlightAuto(this.codeText).value
+      }
+    }
+  },
+  watch: {
+    id() {
+      this.initializeDiscussion()
+    }
+  },
+  mounted() {
+    this.currentUserId = this.readCurrentUserId()
+    this.setupSocket()
+    this.initializeDiscussion()
+  },
+  beforeUnmount() {
+    this.teardownSocket()
+  },
+  methods: {
+    readCurrentUserId() {
+      try {
+        const user = JSON.parse(localStorage.getItem('currentUser') || 'null')
+        this.currentUsername = user?.username || 'You'
+        this.currentUserAvatarUrl = getAvatarUrl(user?.avatar_url || '')
+        return toInt(user?.id)
+      } catch (error) {
+        this.currentUsername = 'You'
+        this.currentUserAvatarUrl = getAvatarUrl('')
+        return null
+      }
+    },
+    parseRoomId(value) {
+      const roomId = toInt(value)
+      return roomId && roomId > 0 ? roomId : null
+    },
+    roomColorById(roomId) {
+      const colorIndex = Math.abs(Number(roomId || 0)) % AVATAR_COLORS.length
+      return AVATAR_COLORS[colorIndex]
+    },
+    mapRoomToChat(room) {
+      const roomName = room.title?.trim() || `${room.game_title || '未命名游戏'} 讨论房`
+      const memberCount = Number(room.joined_count || 0)
+      const maxMembers = Number(room.max_members || 4)
+      const modeLabel = MODE_LABELS[room.mode] || '房间'
+      const statusLabel = STATUS_LABELS[room.status] || room.status || '未知状态'
+      const preview = (room.last_message_content || '暂无消息，发送第一条开始讨论').toString()
+
+      return {
+        id: Number(room.id),
+        name: roomName,
+        verified: room.mode === 'match',
+        time: formatClock(room.last_message_at || room.updated_at || room.created_at),
+        preview,
+        unread: 0,
+        avatar: roomName.charAt(0).toUpperCase() || 'R',
+        avatarColor: this.roomColorById(room.id),
+        status: `${modeLabel} · ${memberCount}/${maxMembers} · ${statusLabel}`,
+        statusRaw: room.status,
+        roomCode: room.room_code,
+        mode: room.mode,
+        visibility: room.visibility,
+        gameId: room.game_id,
+        gameTitle: room.game_title,
+        memberCount,
+        maxMembers,
+        messages: [],
+        messagesLoaded: false
+      }
+    },
+    mapMessage(item) {
+      const senderType = item.sender_type || 'user'
+      const senderUserId = toInt(item.sender_user_id)
+      const isMine = senderType === 'user' && senderUserId === this.currentUserId
+      let text = (item.content || '').toString()
+      const senderName = isMine
+        ? this.currentUsername
+        : item.username || (senderType === 'ai' ? 'AI 助手' : senderType === 'system' ? '系统' : '成员')
+      const avatarUrl = senderType === 'ai'
+        ? AI_AVATAR_URL
+        : isMine
+          ? this.currentUserAvatarUrl
+          : getAvatarUrl(item.avatar_url || '')
+      if (senderType === 'system') text = `[系统] ${text}`
+      if (senderType === 'ai') text = `[AI] ${text}`
+
+      return {
+        id: item.id || Date.now(),
+        from: isMine ? 'me' : 'theirs',
+        senderType,
+        senderName,
+        avatarUrl,
+        text,
+        time: formatClock(item.created_at),
+        rawTime: item.created_at
+      }
+    },
+    handleAvatarError(event) {
+      fallbackAvatar(event)
+    },
+    updateChatSummary(chat, rawMessage) {
+      if (!chat || !rawMessage) return
+      const senderType = rawMessage.sender_type || 'user'
+      const senderUserId = toInt(rawMessage.sender_user_id)
+      const prefix = senderType === 'ai'
+        ? 'AI: '
+        : senderType === 'system'
+          ? '系统: '
+          : senderType === 'user' && senderUserId === this.currentUserId
+            ? 'You: '
+            : ''
+      const content = (rawMessage.content || '').toString()
+      chat.preview = `${prefix}${content}`.slice(0, 120)
+      chat.time = formatClock(rawMessage.created_at || new Date())
+    },
+    async initializeDiscussion() {
+      this.loadingRooms = true
+      this.errorText = ''
+      this.chats = []
+      this.currentChatId = null
+
+      const preferredRoomId = this.parseRoomId(this.id)
+      if (preferredRoomId) {
+        await this.tryJoinRoom(preferredRoomId)
+      }
+
+      try {
+        const data = await apiCall('/discussion/rooms/mine')
+        this.chats = (data.rooms || []).map(room => this.mapRoomToChat(room))
+
+        if (!this.chats.length) return
+
+        const hasPreferred = preferredRoomId && this.chats.some(item => item.id === preferredRoomId)
+        const targetRoomId = hasPreferred ? preferredRoomId : this.chats[0].id
+        await this.selectChat(targetRoomId, { force: true })
+      } catch (error) {
+        this.errorText = error.message || '加载讨论房间失败'
+      } finally {
+        this.loadingRooms = false
+      }
+    },
+    async tryJoinRoom(roomId) {
+      try {
+        await apiCall(`/discussion/rooms/${roomId}/join`, { method: 'POST' })
+      } catch (error) {
+        // 非成员或房间不存在时，继续展示当前用户已有房间
+        console.warn('尝试加入指定房间失败:', error)
+      }
+    },
+    async selectChat(chatId, options = {}) {
+      if (!chatId) return
+      this.currentChatId = chatId
+      this.joinSocketRoom(chatId)
+
+      const chat = this.chats.find(item => item.id === chatId)
+      if (!chat) return
+      if (chat.messagesLoaded && !options.force) {
+        this.$nextTick(() => this.scrollMessagesToBottom())
+        return
+      }
+      await this.fetchMessages(chatId)
+    },
+    async fetchMessages(roomId) {
+      this.loadingMessages = true
+      this.errorText = ''
+
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomId}/messages?limit=100`)
+        const chat = this.chats.find(item => item.id === roomId)
+        if (!chat) return
+
+        const rawMessages = data.messages || []
+        chat.messages = rawMessages.map(item => this.mapMessage(item))
+        chat.messagesLoaded = true
+
+        if (rawMessages.length) {
+          this.updateChatSummary(chat, rawMessages[rawMessages.length - 1])
+        }
+      } catch (error) {
+        this.errorText = error.message || '加载消息失败'
+      } finally {
+        this.loadingMessages = false
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      }
+    },
+    async sendMessage() {
+      const value = this.draft.trim()
+      if (!value || !this.currentChat || this.sendingMessage) return
+
+      this.sendingMessage = true
+      this.errorText = ''
+
+      try {
+        const response = await apiCall(`/discussion/rooms/${this.currentChat.id}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({ content: value })
+        })
+
+        const rawMessage = response.message
+        const nextMessage = this.mapMessage(rawMessage)
+        this.currentChat.messages.push(nextMessage)
+        this.currentChat.messagesLoaded = true
+        this.updateChatSummary(this.currentChat, rawMessage)
+        this.draft = ''
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      } catch (error) {
+        this.errorText = error.message || '发送消息失败'
+      } finally {
+        this.sendingMessage = false
+      }
+    },
+    async sendAiMessage() {
+      if (!this.currentChat || this.sendingAi) return
+
+      const prompt = this.draft.trim() || '请结合当前讨论内容，给出下一步可执行建议。'
+      this.sendingAi = true
+      this.errorText = ''
+
+      try {
+        const response = await apiCall(`/discussion/rooms/${this.currentChat.id}/ai-message`, {
+          method: 'POST',
+          body: JSON.stringify({ prompt })
+        })
+
+        const rawMessage = response.message
+        const nextMessage = this.mapMessage(rawMessage)
+        this.currentChat.messages.push(nextMessage)
+        this.currentChat.messagesLoaded = true
+        this.updateChatSummary(this.currentChat, rawMessage)
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      } catch (error) {
+        this.errorText = error.message || 'AI 回复失败'
+      } finally {
+        this.sendingAi = false
+      }
+    },
+    scrollMessagesToBottom() {
+      const container = this.$refs.messagesPaneRef
+      if (container) {
+        container.scrollTop = container.scrollHeight
+      }
+    },
+    getSocketBaseUrl() {
+      const customSocketBase = import.meta.env.VITE_WS_BASE_URL
+      if (customSocketBase) return customSocketBase
+      if (/^https?:\/\//.test(API_BASE_URL)) return API_BASE_URL.replace(/\/api\/?$/, '')
+      return window.location.origin
+    },
+    getAuthToken() {
+      return localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+    },
+    setupSocket() {
+      if (this.socket) return
+      const token = this.getAuthToken()
+      if (!token) return
+
+      this.socket = io(this.getSocketBaseUrl(), {
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+        auth: {
+          token: `Bearer ${token}`
+        }
+      })
+
+      this.socket.on('connect', () => {
+        if (this.currentChatId) {
+          this.joinSocketRoom(this.currentChatId)
+        }
+      })
+
+      this.socket.on('discussion:message', (payload) => {
+        this.handleSocketMessage(payload)
+      })
+
+      this.socket.on('disconnect', () => {
+        this.subscribedRoomId = null
+      })
+    },
+    teardownSocket() {
+      if (!this.socket) return
+      if (this.subscribedRoomId) {
+        this.socket.emit('discussion:leave', { roomId: this.subscribedRoomId })
+      }
+      this.socket.removeAllListeners()
+      this.socket.disconnect()
+      this.socket = null
+      this.subscribedRoomId = null
+    },
+    joinSocketRoom(roomId) {
+      if (!this.socket || !this.socket.connected || !roomId) return
+      if (this.subscribedRoomId === roomId) return
+
+      if (this.subscribedRoomId) {
+        this.socket.emit('discussion:leave', { roomId: this.subscribedRoomId })
+      }
+
+      this.socket.emit('discussion:join', { roomId }, (response) => {
+        if (!response?.ok) {
+          this.errorText = response?.error || '加入实时房间失败'
+          return
+        }
+        this.subscribedRoomId = roomId
+      })
+    },
+    handleSocketMessage(payload) {
+      const roomId = Number(payload?.roomId)
+      const rawMessage = payload?.message
+      if (!roomId || !rawMessage) return
+
+      const chat = this.chats.find(item => item.id === roomId)
+      if (!chat) return
+      if (chat.messages.some(message => message.id === rawMessage.id)) return
+
+      const nextMessage = this.mapMessage(rawMessage)
+      chat.messages.push(nextMessage)
+      chat.messagesLoaded = true
+      this.updateChatSummary(chat, rawMessage)
+
+      if (this.currentChatId === roomId) {
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      }
+    }
   }
-});
-
-onUnmounted(() => {
-  stopPollingMessages();
-});
+}
 </script>
 
 <style scoped>
-.discussion-page {
-  --navbar-height: 72px;
-  height: calc(100vh - var(--navbar-height));
-  background: black;
-  padding: 1rem 0.75rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  overflow: hidden;
+* {
   box-sizing: border-box;
 }
 
-.discussion-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 0.8rem;
-  align-items: end;
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
-.header-kicker {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.72rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-}
-
-.header-title {
-  color: #fff;
-  font-size: 1.55rem;
-  font-weight: 700;
-  margin-top: 0.15rem;
-}
-
-.header-center {
+.page {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.field-label {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.8rem;
-}
-
-.game-select {
-  width: 100%;
-  border-radius: 0.7rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  padding: 0.55rem 0.75rem;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.42rem 0.72rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.8rem;
-  white-space: nowrap;
-}
-
-.soft-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 0.45rem 0.85rem;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 0.86rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.soft-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.soft-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.soft-btn.primary {
-  background: #fff;
-  color: #111;
-  border-color: transparent;
-}
-
-.discussion-grid {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.9rem;
-}
-
-.panel {
-  border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  min-height: 0;
+  height: calc(100vh - 4rem);
+  max-height: calc(100vh - 4rem);
+  padding-top: 17px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 10px;
+  gap: 10px;
   overflow: hidden;
+  background: #ececec;
+  color: #1f2937;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.left-side {
+  width: 58%;
+  min-width: 700px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 2px;
+  background: #ffffff;
+  overflow: hidden;
 }
 
-.panel-header {
+.right-side {
+  width: 42%;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 2px;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.03)),
+    radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+  background-size: auto, 24px 24px;
+  color: #111827;
+  overflow: hidden;
+}
+
+.search-box {
+  flex: 1;
+  display: flex;
   align-items: center;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  gap: 0.7rem;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 24px;
+  background: #f3f4f6;
 }
 
-.panel-label {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
+.search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
 }
 
-.panel-title {
-  color: #fff;
-  font-size: 1rem;
+.chat-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-list {
+  width: 33.3333%;
+  min-width: 270px;
+  border-right: 1px solid #d1d5db;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.chat-list-search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.chat-panel {
+  width: 66.6667%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    linear-gradient(rgba(239, 239, 239, 0.95), rgba(239, 239, 239, 0.95)),
+    radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+  background-size: auto, 28px 28px;
+}
+
+.chat-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chat-item:hover {
+  background: #f3f4f6;
+}
+
+.chat-item.active {
+  background: #e5e7eb;
+}
+
+.chat-list-empty {
+  padding: 16px 14px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
   font-weight: 700;
-  margin-top: 0.2rem;
+  font-size: 22px;
+  flex-shrink: 0;
 }
 
-.panel-subtle {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.82rem;
+.avatar.small {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+}
+
+.chat-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-item-top,
+.chat-item-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-item-top {
+  margin-bottom: 6px;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.verified {
+  color: #111827;
+  font-size: 13px;
+}
+
+.time {
+  font-size: 13px;
+  color: #7b8794;
   white-space: nowrap;
 }
 
-.chat-thread {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.9rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
+.preview {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.chat-message {
-  display: flex;
-}
-
-.chat-message.user {
-  justify-content: flex-end;
-}
-
-.chat-message.user .bubble {
-  background: rgba(255, 255, 255, 0.95);
-  color: #141414;
-}
-
-.chat-message.ai .bubble {
-  background: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(147, 197, 253, 0.35);
-}
-
-.chat-message.system .bubble {
-  background: rgba(250, 204, 21, 0.14);
-  border: 1px solid rgba(253, 224, 71, 0.35);
-}
-
-.bubble {
-  max-width: 86%;
-  border-radius: 0.8rem;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  background: rgba(255, 255, 255, 0.12);
+.unread {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #111827;
   color: #fff;
-  padding: 0.55rem 0.7rem;
-}
-
-.bubble-head {
-  display: flex;
-  gap: 0.55rem;
+  font-size: 12px;
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 0.25rem;
+  justify-content: center;
 }
 
-.bubble-head small {
-  opacity: 0.75;
-  font-size: 0.72rem;
+.chat-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(219, 226, 234, 0.9);
 }
 
-.bubble p {
-  white-space: pre-wrap;
-  line-height: 1.55;
-  font-size: 0.9rem;
+.chat-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-user-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.chat-user-status {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 3px;
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
 }
 
 .chat-empty {
-  margin: auto;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.55);
+  margin: 10px auto;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #6b7280;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #d1d5db;
 }
 
-.chat-empty i {
-  font-size: 1.2rem;
-  margin-bottom: 0.35rem;
+.chat-error {
+  margin: 10px auto 0;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #7f1d1d;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #fecaca;
 }
 
-.chat-composer {
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0.75rem 1rem;
+.chat-panel-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.day-tag {
+  width: fit-content;
+  margin: 0 auto 18px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: rgba(31, 41, 55, 0.55);
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.message-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-.chat-input {
-  width: 100%;
-  resize: none;
-  border-radius: 0.8rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  padding: 0.62rem 0.72rem;
+.message-row.theirs {
+  justify-content: flex-start;
+}
+
+.message-row.mine {
+  justify-content: flex-end;
+}
+
+.message-bubble {
+  max-width: 72%;
+  padding: 10px 12px 7px;
+  border-radius: 18px;
+  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.08);
+}
+
+.message-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  flex-shrink: 0;
+}
+
+.message-row.theirs .message-bubble {
+  background: #ffffff;
+  border-top-left-radius: 6px;
+}
+
+.message-row.mine .message-bubble {
+  background: #d1d5db;
+  border-top-right-radius: 6px;
+}
+
+.message-text {
+  font-size: 15px;
   line-height: 1.45;
+  color: #111827;
+  word-break: break-word;
 }
 
-.composer-actions {
+.message-meta {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #4b5563;
 }
 
-.code-tools {
-  display: inline-flex;
+.chat-input-bar {
+  display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 12px;
+  padding: 10px 14px 12px;
 }
 
-.code-search {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  padding: 0.45rem 0.7rem;
-  min-width: 180px;
-}
-
-.code-layout {
+.chat-input-bar input {
   flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(180px, 220px) 1fr;
+  height: 44px;
+  border: none;
+  outline: none;
+  border-radius: 26px;
+  padding: 0 18px;
+  font-size: 15px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(31, 41, 55, 0.08);
 }
 
-.code-files {
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
-  overflow-y: auto;
-  min-height: 0;
-  padding: 0.55rem;
+.icon-btn,
+.send-btn,
+.run-btn {
+  border: none;
+  cursor: pointer;
 }
 
-.file-item {
-  width: 100%;
-  text-align: left;
-  font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.86);
-  border-radius: 0.55rem;
-  padding: 0.45rem 0.55rem;
-  margin-bottom: 0.3rem;
-  border: 1px solid transparent;
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   background: transparent;
-  transition: all 0.2s ease;
+  font-size: 18px;
 }
 
-.file-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+.icon-btn.light {
+  background: rgba(255, 255, 255, 0.9);
 }
 
-.file-item.active {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #111827;
+  color: #ffffff;
+  font-size: 20px;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.28);
 }
 
-.file-empty {
-  color: rgba(255, 255, 255, 0.58);
-  font-size: 0.82rem;
-  padding: 0.6rem 0.2rem;
+.send-btn:disabled,
+.run-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
-.code-view-wrap {
-  min-height: 0;
+.code-header {
   display: flex;
-  flex-direction: column;
-}
-
-.code-meta {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0.55rem 0.7rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.82rem;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(219, 226, 234, 0.9);
 }
 
-.code-view-block {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
+.code-header h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
 }
 
-.code-view {
-  flex: 1;
-  min-height: 0;
+.code-header p {
   margin: 0;
-  padding: 0.8rem;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.run-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 18px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 13px;
+  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.24);
+}
+
+.code-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #d1d5db;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.file-name {
+  margin-left: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.code-panel {
+  flex: 1;
+  margin: 12px;
+  padding: 14px;
   overflow: auto;
-  color: #f8fafc;
-  font-size: 0.83rem;
-  line-height: 1.6;
-  background: rgba(2, 6, 23, 0.65);
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: Consolas, Monaco, monospace;
+  white-space: pre-wrap;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
-.code-empty {
-  margin: auto;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.58);
+:deep(.hljs) {
+  display: block;
+  background: transparent;
+  color: #111827;
+  padding: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-@media (max-width: 1280px) {
-  .discussion-header {
-    grid-template-columns: 1fr;
-    align-items: start;
+:deep(.hljs-attr),
+:deep(.hljs-attribute) {
+  color: #374151;
+}
+
+:deep(.hljs-string) {
+  color: #111827;
+  font-weight: 600;
+}
+
+:deep(.hljs-number),
+:deep(.hljs-literal) {
+  color: #4b5563;
+}
+
+@media (max-width: 1400px) {
+  .page {
+    flex-direction: column;
+    height: calc(100vh - 3.5rem);
+    max-height: calc(100vh - 3.5rem);
   }
 
-  .header-right {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .left-side,
+  .right-side {
+    width: 100%;
+    min-width: 0;
+    flex: 1;
+    min-height: 0;
   }
 }
 
-@media (max-width: 1024px) {
-  .discussion-page {
-    --navbar-height: 64px;
-    height: calc(100vh - var(--navbar-height));
+@media (max-width: 900px) {
+  .page {
+    height: calc(100vh - 3rem);
+    max-height: calc(100vh - 3rem);
+    padding: 8px;
+    gap: 8px;
   }
 
-  .discussion-grid {
-    grid-template-columns: 1fr;
+  .chat-layout {
+    flex-direction: column;
   }
 
-  .code-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: 170px 1fr;
+  .chat-list,
+  .chat-panel {
+    width: 100%;
+    min-width: 0;
   }
 
-  .code-files {
-    border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  }
-}
-
-@media (max-width: 480px) {
-  .discussion-page {
-    --navbar-height: 56px;
+  .chat-list {
+    max-height: 240px;
   }
 
-  .code-search {
-    min-width: 120px;
-    width: 120px;
+  .chat-panel {
+    min-height: 0;
+  }
+
+  .message-bubble {
+    max-width: 86%;
   }
 }
 </style>

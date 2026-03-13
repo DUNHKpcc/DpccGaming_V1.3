@@ -5,6 +5,7 @@
 }
 
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const rateLimit = require('express-rate-limit');
@@ -23,6 +24,7 @@ const aiRoutes = require('./backend/routes/ai');
 const debugRoutes = require('./backend/routes/debug');
 const cookieRoutes = require('./backend/routes/cookies');
 const discussionRoutes = require('./backend/routes/discussion');
+const { initDiscussionRealtime } = require('./backend/utils/discussionRealtime');
 
 const app = express();
 
@@ -110,7 +112,13 @@ async function startServer() {
     await initDatabase();
     console.log('数据库连接初始化成功');
 
-    const server = app.listen(appConfig.server.port, () => {
+    const server = http.createServer(app);
+    initDiscussionRealtime({
+      server,
+      corsOrigins: appConfig.cors.origins
+    });
+
+    server.listen(appConfig.server.port, () => {
       const port = appConfig.server.port;
 
       console.log('\nDpccGaming服务器启动成功');

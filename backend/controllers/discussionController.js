@@ -5,6 +5,8 @@ const {
   commitTransaction,
   rollbackTransaction
 } = require('../config/database');
+const { emitRoomMessage } = require('../utils/discussionRealtime');
+const { createNotification } = require('../utils/notification');
 
 const MAX_ROOM_MEMBERS = 4;
 const DEFAULT_MODEL = 'doubao-seed-1-6-251015';
@@ -183,6 +185,55 @@ const generateAiReply = async ({ prompt, gameTitle, roomMessages }) => {
   return String(content).trim();
 };
 
+const getRoomNotificationContext = async (pool, roomId) => {
+  const [rows] = await pool.execute(
+    `SELECT r.id, r.title, r.game_id, g.title AS game_title
+     FROM discussion_rooms r
+     JOIN games g ON g.game_id = r.game_id
+     WHERE r.id = ?
+     LIMIT 1`,
+    [roomId]
+  );
+  return rows[0] || null;
+};
+
+const notifyRoomMembers = async ({
+  pool,
+  roomId,
+  excludeUserId,
+  senderLabel,
+  messageContent
+}) => {
+  const roomContext = await getRoomNotificationContext(pool, roomId);
+  if (!roomContext) return;
+
+  const [members] = await pool.execute(
+    `SELECT user_id
+     FROM discussion_room_members
+     WHERE room_id = ? AND status = 'joined'`,
+    [roomId]
+  );
+
+  const roomName = roomContext.title?.trim() || `${roomContext.game_title || '未命名游戏'} 讨论房`;
+  const preview = String(messageContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const content = `[discussion-room:${roomId}] ${senderLabel} 在「${roomName}」发送了新消息：${preview || '（空消息）'}`;
+
+  for (const member of members) {
+    const memberUserId = Number(member.user_id);
+    if (!memberUserId) continue;
+    if (excludeUserId && memberUserId === excludeUserId) continue;
+
+    await createNotification(
+      memberUserId,
+      'comment_reply',
+      '讨论新消息',
+      content,
+      roomContext.game_id,
+      null
+    );
+  }
+};
+
 const listPublicRoomsByGame = async (req, res) => {
   try {
     const { gameId } = req.params;
@@ -203,6 +254,49 @@ const listPublicRoomsByGame = async (req, res) => {
     res.json({ rooms });
   } catch (error) {
     console.error('获取公开房间列表失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const listMyRooms = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const pool = getPool();
+    const [rooms] = await pool.execute(
+      `SELECT r.id, r.room_uuid, r.room_code, r.game_id, r.mode, r.visibility, r.status, r.max_members,
+              r.title, r.host_user_id, r.created_at, r.updated_at, g.title AS game_title, g.thumbnail_url AS game_thumbnail,
+              (
+                SELECT COUNT(*)
+                FROM discussion_room_members rm
+                WHERE rm.room_id = r.id AND rm.status = 'joined'
+              ) AS joined_count,
+              (
+                SELECT m.content
+                FROM discussion_messages m
+                WHERE m.room_id = r.id
+                ORDER BY m.id DESC
+                LIMIT 1
+              ) AS last_message_content,
+              (
+                SELECT m.created_at
+                FROM discussion_messages m
+                WHERE m.room_id = r.id
+                ORDER BY m.id DESC
+                LIMIT 1
+              ) AS last_message_at
+       FROM discussion_room_members me
+       JOIN discussion_rooms r ON r.id = me.room_id
+       JOIN games g ON g.game_id = r.game_id
+       WHERE me.user_id = ?
+         AND me.status = 'joined'
+         AND r.status IN ('waiting', 'active')
+       ORDER BY COALESCE(last_message_at, r.updated_at, r.created_at) DESC`,
+      [userId]
+    );
+
+    res.json({ rooms });
+  } catch (error) {
+    console.error('获取我的房间列表失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 };
@@ -436,7 +530,7 @@ const listRoomMessages = async (req, res) => {
     }
 
     const [messages] = await pool.execute(
-      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username
+      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
        FROM discussion_messages m
        LEFT JOIN users u ON u.id = m.sender_user_id
        WHERE m.room_id = ?
@@ -475,14 +569,23 @@ const sendRoomMessage = async (req, res) => {
     );
 
     const [rows] = await pool.execute(
-      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username
+      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
        FROM discussion_messages m
-       LEFT JOIN users u ON u.id = m.sender_user_id
+      LEFT JOIN users u ON u.id = m.sender_user_id
        WHERE m.id = ?
        LIMIT 1`,
       [result.insertId]
     );
 
+    await notifyRoomMembers({
+      pool,
+      roomId,
+      excludeUserId: userId,
+      senderLabel: rows[0]?.username || '成员',
+      messageContent: rows[0]?.content || content
+    });
+
+    emitRoomMessage(roomId, rows[0]);
     res.status(201).json({ message: rows[0] });
   } catch (error) {
     console.error('发送房间消息失败:', error);
@@ -544,6 +647,15 @@ const sendAiRoomMessage = async (req, res) => {
       [insertResult.insertId]
     );
 
+    await notifyRoomMembers({
+      pool,
+      roomId,
+      excludeUserId: userId,
+      senderLabel: 'AI 助手',
+      messageContent: rows[0]?.content || aiText
+    });
+
+    emitRoomMessage(roomId, rows[0]);
     res.status(201).json({ message: rows[0] });
   } catch (error) {
     console.error('发送 AI 消息失败:', error);
@@ -836,6 +948,7 @@ const respondFriendRequest = async (req, res) => {
 
 module.exports = {
   listPublicRoomsByGame,
+  listMyRooms,
   createRoom,
   getRoomDetail,
   joinRoom,

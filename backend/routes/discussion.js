@@ -9,6 +9,7 @@ router.get('/games/:gameId/rooms', authenticateToken, discussionController.listP
 
 // 房间生命周期
 router.post('/rooms', authenticateToken, discussionController.createRoom);
+router.get('/rooms/mine', authenticateToken, discussionController.listMyRooms);
 router.get('/rooms/:roomId', authenticateToken, discussionController.getRoomDetail);
 router.post('/rooms/:roomId/join', authenticateToken, discussionController.joinRoom);
 router.post('/rooms/:roomId/leave', authenticateToken, discussionController.leaveRoom);

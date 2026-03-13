@@ -1,5 +1,5 @@
 import { useAuthStore } from '../stores/auth'
-const API_BASE_URL = 'https://dpccgaming.xyz/api'
+export const API_BASE_URL = 'https://dpccgaming.xyz/api'
 
 export async function apiCall(endpoint, options = {}) {
   const authStore = useAuthStore()
