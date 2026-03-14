@@ -8,7 +8,7 @@
       @click.stop>
       <div class="text-center mb-6">
         <div class="flex items-center justify-center mb-4">
-          <i class="fa fa-gamepad text-white text-3xl mr-2"></i>
+          <img src="/logo.png" alt="DpccGaming Logo" class="w-9 h-9 object-contain mr-2" />
           <span class="text-2xl font-bold text-white">DpccGaming</span>
         </div>
         <h3 class="text-2xl font-bold text-white">登录</h3>
@@ -31,6 +31,14 @@
         <button type="submit"
           class="w-full bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white py-3 rounded-xl transition-all duration-300 mb-4 font-medium">
           登录
+        </button>
+        <button
+          type="button"
+          @click="handleWeChatLoginPlaceholder"
+          class="w-full bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white py-3 rounded-xl transition-all duration-300 mb-4 font-medium flex items-center justify-center gap-2"
+        >
+          <img src="/Ai/WeChat.png" alt="WeChat" class="w-5 h-5 object-contain" />
+          <span>通过微信登录</span>
         </button>
         <div class="text-center text-sm text-white/80">
           还没有账户？ <button type="button" @click="switchToRegister" class="text-white hover:text-white/80 hover:underline transition-colors duration-300">注册</button>
@@ -76,5 +84,9 @@ const handleBackdropClick = (e) => {
   if (e.target === e.currentTarget) {
     modalStore.closeModal()
   }
+}
+
+const handleWeChatLoginPlaceholder = () => {
+  notificationStore.info('敬请期待', '微信登录功能正在开发中')
 }
 </script>

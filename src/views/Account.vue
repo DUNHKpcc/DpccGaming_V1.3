@@ -1,12 +1,9 @@
 <template>
   <div class="account-page">
-    <!-- 主要内容 -->
     <div class="content-wrapper">
-      <div class="container mx-auto px-4 py-8">
-        <div class="max-w-4xl mx-auto">
-          <h1 class="text-3xl font-bold text-white mb-8">账户详情</h1>
-        
-          <div v-if="!isLoggedIn" class="glass-card text-center py-12">
+      <div class="container mx-auto px-4 pt-5 pb-3 account-container">
+        <div class="max-w-6xl mx-auto h-full">
+          <div v-if="!isLoggedIn" class="glass-card text-center py-12 account-login-state">
             <div class="w-24 h-24 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-6">
               <i class="fa fa-user text-4xl account-icon-glyph"></i>
             </div>
@@ -19,113 +16,157 @@
             </button>
           </div>
 
-          <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- 用户信息卡片 -->
-            <div class="lg:col-span-1">
-              <div class="glass-card p-6">
-                <div class="text-center">
-                  <div class="avatar-wrap mx-auto mb-4">
-                    <img
-                      :src="getAvatarUrl(currentUser?.avatar_url)"
-                      alt="用户头像"
-                      class="user-avatar-image"
-                      @error="handleAvatarError"
-                    />
-                  </div>
-                  <h3 class="text-xl font-bold text-white mb-2">{{ currentUser.username }}</h3>
-                  <p class="text-white/80 text-sm mb-4">{{ currentUser.email || '未设置邮箱' }}</p>
-                  <input
-                    ref="avatarInputRef"
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    @change="onAvatarFileChange"
+          <div v-else class="account-dashboard">
+            <section class="glass-card widget widget-profile p-6">
+              <div class="text-center">
+                <div class="avatar-wrap mx-auto mb-4">
+                  <img
+                    :src="getAvatarUrl(currentUser?.avatar_url)"
+                    alt="用户头像"
+                    class="user-avatar-image"
+                    @error="handleAvatarError"
                   />
-                  <button
-                    type="button"
-                    @click="openAvatarPicker"
-                    :disabled="avatarUploading"
-                    class="upload-avatar-btn mb-3"
-                  >
-                    {{ avatarUploading ? '上传中...' : '上传头像' }}
-                  </button>
-                  <button
-                    @click="logout"
-                    class="account-logout-btn text-sm font-medium">
-                    退出登录
-                  </button>
                 </div>
+                <h3 class="text-xl font-bold text-white mb-2">{{ currentUser.username }}</h3>
+                <p class="text-white/80 text-sm mb-4">{{ currentUser.email || '未设置邮箱' }}</p>
+                <input
+                  ref="avatarInputRef"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="onAvatarFileChange"
+                />
+                <button
+                  type="button"
+                  @click="openAvatarPicker"
+                  :disabled="avatarUploading"
+                  class="upload-avatar-btn mb-3"
+                >
+                  {{ avatarUploading ? '上传中...' : '上传头像' }}
+                </button>
+                <button
+                  @click="logout"
+                  class="account-logout-btn text-sm font-medium">
+                  退出登录
+                </button>
               </div>
-            </div>
+            </section>
 
-            <!-- 主要内容区域 -->
-            <div class="lg:col-span-2 space-y-8">
-              <!-- 通知中心 -->
-              <NotificationsSection />
+            <section class="glass-card widget widget-notifications p-0">
+              <NotificationsSection compact />
+            </section>
 
-              <!-- 游戏统计 -->
-              <div class="glass-card p-6">
-                <h3 class="text-xl font-bold text-white mb-6">游戏统计</h3>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <div class="text-center">
-                    <div class="w-16 h-16 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-laptop text-2xl account-icon-glyph"></i>
+            <section class="glass-card widget widget-stats p-6">
+              <div class="widget-title-row">
+                <h3 class="text-xl font-bold text-white">游戏统计</h3>
+              </div>
+
+              <div class="stats-scroll">
+                <div class="stats-tiles">
+                  <div class="stats-tile">
+                    <div class="w-12 h-12 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-laptop text-lg account-icon-glyph"></i>
                     </div>
-                    <div class="text-2xl font-bold text-white">{{ totalGamesPlayed }}</div>
-                    <div class="text-sm text-white/80">总游戏次数</div>
+                    <div class="text-xl font-bold text-white">{{ totalGamesPlayed }}</div>
+                    <div class="text-xs text-white/80">总游戏次数</div>
                   </div>
-                  
-                  <div class="text-center">
-                    <div class="w-16 h-16 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-star text-2xl account-icon-glyph"></i>
+
+                  <div class="stats-tile">
+                    <div class="w-12 h-12 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-star text-lg account-icon-glyph"></i>
                     </div>
-                    <div class="text-2xl font-bold text-white">{{ averageRating }}</div>
-                    <div class="text-sm text-white/80">平均评分</div>
+                    <div class="text-xl font-bold text-white">{{ averageRating }}</div>
+                    <div class="text-xs text-white/80">平均评分</div>
                   </div>
-                  
-                  <div class="text-center">
-                    <div class="w-16 h-16 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i class="fa fa-comment text-2xl account-icon-glyph"></i>
+
+                  <div class="stats-tile">
+                    <div class="w-12 h-12 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fa fa-comment text-lg account-icon-glyph"></i>
                     </div>
-                    <div class="text-2xl font-bold text-white">{{ totalComments }}</div>
-                    <div class="text-sm text-white/80">总评论数</div>
+                    <div class="text-xl font-bold text-white">{{ totalComments }}</div>
+                    <div class="text-xs text-white/80">总评论数</div>
                   </div>
                 </div>
 
-                <!-- 最近游戏记录 -->
-                <div>
-                  <h4 class="text-lg font-bold text-white mb-4">最近游戏记录</h4>
-                  <div v-if="recentGames.length === 0" class="text-center py-8 text-white/80">
-                    <i class="fa fa-laptop text-4xl mb-4"></i>
+                <div class="recent-games-block mt-5">
+                  <h4 class="text-sm font-bold text-white mb-3">最近游戏记录</h4>
+                  <div v-if="recentGames.length === 0" class="text-center py-6 text-white/80">
+                    <i class="fa fa-laptop text-3xl mb-2"></i>
                     <p>还没有游戏记录</p>
                   </div>
-                  <div v-else class="space-y-3">
-                    <div 
-                      v-for="game in recentGames" 
+                  <div v-else class="recent-games-scroll space-y-2">
+                    <div
+                      v-for="game in recentGames"
                       :key="game.id"
-                      class="account-recent-row flex items-center justify-between p-3 rounded-lg">
+                      class="account-recent-row flex items-center justify-between p-3 rounded-lg"
+                    >
                       <div class="flex items-center">
-                        <div class="w-12 h-12 account-icon-square rounded-lg flex items-center justify-center mr-3">
-                          <i class="fa fa-laptop account-icon-glyph"></i>
+                        <div class="recent-game-media mr-3">
+                          <video
+                            v-if="hasPlayableVideo(game)"
+                            :src="getGameVideoUrl(game)"
+                            :poster="getGameCoverUrl(game) || '/GameImg.jpg'"
+                            class="recent-game-media-el"
+                            autoplay
+                            muted
+                            loop
+                            playsinline
+                            preload="metadata"
+                          ></video>
+                          <img
+                            v-else-if="getGameCoverUrl(game)"
+                            :src="getGameCoverUrl(game)"
+                            :alt="game.title"
+                            class="recent-game-media-el"
+                          />
+                          <div v-else class="recent-game-media-fallback">
+                            <i class="fa fa-laptop account-icon-glyph"></i>
+                          </div>
                         </div>
                         <div>
                           <div class="font-medium text-white">{{ game.title }}</div>
-                          <div class="text-sm text-white/80">{{ categoryToZh(game.category) }}</div>
+                          <div class="text-xs text-white/80">{{ categoryToZh(game.category) }}</div>
                         </div>
                       </div>
                       <div class="text-right">
-                        <div class="text-sm text-white/80">{{ game.play_count }} 次</div>
-                        <div class="flex items-center account-rating">
-                          <i class="fa fa-star text-xs"></i>
-                          <span class="ml-1 text-sm">{{ game.average_rating }}</span>
+                        <div class="text-xs text-white/80">{{ game.play_count }} 次</div>
+                        <div class="flex items-center account-rating justify-end">
+                          <i class="fa fa-star text-[10px]"></i>
+                          <span class="ml-1 text-xs">{{ game.average_rating }}</span>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
+
+            <section class="glass-card widget widget-friends p-6">
+              <div class="widget-title-row">
+                <h3 class="text-xl font-bold text-white">好友</h3>
+                <span class="text-xs text-white/80">{{ friends.length }} 人</span>
+              </div>
+
+              <div class="friends-scroll">
+                <div v-if="friendsLoading" class="text-sm text-white/80 py-3">加载中...</div>
+                <div v-else-if="!friends.length" class="text-sm text-white/80 py-3">暂无好友</div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="friend in friends"
+                    :key="friend.id"
+                    class="friend-row"
+                  >
+                    <div class="friend-avatar">
+                      {{ (friend.username || '?').charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="friend-meta">
+                      <strong>{{ friend.username }}</strong>
+                      <small>{{ friend.email || '未设置邮箱' }}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -134,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
@@ -142,6 +183,8 @@ import { useNotificationStore } from '../stores/notification'
 import NotificationsSection from '../components/NotificationsSection.vue'
 import { categoryToZh } from '../utils/category'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import { apiCall } from '../utils/api'
+import { resolveMediaUrl } from '../utils/media'
 
 const authStore = useAuthStore()
 const gameStore = useGameStore()
@@ -155,29 +198,57 @@ const recentGames = ref([])
 const totalGamesPlayed = ref(0)
 const averageRating = ref(0)
 const totalComments = ref(0)
+const friends = ref([])
+const friendsLoading = ref(false)
 const avatarInputRef = ref(null)
 const avatarUploading = ref(false)
 
+const resetStats = () => {
+  recentGames.value = []
+  totalGamesPlayed.value = 0
+  averageRating.value = '0.0'
+  totalComments.value = 0
+}
+
 const loadUserStats = async () => {
-  if (!isLoggedIn.value) return
-  
+  if (!isLoggedIn.value) {
+    resetStats()
+    return
+  }
+
   try {
-    // 加载游戏数据
     await gameStore.loadGames()
-    recentGames.value = gameStore.games.slice(0, 5) 
-    
-    // 计算统计数据
+    recentGames.value = gameStore.games.slice(0, 8)
+
     totalGamesPlayed.value = gameStore.games.reduce((sum, game) => sum + (game.play_count || 0), 0)
-    
     const ratings = gameStore.games.filter(game => game.average_rating && game.average_rating > 0)
-    if (ratings.length > 0) {
-      averageRating.value = (ratings.reduce((sum, game) => sum + parseFloat(game.average_rating), 0) / ratings.length).toFixed(1)
-    }
-    
-    
-    totalComments.value = 0 
+
+    averageRating.value = ratings.length
+      ? (ratings.reduce((sum, game) => sum + parseFloat(game.average_rating), 0) / ratings.length).toFixed(1)
+      : '0.0'
+
+    totalComments.value = gameStore.games.reduce((sum, game) => sum + (game.comment_count || 0), 0)
   } catch (error) {
     console.error('加载用户统计失败:', error)
+    resetStats()
+  }
+}
+
+const loadFriends = async () => {
+  if (!isLoggedIn.value) {
+    friends.value = []
+    return
+  }
+
+  friendsLoading.value = true
+  try {
+    const data = await apiCall('/discussion/friends')
+    friends.value = Array.isArray(data?.friends) ? data.friends : []
+  } catch (error) {
+    console.error('加载好友失败:', error)
+    friends.value = []
+  } finally {
+    friendsLoading.value = false
   }
 }
 
@@ -222,8 +293,38 @@ const onAvatarFileChange = async (event) => {
   }
 }
 
+const VIDEO_EXT_PATTERN = /\.(mp4|webm|ogg|m4v|mov)(\?.*)?$/i
+
+const getGameCoverUrl = (game = {}) => {
+  return resolveMediaUrl(game.thumbnail_url || game.thumbnail || '')
+}
+
+const getGameVideoUrl = (game = {}) => {
+  return resolveMediaUrl(game.video_url || '')
+}
+
+const hasPlayableVideo = (game = {}) => {
+  const rawUrl = String(game.video_url || '').trim()
+  return VIDEO_EXT_PATTERN.test(rawUrl)
+}
+
 onMounted(() => {
+  if (isLoggedIn.value) {
+    loadUserStats()
+    loadFriends()
+  }
+})
+
+watch(isLoggedIn, (loggedIn) => {
+  if (!loggedIn) {
+    resetStats()
+    friends.value = []
+    friendsLoading.value = false
+    return
+  }
+
   loadUserStats()
+  loadFriends()
 })
 </script>
 
@@ -252,15 +353,13 @@ onMounted(() => {
   --account-logout: #fca5a5;
   --account-logout-hover: #f87171;
   --account-rating: #facc15;
-  min-height: 100vh;
   position: relative;
+  height: calc(100vh - 4rem);
+  min-height: calc(100vh - 4rem);
   overflow: hidden;
   font-family: 'Quicksand', sans-serif;
   background: var(--account-bg) !important;
   color: var(--account-text);
-  background-image: none !important;
-  background-repeat: no-repeat;
-  animation: none !important;
 }
 
 [data-theme='light'] .account-page {
@@ -287,13 +386,24 @@ onMounted(() => {
   --account-rating: #b45309;
 }
 
-.account-page::after {
-  display: none !important;
+.content-wrapper,
+.account-container {
+  height: 100%;
 }
 
-.content-wrapper {
-  position: relative;
-  z-index: 10;
+.account-container > .max-w-6xl {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.account-page :where(.text-white) {
+  color: var(--account-text) !important;
+}
+
+.account-page :where(.text-white\/80) {
+  color: var(--account-text-soft) !important;
 }
 
 .glass-card {
@@ -301,12 +411,66 @@ onMounted(() => {
   border: 1px solid var(--account-card-border);
   border-radius: 20px;
   box-shadow: var(--account-card-shadow);
-  transition: all 0.3s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .glass-card:hover {
   background: var(--account-card-bg-hover);
-  border: 1px solid var(--account-card-border);
+  transform: translateY(-1px);
+}
+
+.account-login-state {
+  max-width: 34rem;
+  margin: auto;
+}
+
+.account-dashboard {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 1.05fr 1.45fr 1.1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.widget {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-profile {
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  align-self: start;
+  justify-content: center;
+}
+
+.widget-notifications {
+  grid-column: 2 / 4;
+  grid-row: 1 / 2;
+  padding: 0;
+}
+
+.widget-stats {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+}
+
+.widget-friends {
+  grid-column: 3 / 4;
+  grid-row: 2 / 3;
+}
+
+.widget-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
 }
 
 .avatar-wrap {
@@ -346,14 +510,6 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.account-page .text-white {
-  color: var(--account-text) !important;
-}
-
-.account-page .text-white\/80 {
-  color: var(--account-text-soft) !important;
-}
-
 .account-icon-circle,
 .account-icon-square {
   background: var(--account-icon-bg);
@@ -382,71 +538,182 @@ onMounted(() => {
   color: var(--account-logout-hover);
 }
 
+.stats-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-games-block {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-games-scroll,
+.friends-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.stats-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.stats-tile {
+  text-align: center;
+  background: var(--account-recent-bg);
+  border: 1px solid var(--account-recent-border);
+  border-radius: 12px;
+  padding: 0.7rem 0.5rem;
+}
+
 .account-recent-row {
   background: var(--account-recent-bg);
   border: 1px solid var(--account-recent-border);
+}
+
+.recent-game-media {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--account-recent-border);
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.recent-game-media-el {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.recent-game-media-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--account-icon-bg);
 }
 
 .account-rating {
   color: var(--account-rating);
 }
 
-@keyframes movement {
-  0%, 100% {
-    background-size: 
-      130vmax 130vmax,
-      80vmax 80vmax,
-      90vmax 90vmax,
-      110vmax 110vmax,
-      90vmax 90vmax;
-    background-position:
-      -80vmax -80vmax,
-      60vmax -30vmax,
-      10vmax 10vmax,
-      -30vmax -10vmax,
-      50vmax 50vmax;
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--account-recent-bg);
+  border: 1px solid var(--account-recent-border);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+}
+
+.friend-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--account-icon-bg);
+  color: var(--account-icon-text);
+  border: 1px solid var(--account-upload-border);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.friend-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.friend-meta strong,
+.friend-meta small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friend-meta strong {
+  font-size: 0.9rem;
+}
+
+.friend-meta small {
+  color: var(--account-text-soft);
+  font-size: 0.75rem;
+}
+
+.widget-notifications :deep(.notifications-section) {
+  height: 100%;
+  border-radius: 20px;
+}
+
+@media (max-width: 1280px) {
+  .account-dashboard {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: minmax(0, 0.95fr) minmax(0, 1fr) minmax(0, 1fr);
   }
-  25% {
-    background-size: 
-      100vmax 100vmax,
-      90vmax 90vmax,
-      100vmax 100vmax,
-      90vmax 90vmax,
-      60vmax 60vmax;
-    background-position:
-      -60vmax -90vmax,
-      50vmax -40vmax,
-      0vmax -20vmax,
-      -40vmax -20vmax,
-      40vmax 60vmax;
+
+  .widget-profile {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
   }
-  50% {
-    background-size: 
-      80vmax 80vmax,
-      110vmax 110vmax,
-      80vmax 80vmax,
-      60vmax 60vmax,
-      80vmax 80vmax;
-    background-position:
-      -50vmax -70vmax,
-      40vmax -30vmax,
-      10vmax 0vmax,
-      20vmax 10vmax,
-      30vmax 70vmax;
+
+  .widget-notifications {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
   }
-  75% {
-    background-size: 
-      90vmax 90vmax,
-      90vmax 90vmax,
-      100vmax 100vmax,
-      90vmax 90vmax,
-      70vmax 70vmax;
-    background-position:
-      -50vmax -40vmax,
-      50vmax -30vmax,
-      20vmax 0vmax,
-      -10vmax 10vmax,
-      40vmax 60vmax;
+
+  .widget-stats {
+    grid-column: 1 / 3;
+    grid-row: 2 / 3;
+  }
+
+  .widget-friends {
+    grid-column: 1 / 3;
+    grid-row: 3 / 4;
+  }
+}
+
+@media (max-width: 768px) {
+  .account-page {
+    height: calc(100vh - 3.5rem);
+    min-height: calc(100vh - 3.5rem);
+    overflow: auto;
+  }
+
+  .account-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .account-dashboard {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, minmax(240px, 1fr));
+    min-height: auto;
+  }
+
+  .widget-profile,
+  .widget-notifications,
+  .widget-stats,
+  .widget-friends {
+    grid-column: 1 / 2;
+    grid-row: auto;
   }
 }
 </style>

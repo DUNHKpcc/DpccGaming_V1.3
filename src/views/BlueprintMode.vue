@@ -1,6 +1,6 @@
 <template>
   <div class="blueprint-shell">
-    <header class="blueprint-bar">
+    <header class="blueprint-bar" :class="{ 'is-blurred': showEntryNotice }">
       <div class="bar-left">
         <button class="ghost-btn back-btn" @click="goBack">
           <i class="fa fa-arrow-left"></i>
@@ -25,7 +25,7 @@
       </div>
     </header>
 
-    <div class="blueprint-layout">
+    <div class="blueprint-layout" :class="{ 'is-blurred': showEntryNotice }">
       <aside class="palette">
         <div class="palette-head">
           <div>
@@ -322,6 +322,14 @@
         <button @click="addNodeAtContext('image')">添加 封面</button>
       </template>
     </div>
+    <div v-if="showEntryNotice" class="blueprint-entry-overlay" @click.self="dismissEntryNotice">
+      <div class="blueprint-entry-card">
+        <img src="/Ai/BluePrint.webp" alt="BluePrint Preview" class="blueprint-entry-image" />
+        <h2>蓝图模式正在制作中</h2>
+        <p>当前版本仅用于预览，完整功能仍在持续开发。</p>
+        <button class="blueprint-entry-btn" @click="dismissEntryNotice">我知道了，继续体验</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -333,6 +341,7 @@ import { resolveMediaUrl } from '../utils/media'
 
 const router = useRouter()
 const gameStore = useGameStore()
+const showEntryNotice = ref(true)
 const promptPositive = ref('融合已选游戏的核心玩法与节奏，生成一款操作流畅、视觉统一的新作品。')
 const promptNegative = ref('水印, 文本, 版权, 抄袭, 低质量')
 const seed = ref(Date.now().toString())
@@ -826,13 +835,26 @@ const goBack = () => {
   }
 }
 
+const dismissEntryNotice = () => {
+  showEntryNotice.value = false
+}
+
+const onEntryNoticeKeydown = (event) => {
+  if (!showEntryNotice.value) return
+  if (event.key === 'Escape') {
+    dismissEntryNotice()
+  }
+}
+
 onMounted(async () => {
   await ensureGames()
   window.addEventListener('click', closeContextMenu)
+  window.addEventListener('keydown', onEntryNoticeKeydown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('click', closeContextMenu)
+  window.removeEventListener('keydown', onEntryNoticeKeydown)
 })
 </script>
 
@@ -873,6 +895,108 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+.blueprint-bar.is-blurred,
+.blueprint-layout.is-blurred {
+  filter: blur(8px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.blueprint-entry-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.blueprint-entry-card {
+  width: min(620px, 92vw);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 10, 10, 0.9);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+}
+
+.blueprint-entry-image {
+  width: min(520px, 84vw);
+  max-height: 42vh;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #111;
+}
+
+.blueprint-entry-card h2 {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.blueprint-entry-card p {
+  margin: 0;
+  font-size: 0.96rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.blueprint-entry-btn {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: #fff;
+  color: #111;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.blueprint-entry-btn:hover {
+  background: #f2f2f2;
+}
+
+[data-theme="light"] .blueprint-entry-overlay {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme="light"] .blueprint-entry-card {
+  border-color: rgba(17, 17, 17, 0.14);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 64px rgba(17, 17, 17, 0.22);
+}
+
+[data-theme="light"] .blueprint-entry-image {
+  border-color: rgba(17, 17, 17, 0.14);
+  background: #fff;
+}
+
+[data-theme="light"] .blueprint-entry-card h2 {
+  color: #111;
+}
+
+[data-theme="light"] .blueprint-entry-card p {
+  color: rgba(17, 17, 17, 0.72);
+}
+
+[data-theme="light"] .blueprint-entry-btn {
+  border-color: rgba(17, 17, 17, 0.2);
+  background: #111;
+  color: #fff;
+}
+
+[data-theme="light"] .blueprint-entry-btn:hover {
+  background: #222;
 }
 
 .blueprint-bar {

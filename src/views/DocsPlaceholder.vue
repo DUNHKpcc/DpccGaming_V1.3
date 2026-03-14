@@ -349,6 +349,14 @@ onMounted(async () => {
   height: 100%;
   overflow-y: auto;
   padding-bottom: 1.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.docs-cards-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .docs-cards-grid {

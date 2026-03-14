@@ -1,6 +1,6 @@
 <template>
-  <div class="notifications-section">
-    <div class="flex items-center justify-between mb-6">
+  <div class="notifications-section" :class="{ compact: props.compact }">
+    <div class="section-header">
       <h3 class="text-xl font-bold text-white">通知中心</h3>
       <div class="flex items-center gap-2">
         <span class="text-sm text-white/80">{{ unreadCount }} 条未读</span>
@@ -13,52 +13,48 @@
       </div>
     </div>
 
-    <!-- 通知列表 -->
-    <div v-if="notifications.length === 0" class="text-center py-8 text-white/80">
-      <i class="fa fa-bell text-4xl mb-4"></i>
-      <p>暂无通知</p>
-    </div>
+    <div class="notifications-content">
+      <div v-if="notifications.length === 0" class="text-center py-8 text-white/80">
+        <i class="fa fa-bell text-4xl mb-4"></i>
+        <p>暂无通知</p>
+      </div>
 
-    <div v-else class="space-y-3">
-      <div 
-        v-for="notification in displayedNotifications" 
-        :key="notification.id"
-        :class="[
-          'notification-item',
-          notification.is_read ? 'read' : 'unread'
-        ]"
-        @click="markAsRead(notification)">
-        
-        <!-- 通知图标 -->
-        <div class="notification-icon">
-          <i :class="getNotificationIconByNotification(notification)"></i>
-        </div>
-
-        <!-- 通知内容 -->
-        <div class="notification-content">
-          <div class="notification-header">
-            <h4 class="notification-title">{{ notification.title }}</h4>
-            <span class="notification-time">{{ formatTime(notification.created_at) }}</span>
-          </div>
-          <p class="notification-text">{{ displayNotificationText(notification) }}</p>
+      <div v-else class="space-y-3">
+        <div 
+          v-for="notification in displayedNotifications" 
+          :key="notification.id"
+          :class="[
+            'notification-item',
+            notification.is_read ? 'read' : 'unread'
+          ]"
+          @click="markAsRead(notification)">
           
-          <!-- 相关游戏链接 -->
-          <div v-if="notification.related_game_id" class="notification-actions">
-              <button 
-                @click="handleNotificationClick(notification)"
-                class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors">
-              <i :class="getNotificationActionIcon(notification)" class="mr-1"></i>
-              {{ getNotificationActionText(notification) }}
-            </button>
+          <div class="notification-icon">
+            <i :class="getNotificationIconByNotification(notification)"></i>
           </div>
-        </div>
 
-        <!-- 未读标识 -->
-        <div v-if="!notification.is_read" class="unread-indicator"></div>
+          <div class="notification-content">
+            <div class="notification-header">
+              <h4 class="notification-title">{{ notification.title }}</h4>
+              <span class="notification-time">{{ formatTime(notification.created_at) }}</span>
+            </div>
+            <p class="notification-text">{{ displayNotificationText(notification) }}</p>
+            
+            <div v-if="notification.related_game_id" class="notification-actions">
+                <button 
+                  @click="handleNotificationClick(notification)"
+                  class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                <i :class="getNotificationActionIcon(notification)" class="mr-1"></i>
+                {{ getNotificationActionText(notification) }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="!notification.is_read" class="unread-indicator"></div>
+        </div>
       </div>
     </div>
 
-    <!-- 展开/收起 -->
     <div v-if="shouldShowToggle" class="text-center mt-4">
       <button
         @click="toggleNotificationVisibility"
@@ -67,8 +63,7 @@
       </button>
     </div>
 
-    <!-- 加载更多 -->
-    <div v-if="hasMore" class="text-center mt-6">
+    <div v-if="hasMore && !props.compact" class="text-center mt-6">
       <button 
         @click="loadMore"
         :disabled="loading"
@@ -91,22 +86,30 @@ const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 const modalStore = useModalStore()
+const props = defineProps({
+  compact: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const notifications = ref([])
 const loading = ref(false)
 const hasMore = ref(true)
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(props.compact ? 30 : 10)
 const DEFAULT_VISIBLE_NOTIFICATION_COUNT = 3
 const showAllNotifications = ref(false)
 
 const displayedNotifications = computed(() => {
+  if (props.compact) return notifications.value
   return showAllNotifications.value
     ? notifications.value
     : notifications.value.slice(0, DEFAULT_VISIBLE_NOTIFICATION_COUNT)
 })
 
 const shouldShowToggle = computed(() => {
+  if (props.compact) return false
   return notifications.value.length > DEFAULT_VISIBLE_NOTIFICATION_COUNT
 })
 
@@ -380,6 +383,36 @@ onMounted(() => {
   border-radius: 20px;
   padding: 1.5rem;
   box-shadow: var(--notify-card-shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.notifications-section.compact {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: inherit;
+  padding: 1rem;
+  height: 100%;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: 0.75rem;
+}
+
+.notifications-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.notifications-section.compact .notifications-content {
+  overflow-y: auto;
+  padding-right: 0.2rem;
 }
 
 [data-theme='light'] .notifications-section {
@@ -520,6 +553,11 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 640px) {
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .notification-item {
     padding: 0.75rem;
     gap: 0.75rem;

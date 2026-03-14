@@ -70,26 +70,32 @@
               class="message-row"
               :class="message.from === 'me' ? 'mine' : 'theirs'"
             >
-              <img
-                v-if="message.from !== 'me'"
-                class="message-avatar"
-                :src="message.avatarUrl"
-                :alt="message.senderName"
-                @error="handleAvatarError"
-              />
-              <div class="message-bubble">
-                <div class="message-text">{{ message.text }}</div>
-                <div class="message-meta">
-                  <span>{{ message.time }}</span>
+              <div class="message-thread" :class="message.from === 'me' ? 'mine' : 'theirs'">
+                <span class="message-sender-name">{{ message.senderName }}</span>
+
+                <div class="message-main">
+                  <img
+                    v-if="message.from !== 'me'"
+                    class="message-avatar"
+                    :src="message.avatarUrl"
+                    :alt="message.senderName"
+                    @error="handleAvatarError"
+                  />
+                  <div class="message-bubble">
+                    <div class="message-text">{{ message.text }}</div>
+                    <div class="message-meta">
+                      <span>{{ message.time }}</span>
+                    </div>
+                  </div>
+                  <img
+                    v-if="message.from === 'me'"
+                    class="message-avatar"
+                    :src="message.avatarUrl"
+                    :alt="message.senderName"
+                    @error="handleAvatarError"
+                  />
                 </div>
               </div>
-              <img
-                v-if="message.from === 'me'"
-                class="message-avatar"
-                :src="message.avatarUrl"
-                :alt="message.senderName"
-                @error="handleAvatarError"
-              />
             </div>
 
             <div v-if="errorText" class="chat-error">{{ errorText }}</div>
@@ -867,8 +873,6 @@ body {
 
 .message-row {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
   margin-bottom: 10px;
 }
 
@@ -881,10 +885,33 @@ body {
 }
 
 .message-bubble {
-  max-width: 72%;
+  max-width: 100%;
   padding: 10px 12px 7px;
   border-radius: 18px;
   box-shadow: 0 8px 20px rgba(31, 41, 55, 0.08);
+}
+
+.message-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 78%;
+  min-width: 0;
+}
+
+.message-thread.theirs {
+  align-items: flex-start;
+}
+
+.message-thread.mine {
+  align-items: flex-end;
+}
+
+.message-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .message-avatar {
@@ -895,6 +922,18 @@ body {
   border: 1px solid #d1d5db;
   background: #f3f4f6;
   flex-shrink: 0;
+}
+
+.message-sender-name {
+  font-size: 11px;
+  line-height: 1.3;
+  min-height: 14px;
+  padding-top: 1px;
+  color: #6b7280;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .message-row.theirs .message-bubble {
