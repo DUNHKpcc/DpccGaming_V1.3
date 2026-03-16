@@ -61,12 +61,18 @@
           <div v-else v-for="comment in comments" :key="comment.id" class="mb-4 pb-4 border-b border-white/20">
             <div class="flex justify-between items-start mb-1 gap-2">
               <div class="comment-user">
-                <img
-                  :src="getAvatarUrl(comment.avatar_url)"
-                  alt="用户头像"
-                  class="comment-avatar"
-                  @error="handleAvatarError"
-                />
+                <AvatarFriendAction
+                  :user-id="comment.user_id"
+                  :username="comment.username"
+                  placement="left"
+                >
+                  <img
+                    :src="getAvatarUrl(comment.avatar_url)"
+                    alt="用户头像"
+                    class="comment-avatar"
+                    @error="handleAvatarError"
+                  />
+                </AvatarFriendAction>
                 <div class="font-medium text-white">{{ comment.username }}</div>
               </div>
               <div class="text-yellow-400 text-sm">
@@ -111,12 +117,18 @@
               <div v-for="reply in comment.replies" :key="reply.id" class="mb-2 pb-2 border-l-2 border-white/20 pl-3">
                 <div class="flex justify-between items-start mb-1 gap-2">
                   <div class="comment-user">
-                    <img
-                      :src="getAvatarUrl(reply.avatar_url)"
-                      alt="用户头像"
-                      class="reply-avatar"
-                      @error="handleAvatarError"
-                    />
+                    <AvatarFriendAction
+                      :user-id="reply.user_id"
+                      :username="reply.username"
+                      placement="left"
+                    >
+                      <img
+                        :src="getAvatarUrl(reply.avatar_url)"
+                        alt="用户头像"
+                        class="reply-avatar"
+                        @error="handleAvatarError"
+                      />
+                    </AvatarFriendAction>
                     <div class="font-medium text-sm text-white">{{ reply.username }}</div>
                   </div>
                   <button @click="showReplyForm(comment.id, reply.user_id, reply.id)" class="text-xs text-white/80 hover:text-white transition-colors duration-300">
@@ -196,6 +208,7 @@ import { useNotificationStore } from '../stores/notification'
 import { setupGameEventHandling, focusGameIframe } from '../utils/gameEvents'
 import { resolveMediaUrl } from '../utils/media'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import AvatarFriendAction from './AvatarFriendAction.vue'
 
 const modalStore = useModalStore()
 const authStore = useAuthStore()

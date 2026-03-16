@@ -41,15 +41,18 @@ import RegisterModal from './components/RegisterModal.vue'
 import FullscreenGame from './components/FullscreenGame.vue'
 import Notification from './components/Notification.vue'
 import { useAuthStore } from './stores/auth'
+import { useModalStore } from './stores/modal'
 import CookieConsentBanner from './components/CookieConsentBanner.vue'
 
 const authStore = useAuthStore()
+const modalStore = useModalStore()
 const sidebarRef = ref(null)
 const mainContent = ref(null)
 const route = useRoute()
+const isFullscreen = computed(() => modalStore.isFullscreen)
 
 const showSidebar = computed(() => !route.meta?.hideSidebar)
-const showTopbar = computed(() => !route.meta?.hideTopbar)
+const showTopbar = computed(() => !route.meta?.hideTopbar && !isFullscreen.value)
 const showOverlays = computed(() => !route.meta?.hideOverlays)
 
 onMounted(async () => {

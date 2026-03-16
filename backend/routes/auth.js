@@ -37,6 +37,14 @@ const uploadAvatar = multer({
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
+router.get('/auth/wechat/start', authController.startWechatLogin);
+router.get('/auth/wechat/bind/start', authenticateToken, authController.startWechatBind);
+router.get('/auth/wechat/bind-status', authenticateToken, authController.getWechatBindStatus);
+router.get('/auth/wechat/callback', authController.handleWechatCallback);
+router.get('/auth/google/start', authController.startGoogleLogin);
+router.get('/auth/google/bind/start', authenticateToken, authController.startGoogleBind);
+router.get('/auth/google/bind-status', authenticateToken, authController.getGoogleBindStatus);
+router.get('/auth/google/callback', authController.handleGoogleCallback);
 router.post(
   '/user/avatar',
   authenticateToken,

@@ -40,13 +40,32 @@
             </div>
             <p class="notification-text">{{ displayNotificationText(notification) }}</p>
             
-            <div v-if="notification.related_game_id" class="notification-actions">
-                <button 
-                  @click="handleNotificationClick(notification)"
-                  class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors">
+            <div v-if="shouldShowPrimaryAction(notification) || hasFriendRequestActions(notification)" class="notification-actions">
+              <button
+                v-if="shouldShowPrimaryAction(notification)"
+                @click.stop="handleNotificationClick(notification)"
+                class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors"
+              >
                 <i :class="getNotificationActionIcon(notification)" class="mr-1"></i>
                 {{ getNotificationActionText(notification) }}
               </button>
+
+              <div v-if="hasFriendRequestActions(notification)" class="friend-request-actions">
+                <button
+                  @click.stop="respondFriendRequest(notification, 'accept')"
+                  class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                  :disabled="isFriendActionLoading(notification, 'accept') || isFriendActionLoading(notification, 'reject')"
+                >
+                  {{ isFriendActionLoading(notification, 'accept') ? '处理中...' : '同意' }}
+                </button>
+                <button
+                  @click.stop="respondFriendRequest(notification, 'reject')"
+                  class="notification-secondary-btn px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                  :disabled="isFriendActionLoading(notification, 'accept') || isFriendActionLoading(notification, 'reject')"
+                >
+                  {{ isFriendActionLoading(notification, 'reject') ? '处理中...' : '拒绝' }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -76,16 +95,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
+import { useNotificationStore } from '../stores/notification'
+import { apiCall } from '../utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 const modalStore = useModalStore()
+const notificationStore = useNotificationStore()
 const props = defineProps({
   compact: {
     type: Boolean,
@@ -100,6 +122,8 @@ const currentPage = ref(1)
 const pageSize = ref(props.compact ? 30 : 10)
 const DEFAULT_VISIBLE_NOTIFICATION_COUNT = 3
 const showAllNotifications = ref(false)
+const friendRequestActionLoading = reactive({})
+const handledFriendRequestStatus = reactive({})
 
 const displayedNotifications = computed(() => {
   if (props.compact) return notifications.value
@@ -117,19 +141,21 @@ const toggleNotificationVisibility = () => {
   showAllNotifications.value = !showAllNotifications.value
 }
 
-// 计算未读通知数量
 const unreadCount = computed(() => {
   return notifications.value.filter(n => !n.is_read).length
 })
 
-// 获取通知列表
+const emitNotificationsUpdated = () => {
+  window.dispatchEvent(new CustomEvent('notifications:updated'))
+}
+
 const fetchNotifications = async (page = 1, reset = false) => {
   if (!authStore.isLoggedIn) return
-  
+
   try {
     loading.value = true
     const token = localStorage.getItem('token')
-    
+
     const response = await fetch(`/api/notifications?page=${page}&limit=${pageSize.value}`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -138,14 +164,17 @@ const fetchNotifications = async (page = 1, reset = false) => {
 
     if (response.ok) {
       const data = await response.json()
-      
+      const nextList = Array.isArray(data.notifications) ? data.notifications : []
+
       if (reset) {
-        notifications.value = data.notifications
+        notifications.value = nextList
       } else {
-        notifications.value.push(...data.notifications)
+        notifications.value.push(...nextList)
       }
-      
-      hasMore.value = data.hasMore
+
+      emitNotificationsUpdated()
+
+      hasMore.value = Boolean(data.hasMore ?? data.pagination?.hasMore)
       currentPage.value = page
     } else {
       console.error('获取通知失败')
@@ -157,10 +186,9 @@ const fetchNotifications = async (page = 1, reset = false) => {
   }
 }
 
-// 标记通知为已读
 const markAsRead = async (notification) => {
   if (notification.is_read) return
-  
+
   try {
     const token = localStorage.getItem('token')
     const response = await fetch(`/api/notifications/${notification.id}/read`, {
@@ -172,13 +200,13 @@ const markAsRead = async (notification) => {
 
     if (response.ok) {
       notification.is_read = true
+      emitNotificationsUpdated()
     }
   } catch (error) {
     console.error('标记已读失败:', error)
   }
 }
 
-// 全部标记为已读
 const markAllAsRead = async () => {
   try {
     const token = localStorage.getItem('token')
@@ -190,33 +218,27 @@ const markAllAsRead = async () => {
     })
 
     if (response.ok) {
-      notifications.value.forEach(n => n.is_read = true)
+      notifications.value.forEach(n => { n.is_read = true })
+      emitNotificationsUpdated()
     }
   } catch (error) {
     console.error('全部标记已读失败:', error)
   }
 }
 
-// 加载更多
 const loadMore = () => {
   if (!loading.value && hasMore.value) {
     fetchNotifications(currentPage.value + 1, false)
   }
 }
 
-// 获取通知图标（统一为无颜色类）
 const getNotificationIcon = (type) => {
   const icons = {
-    'game_approved': 'fa fa-check-circle',
-    'game_rejected': 'fa fa-times-circle',
-    'comment_reply': 'fa fa-reply'
+    game_approved: 'fa fa-check-circle',
+    game_rejected: 'fa fa-times-circle',
+    comment_reply: 'fa fa-reply'
   }
   return icons[type] || 'fa fa-bell'
-}
-
-const getNotificationIconByNotification = (notification) => {
-  if (isDiscussionNotification(notification)) return 'fa fa-comments'
-  return getNotificationIcon(notification?.type)
 }
 
 const extractDiscussionRoomId = (content = '') => {
@@ -226,19 +248,86 @@ const extractDiscussionRoomId = (content = '') => {
   return Number.isNaN(roomId) ? null : roomId
 }
 
+const extractFriendRequestId = (content = '') => {
+  const matched = String(content).match(/\[friend-request:(\d+)\]/i)
+  if (!matched) return null
+  const requestId = Number.parseInt(matched[1], 10)
+  return Number.isNaN(requestId) ? null : requestId
+}
+
 const isDiscussionNotification = (notification) => {
   if (!notification) return false
   if (notification.title === '讨论新消息') return true
   return extractDiscussionRoomId(notification.content) !== null
 }
 
-const displayNotificationText = (notification) => {
-  return String(notification?.content || '').replace(/\[discussion-room:\d+\]\s*/i, '')
+const isFriendRequestNotification = (notification) => {
+  if (!notification) return false
+  return extractFriendRequestId(notification.content) !== null
 }
 
-// 处理通知点击
+const getNotificationIconByNotification = (notification) => {
+  if (isFriendRequestNotification(notification)) return 'fa fa-user-plus'
+  if (isDiscussionNotification(notification)) return 'fa fa-comments'
+  return getNotificationIcon(notification?.type)
+}
+
+const displayNotificationText = (notification) => {
+  return String(notification?.content || '')
+    .replace(/\[discussion-room:\d+\]\s*/i, '')
+    .replace(/\[friend-request:\d+\]\s*/i, '')
+}
+
+const shouldShowPrimaryAction = (notification) => {
+  if (isFriendRequestNotification(notification)) return false
+  return Boolean(notification?.related_game_id || isDiscussionNotification(notification))
+}
+
+const hasFriendRequestActions = (notification) => {
+  const requestId = extractFriendRequestId(notification?.content)
+  if (!requestId) return false
+  return !handledFriendRequestStatus[requestId]
+}
+
+const isFriendActionLoading = (notification, action) => {
+  const requestId = extractFriendRequestId(notification?.content)
+  if (!requestId) return false
+  return friendRequestActionLoading[`${requestId}:${action}`] === true
+}
+
+const respondFriendRequest = async (notification, action) => {
+  const requestId = extractFriendRequestId(notification?.content)
+  if (!requestId) return
+  if (!['accept', 'reject'].includes(action)) return
+
+  const loadingAcceptKey = `${requestId}:accept`
+  const loadingRejectKey = `${requestId}:reject`
+  friendRequestActionLoading[loadingAcceptKey] = true
+  friendRequestActionLoading[loadingRejectKey] = true
+
+  try {
+    await apiCall(`/discussion/friends/requests/${requestId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ action })
+    })
+    handledFriendRequestStatus[requestId] = action
+    notification.is_read = true
+    const statusText = action === 'accept' ? '已同意' : '已拒绝'
+    notification.content = `${displayNotificationText(notification)}（${statusText}）`
+    notificationStore.success('好友申请已处理', statusText)
+    emitNotificationsUpdated()
+    window.dispatchEvent(new CustomEvent('friends:changed'))
+  } catch (error) {
+    notificationStore.error('处理好友申请失败', error.message || '请稍后重试')
+  } finally {
+    friendRequestActionLoading[loadingAcceptKey] = false
+    friendRequestActionLoading[loadingRejectKey] = false
+  }
+}
+
 const handleNotificationClick = async (notification) => {
-  // 先标记为已读
+  if (isFriendRequestNotification(notification)) return
+
   await markAsRead(notification)
 
   if (isDiscussionNotification(notification)) {
@@ -248,34 +337,27 @@ const handleNotificationClick = async (notification) => {
       return
     }
   }
-  
+
   if (notification.type === 'comment_reply') {
-    // 评论回复类型，跳转到游戏模态框并定位到评论
     const gameId = notification.related_game_id
     const commentId = notification.related_comment_id
-    
-    // 获取游戏信息并打开模态框
     await openGameModalWithComment(gameId, commentId)
   } else {
-    // 其他类型通知，跳转到游戏模态框
     const gameId = notification.related_game_id
     await openGameModal(gameId)
   }
 }
 
-// 打开游戏模态框
 const openGameModal = async (gameId) => {
   try {
-    // 从游戏列表中查找游戏
     const game = gameStore.games.find(g => g.game_id === gameId || g.id === gameId)
-    
+
     if (game) {
       modalStore.openGameModal(game)
     } else {
-      // 如果游戏不在当前列表中，尝试加载游戏
       await gameStore.loadGames()
       const foundGame = gameStore.games.find(g => g.game_id === gameId || g.id === gameId)
-      
+
       if (foundGame) {
         modalStore.openGameModal(foundGame)
       } else {
@@ -287,13 +369,9 @@ const openGameModal = async (gameId) => {
   }
 }
 
-// 打开游戏模态框并定位到评论
 const openGameModalWithComment = async (gameId, commentId) => {
   try {
-    // 先打开游戏模态框
     await openGameModal(gameId)
-    
-    // 延迟设置目标评论ID，确保模态框已经打开
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('scroll-to-comment', {
         detail: { commentId }
@@ -304,22 +382,20 @@ const openGameModalWithComment = async (gameId, commentId) => {
   }
 }
 
-// 获取操作图标
 const getActionIcon = (type) => {
   const icons = {
-    'game_approved': 'fa fa-external-link',
-    'game_rejected': 'fa fa-external-link', 
-    'comment_reply': 'fa fa-comment'
+    game_approved: 'fa fa-external-link',
+    game_rejected: 'fa fa-external-link',
+    comment_reply: 'fa fa-comment'
   }
   return icons[type] || 'fa fa-external-link'
 }
 
-// 获取操作文本
 const getActionText = (type) => {
   const texts = {
-    'game_approved': '查看游戏',
-    'game_rejected': '查看游戏',
-    'comment_reply': '查看评论'
+    game_approved: '查看游戏',
+    game_rejected: '查看游戏',
+    comment_reply: '查看评论'
   }
   return texts[type] || '查看游戏'
 }
@@ -334,21 +410,20 @@ const getNotificationActionText = (notification) => {
   return getActionText(notification.type)
 }
 
-// 格式化时间
 const formatTime = (dateString) => {
   const date = new Date(dateString)
   const now = new Date()
   const diff = now - date
-  
+
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
-  
+
   if (minutes < 1) return '刚刚'
   if (minutes < 60) return `${minutes}分钟前`
   if (hours < 24) return `${hours}小时前`
   if (days < 7) return `${days}天前`
-  
+
   return date.toLocaleDateString('zh-CN')
 }
 
@@ -519,6 +594,16 @@ onMounted(() => {
 
 .notification-actions {
   margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.friend-request-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .unread-indicator {
@@ -549,6 +634,16 @@ onMounted(() => {
 
 .notification-action-btn:hover {
   background: var(--notify-action-bg-hover);
+}
+
+.notification-secondary-btn {
+  background: transparent;
+  color: var(--notify-time);
+  border: 1px solid var(--notify-item-border);
+}
+
+.notification-secondary-btn:hover {
+  background: var(--notify-ghost-bg-hover);
 }
 
 /* 响应式设计 */

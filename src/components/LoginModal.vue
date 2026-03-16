@@ -32,14 +32,24 @@
           class="w-full bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white py-3 rounded-xl transition-all duration-300 mb-4 font-medium">
           登录
         </button>
-        <button
-          type="button"
-          @click="handleWeChatLoginPlaceholder"
-          class="w-full bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white py-3 rounded-xl transition-all duration-300 mb-4 font-medium flex items-center justify-center gap-2"
-        >
-          <img src="/Ai/WeChat.png" alt="WeChat" class="w-5 h-5 object-contain" />
-          <span>通过微信登录</span>
-        </button>
+        <div class="oauth-login-row mb-4">
+          <button
+            type="button"
+            title="微信登录"
+            @click="handleWeChatLoginPlaceholder"
+            class="oauth-icon-btn"
+          >
+            <img src="/Ai/WeChat.png" alt="WeChat" class="oauth-icon-img" />
+          </button>
+          <button
+            type="button"
+            title="Google登录"
+            @click="handleGoogleLoginPlaceholder"
+            class="oauth-icon-btn"
+          >
+            <i class="fab fa-google oauth-icon-font"></i>
+          </button>
+        </div>
         <div class="text-center text-sm text-white/80">
           还没有账户？ <button type="button" @click="switchToRegister" class="text-white hover:text-white/80 hover:underline transition-colors duration-300">注册</button>
         </div>
@@ -53,6 +63,7 @@ import { ref, computed } from 'vue'
 import { useModalStore } from '../stores/modal'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
+import { API_BASE_URL } from '../utils/api'
 
 const modalStore = useModalStore()
 const authStore = useAuthStore()
@@ -87,6 +98,54 @@ const handleBackdropClick = (e) => {
 }
 
 const handleWeChatLoginPlaceholder = () => {
-  notificationStore.info('敬请期待', '微信登录功能正在开发中')
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const startUrl = new URL(`${API_BASE_URL}/auth/wechat/start`)
+  startUrl.searchParams.set('returnTo', currentPath || '/')
+  window.location.href = startUrl.toString()
+}
+
+const handleGoogleLoginPlaceholder = () => {
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const startUrl = new URL(`${API_BASE_URL}/auth/google/start`)
+  startUrl.searchParams.set('returnTo', currentPath || '/')
+  window.location.href = startUrl.toString()
 }
 </script>
+
+<style scoped>
+.oauth-login-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+}
+
+.oauth-icon-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.oauth-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.oauth-icon-img {
+  width: 1.1rem;
+  height: 1.1rem;
+  object-fit: contain;
+  display: block;
+}
+
+.oauth-icon-font {
+  font-size: 1rem;
+}
+</style>

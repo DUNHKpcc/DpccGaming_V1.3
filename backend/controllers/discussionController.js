@@ -11,6 +11,12 @@ const { createNotification } = require('../utils/notification');
 const MAX_ROOM_MEMBERS = 4;
 const DEFAULT_MODEL = 'doubao-seed-1-6-251015';
 const DEFAULT_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+const FRIEND_INVITE_MIN_MINUTES = 5;
+const FRIEND_INVITE_MAX_MINUTES = 7 * 24 * 60;
+const FRIEND_INVITE_DEFAULT_MINUTES = 60;
+
+let friendInviteLinksTableReady = false;
+let friendInviteLinksTableInitPromise = null;
 
 const toInt = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -232,6 +238,76 @@ const notifyRoomMembers = async ({
       null
     );
   }
+};
+
+const ensureFriendInviteLinksTable = async (pool) => {
+  if (friendInviteLinksTableReady) return;
+
+  if (friendInviteLinksTableInitPromise) {
+    await friendInviteLinksTableInitPromise;
+    return;
+  }
+
+  friendInviteLinksTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS friend_invite_links (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      link_code VARCHAR(96) NOT NULL,
+      creator_user_id INT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      status ENUM('active', 'used', 'expired', 'revoked') NOT NULL DEFAULT 'active',
+      used_by_user_id INT NULL,
+      used_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_friend_invite_links_code (link_code),
+      KEY idx_friend_invite_links_creator_status (creator_user_id, status),
+      KEY idx_friend_invite_links_expires (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await friendInviteLinksTableInitPromise;
+    friendInviteLinksTableReady = true;
+  } finally {
+    friendInviteLinksTableInitPromise = null;
+  }
+};
+
+const generateFriendInviteCode = () => crypto.randomBytes(16).toString('hex');
+
+const parseInviteCode = (rawValue) => {
+  const text = String(rawValue || '').trim();
+  if (!text) return '';
+
+  const validCode = (value) => {
+    const cleaned = String(value || '').trim();
+    return /^[A-Za-z0-9_-]{8,96}$/.test(cleaned) ? cleaned : '';
+  };
+
+  const directCode = validCode(text);
+  if (directCode) return directCode;
+
+  try {
+    const url = new URL(text);
+    return (
+      validCode(url.searchParams.get('friendInvite'))
+      || validCode(url.searchParams.get('invite'))
+      || validCode(url.searchParams.get('code'))
+      || ''
+    );
+  } catch {
+    return '';
+  }
+};
+
+const getFriendInviteLinkBase = (req) => {
+  const fromEnv = String(process.env.APP_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  if (fromEnv) return fromEnv;
+
+  const fromOrigin = String(req.headers.origin || '').trim().replace(/\/+$/, '');
+  if (fromOrigin) return fromOrigin;
+
+  return '';
 };
 
 const listPublicRoomsByGame = async (req, res) => {
@@ -806,6 +882,15 @@ const sendFriendRequest = async (req, res) => {
     if (!targetUsers.length) return res.status(404).json({ error: '目标用户不存在' });
     if (targetUsers[0].status !== 'active') return res.status(400).json({ error: '目标用户不可添加' });
 
+    const [requesterRows] = await pool.execute(
+      `SELECT username
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [requesterId]
+    );
+    const requesterName = requesterRows[0]?.username || '有用户';
+
     const [existing] = await pool.execute(
       `SELECT id, requester_id, addressee_id, status
        FROM friendships
@@ -829,16 +914,34 @@ const sendFriendRequest = async (req, res) => {
            WHERE id = ?`,
           [row.id]
         );
+
+        await createNotification(
+          addresseeId,
+          'comment_reply',
+          '好友申请已通过',
+          `${requesterName} 已同意你的好友申请`,
+          null,
+          null
+        );
         return res.json({ message: '已自动接受对方好友请求' });
       }
 
       return res.status(409).json({ error: '好友请求已存在，请勿重复发送' });
     }
 
-    await pool.execute(
+    const [insertResult] = await pool.execute(
       `INSERT INTO friendships (requester_id, addressee_id, status)
        VALUES (?, ?, 'pending')`,
       [requesterId, addresseeId]
+    );
+
+    await createNotification(
+      addresseeId,
+      'comment_reply',
+      '收到好友申请',
+      `[friend-request:${insertResult.insertId}] ${requesterName} 想添加你为好友`,
+      null,
+      null
     );
 
     res.status(201).json({ message: '好友请求已发送' });
@@ -853,7 +956,7 @@ const getFriends = async (req, res) => {
     const userId = req.user.userId;
     const pool = getPool();
     const [rows] = await pool.execute(
-      `SELECT u.id, u.username, u.email, f.updated_at AS friend_since
+      `SELECT u.id, u.username, u.email, u.avatar_url, f.updated_at AS friend_since
        FROM friendships f
        JOIN users u ON (
            (f.requester_id = ? AND f.addressee_id = u.id)
@@ -876,7 +979,8 @@ const getFriendRequests = async (req, res) => {
     const pool = getPool();
 
     const [incoming] = await pool.execute(
-      `SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at, u.username AS requester_name
+      `SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at,
+              u.username AS requester_name, u.avatar_url AS requester_avatar_url
        FROM friendships f
        JOIN users u ON u.id = f.requester_id
        WHERE f.addressee_id = ? AND f.status = 'pending'
@@ -885,7 +989,8 @@ const getFriendRequests = async (req, res) => {
     );
 
     const [outgoing] = await pool.execute(
-      `SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at, u.username AS addressee_name
+      `SELECT f.id, f.requester_id, f.addressee_id, f.status, f.created_at,
+              u.username AS addressee_name, u.avatar_url AS addressee_avatar_url
        FROM friendships f
        JOIN users u ON u.id = f.addressee_id
        WHERE f.requester_id = ? AND f.status = 'pending'
@@ -920,7 +1025,7 @@ const respondFriendRequest = async (req, res) => {
 
     const pool = getPool();
     const [rows] = await pool.execute(
-      `SELECT id, addressee_id, status
+      `SELECT id, requester_id, addressee_id, status
        FROM friendships
        WHERE id = ?
        LIMIT 1`,
@@ -939,9 +1044,284 @@ const respondFriendRequest = async (req, res) => {
       [nextStatus, requestId]
     );
 
+    const requesterId = Number(row.requester_id);
+    if (requesterId > 0) {
+      const [operatorRows] = await pool.execute(
+        `SELECT username
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [userId]
+      );
+      const operatorName = operatorRows[0]?.username || '对方';
+      const titleMap = {
+        accepted: '好友申请已通过',
+        rejected: '好友申请被拒绝',
+        blocked: '好友申请被屏蔽'
+      };
+      const textMap = {
+        accepted: `${operatorName} 已同意你的好友申请`,
+        rejected: `${operatorName} 拒绝了你的好友申请`,
+        blocked: `${operatorName} 屏蔽了你的好友申请`
+      };
+      await createNotification(
+        requesterId,
+        'comment_reply',
+        titleMap[nextStatus] || '好友申请状态更新',
+        textMap[nextStatus] || `${operatorName} 更新了好友申请状态`,
+        null,
+        null
+      );
+    }
+
     res.json({ message: `好友请求已${nextStatus}` });
   } catch (error) {
     console.error('处理好友请求失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const searchUsersForFriend = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const keyword = String(req.query?.q || '').trim();
+    if (!keyword) return res.json({ users: [] });
+
+    const pool = getPool();
+    const escapedKeyword = keyword.replace(/[\\%_]/g, '\\$&');
+    const likeValue = `%${escapedKeyword}%`;
+
+    const [rows] = await pool.execute(
+      `SELECT u.id, u.username, u.email, u.avatar_url,
+              outgoing.id AS outgoing_request_id, outgoing.status AS outgoing_status,
+              incoming.id AS incoming_request_id, incoming.status AS incoming_status
+       FROM users u
+       LEFT JOIN friendships outgoing
+         ON outgoing.requester_id = ? AND outgoing.addressee_id = u.id
+       LEFT JOIN friendships incoming
+         ON incoming.requester_id = u.id AND incoming.addressee_id = ?
+       WHERE u.status = 'active'
+         AND u.id <> ?
+         AND u.username LIKE ? ESCAPE '\\\\'
+       ORDER BY u.username ASC
+       LIMIT 20`,
+      [userId, userId, userId, likeValue]
+    );
+
+    const users = rows.map((row) => {
+      const outgoingStatus = row.outgoing_status || null;
+      const incomingStatus = row.incoming_status || null;
+
+      let friendStatus = 'none';
+      if (outgoingStatus === 'accepted' || incomingStatus === 'accepted') {
+        friendStatus = 'accepted';
+      } else if (outgoingStatus === 'pending') {
+        friendStatus = 'outgoing_pending';
+      } else if (incomingStatus === 'pending') {
+        friendStatus = 'incoming_pending';
+      } else if (outgoingStatus === 'blocked' || incomingStatus === 'blocked') {
+        friendStatus = 'blocked';
+      }
+
+      return {
+        id: row.id,
+        username: row.username,
+        email: row.email,
+        avatar_url: row.avatar_url,
+        friend_status: friendStatus,
+        incoming_request_id: row.incoming_request_id,
+        outgoing_request_id: row.outgoing_request_id
+      };
+    });
+
+    res.json({ users });
+  } catch (error) {
+    console.error('搜索用户失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const createFriendInviteLink = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const rawMinutes = toInt(req.body?.expiresInMinutes);
+    const expiresInMinutes = Math.min(
+      Math.max(rawMinutes || FRIEND_INVITE_DEFAULT_MINUTES, FRIEND_INVITE_MIN_MINUTES),
+      FRIEND_INVITE_MAX_MINUTES
+    );
+
+    const pool = getPool();
+    await ensureFriendInviteLinksTable(pool);
+
+    const expiresAt = new Date(Date.now() + (expiresInMinutes * 60 * 1000));
+    let linkCode = '';
+
+    for (let i = 0; i < 8; i += 1) {
+      const candidate = generateFriendInviteCode();
+      const [exists] = await pool.execute(
+        `SELECT id
+         FROM friend_invite_links
+         WHERE link_code = ?
+         LIMIT 1`,
+        [candidate]
+      );
+      if (!exists.length) {
+        linkCode = candidate;
+        break;
+      }
+    }
+
+    if (!linkCode) {
+      return res.status(500).json({ error: '生成邀请链接失败，请重试' });
+    }
+
+    await pool.execute(
+      `INSERT INTO friend_invite_links (link_code, creator_user_id, expires_at, status)
+       VALUES (?, ?, ?, 'active')`,
+      [linkCode, userId, expiresAt]
+    );
+
+    const base = getFriendInviteLinkBase(req);
+    const inviteLink = base
+      ? `${base}/account?friendInvite=${encodeURIComponent(linkCode)}`
+      : linkCode;
+
+    res.status(201).json({
+      invite_code: linkCode,
+      invite_link: inviteLink,
+      expires_at: expiresAt.toISOString(),
+      expires_in_minutes: expiresInMinutes
+    });
+  } catch (error) {
+    console.error('创建好友邀请链接失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const redeemFriendInviteLink = async (req, res) => {
+  const userId = req.user.userId;
+  const inviteCode = parseInviteCode(req.body?.code);
+  if (!inviteCode) {
+    return res.status(400).json({ error: '邀请码无效' });
+  }
+
+  let connection = null;
+  try {
+    const pool = getPool();
+    await ensureFriendInviteLinksTable(pool);
+    connection = await beginTransaction();
+
+    const [inviteRows] = await connection.execute(
+      `SELECT id, link_code, creator_user_id, expires_at, status
+       FROM friend_invite_links
+       WHERE link_code = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [inviteCode]
+    );
+
+    if (!inviteRows.length) {
+      await rollbackTransaction(connection);
+      return res.status(404).json({ error: '邀请链接不存在' });
+    }
+
+    const invite = inviteRows[0];
+    const creatorUserId = Number(invite.creator_user_id);
+    if (creatorUserId === userId) {
+      await rollbackTransaction(connection);
+      return res.status(400).json({ error: '不能使用自己的邀请链接' });
+    }
+
+    const now = new Date();
+    const expiresAt = invite.expires_at ? new Date(invite.expires_at) : null;
+    const isExpired = !expiresAt || Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= now.getTime();
+
+    if (invite.status !== 'active' || isExpired) {
+      if (invite.status === 'active' && isExpired) {
+        await connection.execute(
+          `UPDATE friend_invite_links
+           SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [invite.id]
+        );
+      }
+      await rollbackTransaction(connection);
+      return res.status(400).json({ error: '邀请链接已失效' });
+    }
+
+    const [existing] = await connection.execute(
+      `SELECT id, requester_id, addressee_id, status
+       FROM friendships
+       WHERE (requester_id = ? AND addressee_id = ?)
+          OR (requester_id = ? AND addressee_id = ?)
+       ORDER BY id DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [creatorUserId, userId, userId, creatorUserId]
+    );
+
+    if (existing.length) {
+      const relation = existing[0];
+      if (relation.status === 'accepted') {
+        await rollbackTransaction(connection);
+        return res.status(409).json({ error: '你们已经是好友' });
+      }
+      if (relation.status === 'blocked') {
+        await rollbackTransaction(connection);
+        return res.status(403).json({ error: '当前关系不可通过邀请链接建立好友' });
+      }
+
+      await connection.execute(
+        `UPDATE friendships
+         SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [relation.id]
+      );
+    } else {
+      await connection.execute(
+        `INSERT INTO friendships (requester_id, addressee_id, status, responded_at)
+         VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)`,
+        [creatorUserId, userId]
+      );
+    }
+
+    await connection.execute(
+      `UPDATE friend_invite_links
+       SET status = 'used',
+           used_by_user_id = ?,
+           used_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [userId, invite.id]
+    );
+
+    await commitTransaction(connection);
+    connection = null;
+
+    const [redeemerRows] = await pool.execute(
+      `SELECT username
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId]
+    );
+    const redeemerName = redeemerRows[0]?.username || '有用户';
+
+    await createNotification(
+      creatorUserId,
+      'comment_reply',
+      '邀请链接已使用',
+      `${redeemerName} 通过你的邀请链接成为了好友`,
+      null,
+      null
+    );
+
+    res.json({ message: '已通过邀请链接添加好友' });
+  } catch (error) {
+    if (connection) {
+      await rollbackTransaction(connection);
+    }
+    console.error('兑换好友邀请链接失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 };
@@ -962,5 +1342,8 @@ module.exports = {
   sendFriendRequest,
   getFriends,
   getFriendRequests,
-  respondFriendRequest
+  respondFriendRequest,
+  searchUsersForFriend,
+  createFriendInviteLink,
+  redeemFriendInviteLink
 };

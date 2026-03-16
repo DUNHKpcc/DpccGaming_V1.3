@@ -74,13 +74,19 @@
                 <span class="message-sender-name">{{ message.senderName }}</span>
 
                 <div class="message-main">
-                  <img
+                  <AvatarFriendAction
                     v-if="message.from !== 'me'"
-                    class="message-avatar"
-                    :src="message.avatarUrl"
-                    :alt="message.senderName"
-                    @error="handleAvatarError"
-                  />
+                    :user-id="message.senderUserId"
+                    :username="message.senderName"
+                    placement="left"
+                  >
+                    <img
+                      class="message-avatar"
+                      :src="message.avatarUrl"
+                      :alt="message.senderName"
+                      @error="handleAvatarError"
+                    />
+                  </AvatarFriendAction>
                   <div class="message-bubble">
                     <div class="message-text">{{ message.text }}</div>
                     <div class="message-meta">
@@ -146,6 +152,7 @@ import hljs from 'highlight.js/lib/core'
 import json from 'highlight.js/lib/languages/json'
 import { apiCall, API_BASE_URL } from '../utils/api'
 import { getAvatarUrl, handleAvatarError as fallbackAvatar } from '../utils/avatar'
+import AvatarFriendAction from '../components/AvatarFriendAction.vue'
 
 hljs.registerLanguage('json', json)
 
@@ -184,6 +191,9 @@ const formatClock = (value) => {
 
 export default {
   name: 'DiscussionMode',
+  components: {
+    AvatarFriendAction
+  },
   props: {
     id: {
       type: [String, Number],
@@ -346,6 +356,7 @@ export default {
         id: item.id || Date.now(),
         from: isMine ? 'me' : 'theirs',
         senderType,
+        senderUserId,
         senderName,
         avatarUrl,
         text,
@@ -672,7 +683,10 @@ body {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 10px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
   background: #ffffff;
   border-bottom: 1px solid #d1d5db;
 }

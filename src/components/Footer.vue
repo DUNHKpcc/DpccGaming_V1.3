@@ -120,7 +120,7 @@
                 rel="noopener noreferrer"
                 class="footer-link inline-block"
               >
-                皖ICP备025115401号
+                闽ICP备2025115401号
               </a>
             </p>
           </div>

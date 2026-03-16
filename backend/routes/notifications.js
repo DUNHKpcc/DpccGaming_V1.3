@@ -7,6 +7,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 // 所有通知路由都需要认证
 router.get('/', authenticateToken, notificationController.getNotifications);
+router.get('/unread-status', authenticateToken, notificationController.getUnreadStatus);
 router.post('/:id/read', authenticateToken, notificationController.markNotificationAsRead);
 router.post('/mark-all-read', authenticateToken, notificationController.markAllNotificationsAsRead);
 

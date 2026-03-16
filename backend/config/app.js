@@ -37,6 +37,39 @@ const jwtCookieDays =
   Number.isFinite(parsedJwtCookieDays) && parsedJwtCookieDays > 0
     ? parsedJwtCookieDays
     : 30;
+const parsedWechatStateTtlSeconds = Number(process.env.WECHAT_STATE_TTL_SECONDS || 600);
+const wechatStateTtlSeconds =
+  Number.isFinite(parsedWechatStateTtlSeconds) && parsedWechatStateTtlSeconds > 0
+    ? parsedWechatStateTtlSeconds
+    : 600;
+const wechatAppId =
+  getEnv('WECHAT_APP_ID', '')
+  || getEnv('WECHAT_APPID', '')
+  || getEnv('WX_APP_ID', '');
+const wechatAppSecret =
+  getEnv('WECHAT_APP_SECRET', '')
+  || getEnv('WECHAT_SECRET', '')
+  || getEnv('WX_APP_SECRET', '');
+const wechatCallbackUrl =
+  getEnv('WECHAT_CALLBACK_URL', '')
+  || getEnv('WECHAT_REDIRECT_URI', '')
+  || getEnv('WX_CALLBACK_URL', '');
+const parsedGoogleStateTtlSeconds = Number(process.env.GOOGLE_STATE_TTL_SECONDS || 600);
+const googleStateTtlSeconds =
+  Number.isFinite(parsedGoogleStateTtlSeconds) && parsedGoogleStateTtlSeconds > 0
+    ? parsedGoogleStateTtlSeconds
+    : 600;
+const googleClientId =
+  getEnv('GOOGLE_CLIENT_ID', '')
+  || getEnv('GOOGLE_APP_ID', '')
+  || getEnv('GOOGLE_APPID', '');
+const googleClientSecret =
+  getEnv('GOOGLE_CLIENT_SECRET', '')
+  || getEnv('GOOGLE_APP_SECRET', '')
+  || getEnv('GOOGLE_SECRET', '');
+const googleCallbackUrl =
+  getEnv('GOOGLE_CALLBACK_URL', '')
+  || getEnv('GOOGLE_REDIRECT_URI', '');
 
 if (isProduction) {
   const missing = [];
@@ -79,6 +112,24 @@ const config = {
     expiresIn: jwtExpiresIn,
     cookieName: jwtCookieName,
     cookieDays: jwtCookieDays
+  },
+
+  wechat: {
+    appId: wechatAppId,
+    appSecret: wechatAppSecret,
+    callbackUrl: wechatCallbackUrl,
+    scope: getEnv('WECHAT_SCOPE', 'snsapi_login') || 'snsapi_login',
+    stateCookieName: getEnv('WECHAT_STATE_COOKIE_NAME', 'dpcc_wechat_oauth_state'),
+    stateTtlSeconds: wechatStateTtlSeconds
+  },
+
+  google: {
+    clientId: googleClientId,
+    clientSecret: googleClientSecret,
+    callbackUrl: googleCallbackUrl,
+    scope: getEnv('GOOGLE_SCOPE', 'openid email profile') || 'openid email profile',
+    stateCookieName: getEnv('GOOGLE_STATE_COOKIE_NAME', 'dpcc_google_oauth_state'),
+    stateTtlSeconds: googleStateTtlSeconds
   },
 
   paths: {

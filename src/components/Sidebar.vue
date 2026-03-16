@@ -24,6 +24,10 @@
                 { 'nav-icon-active': $route.path === item.path }
               ]">
               <i :class="item.icon"></i>
+              <span
+                v-if="shouldShowUnreadDot(item)"
+                class="nav-unread-dot"
+              ></span>
             </router-link>
           </li>
         </ul>
@@ -81,6 +85,10 @@
               ]"
               @click="closeSidebar">
               <i :class="item.icon"></i>
+              <span
+                v-if="shouldShowUnreadDot(item)"
+                class="mobile-unread-dot"
+              ></span>
               <span>{{ item.name }}</span>
             </router-link>
           </li>
@@ -120,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { gsap } from 'gsap'
@@ -133,6 +141,8 @@ const isOpen = ref(false) // 移动端侧边栏状态
 const isMobile = ref(false)
 const isExpanded = ref(false) // 桌面端侧边栏展开状态
 const hoverTimeout = ref(null) // 悬停延迟定时器
+const hasUnreadNotifications = ref(false)
+let unreadPollingTimer = null
 
 // 模板引用
 const floatingSidebar = ref(null)
@@ -181,6 +191,62 @@ const currentDetails = ref({
 
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
+
+const isAccountItem = (item) => item?.path === '/account'
+
+const shouldShowUnreadDot = (item) => {
+  return isAccountItem(item) && hasUnreadNotifications.value
+}
+
+const fetchUnreadStatus = async () => {
+  if (!isLoggedIn.value) {
+    hasUnreadNotifications.value = false
+    return
+  }
+
+  try {
+    const token = localStorage.getItem('token') || authStore.authToken
+    if (!token) {
+      hasUnreadNotifications.value = false
+      return
+    }
+
+    const response = await fetch('/api/notifications/unread-status', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) return
+    const data = await response.json()
+    hasUnreadNotifications.value = Boolean(data?.hasUnread || Number(data?.unreadCount || 0) > 0)
+  } catch (error) {
+    console.error('获取未读通知状态失败:', error)
+  }
+}
+
+const clearUnreadPolling = () => {
+  if (unreadPollingTimer) {
+    clearInterval(unreadPollingTimer)
+    unreadPollingTimer = null
+  }
+}
+
+const startUnreadPolling = () => {
+  clearUnreadPolling()
+  if (!isLoggedIn.value) return
+  unreadPollingTimer = setInterval(() => {
+    fetchUnreadStatus()
+  }, 25000)
+}
+
+const handleWindowFocus = () => {
+  fetchUnreadStatus()
+}
+
+const handleNotificationsUpdated = () => {
+  fetchUnreadStatus()
+}
 
 // GSAP动画函数
 const expandSidebar = (item, index) => {
@@ -329,6 +395,8 @@ const initFloatingSidebar = () => {
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
+  window.addEventListener('focus', handleWindowFocus)
+  window.addEventListener('notifications:updated', handleNotificationsUpdated)
   
   // 延迟初始化悬浮侧边栏动画
   setTimeout(() => {
@@ -336,17 +404,34 @@ onMounted(() => {
       initFloatingSidebar()
     }
   }, 100)
+
+  fetchUnreadStatus()
+  startUnreadPolling()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkScreenSize)
+  window.removeEventListener('focus', handleWindowFocus)
+  window.removeEventListener('notifications:updated', handleNotificationsUpdated)
   
   // 清理定时器
   if (hoverTimeout.value) {
     clearTimeout(hoverTimeout.value)
     hoverTimeout.value = null
   }
+
+  clearUnreadPolling()
 })
+
+watch(isLoggedIn, (loggedIn) => {
+  if (!loggedIn) {
+    hasUnreadNotifications.value = false
+    clearUnreadPolling()
+    return
+  }
+  fetchUnreadStatus()
+  startUnreadPolling()
+}, { immediate: false })
 
 // 暴露方法给父组件
 defineExpose({
@@ -437,6 +522,7 @@ defineExpose({
 }
 
 .nav-icon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -449,6 +535,17 @@ defineExpose({
   text-decoration: none;
   transition: all 0.3s ease;
   cursor: pointer;
+}
+
+.nav-unread-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(29, 29, 31, 0.95);
 }
 
 /* 亮色模式下的导航图标 */
@@ -646,6 +743,7 @@ defineExpose({
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
@@ -655,6 +753,22 @@ defineExpose({
   text-decoration: none;
   transition: all 0.2s ease;
   margin-bottom: 0.25rem;
+}
+
+.mobile-unread-dot {
+  position: absolute;
+  left: calc(1rem + 20px - 2px);
+  top: calc(0.75rem - 3px);
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(29, 29, 31, 0.95);
+}
+
+[data-theme="light"] .nav-unread-dot,
+[data-theme="light"] .mobile-unread-dot {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
 }
 
 .nav-item:hover {

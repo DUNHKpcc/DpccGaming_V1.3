@@ -70,6 +70,8 @@ const upload = multer({
 });
 
 router.get('/', gameController.getGamesList);
+router.get('/library/mine', authenticateToken, gameController.getMyLibrary);
+router.post('/:gameId/library', authenticateToken, gameController.addToLibrary);
 router.get('/:gameId', gameController.getGameDetail);
 router.post('/:gameId/play', gameController.recordGamePlay);
 

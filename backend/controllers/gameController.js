@@ -7,6 +7,8 @@ const { createNotification } = require('../utils/notification');
 
 const DEFAULT_AVATAR_URL = '/avatars/default-avatar.svg';
 let avatarColumnAvailableCache = null;
+let libraryTableReady = false;
+let libraryTableInitPromise = null;
 
 const isAvatarColumnAvailable = async (pool) => {
   if (avatarColumnAvailableCache !== null) {
@@ -28,6 +30,34 @@ const isAvatarColumnAvailable = async (pool) => {
   }
 
   return avatarColumnAvailableCache;
+};
+
+const ensureLibraryTable = async (pool) => {
+  if (libraryTableReady) return;
+  if (libraryTableInitPromise) {
+    await libraryTableInitPromise;
+    return;
+  }
+
+  libraryTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_game_library (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      game_id VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_user_game (user_id, game_id),
+      KEY idx_user_created (user_id, created_at),
+      KEY idx_game (game_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await libraryTableInitPromise;
+    libraryTableReady = true;
+  } finally {
+    libraryTableInitPromise = null;
+  }
 };
 
 // 获取游戏列表
@@ -99,6 +129,7 @@ const getGamesList = async (req, res) => {
         average_rating: parseFloat(game.average_rating).toFixed(1),
         comment_count: game.comment_count,
         play_count: game.play_count || 0,
+        uploaded_by_id: game.uploaded_by || null,
         uploaded_by_username: game.uploaded_by_username || '匿名开发者',
         uploaded_by_avatar_url: game.uploaded_by_avatar_url || DEFAULT_AVATAR_URL,
         code_package_url: codePackageUrl,
@@ -550,11 +581,78 @@ const recordGamePlay = async (req, res) => {
   }
 };
 
+// 获取我的游戏库
+const getMyLibrary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const pool = getPool();
+    await ensureLibraryTable(pool);
+
+    const [rows] = await pool.execute(
+      `SELECT l.game_id, l.created_at AS saved_at,
+              g.title, g.category, g.thumbnail_url, g.video_url, g.play_count, g.game_url
+       FROM user_game_library l
+       JOIN games g ON g.game_id = l.game_id
+       WHERE l.user_id = ? AND g.status = 'approved'
+       ORDER BY l.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ games: rows });
+  } catch (error) {
+    console.error('获取用户游戏库失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+// 添加游戏到我的库
+const addToLibrary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { gameId } = req.params;
+    if (!gameId) {
+      return res.status(400).json({ error: '缺少 gameId' });
+    }
+
+    const pool = getPool();
+    await ensureLibraryTable(pool);
+
+    const [games] = await pool.execute(
+      `SELECT game_id, title
+       FROM games
+       WHERE game_id = ? AND status = 'approved'
+       LIMIT 1`,
+      [gameId]
+    );
+
+    if (!games.length) {
+      return res.status(404).json({ error: '游戏不存在或未通过审核' });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT IGNORE INTO user_game_library (user_id, game_id)
+       VALUES (?, ?)`,
+      [userId, gameId]
+    );
+
+    res.json({
+      added: result.affectedRows > 0,
+      game_id: gameId,
+      message: result.affectedRows > 0 ? '已加入游戏库' : '该游戏已在你的库中'
+    });
+  } catch (error) {
+    console.error('加入游戏库失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
 module.exports = {
   getGamesList,
   getGameDetail,
   getGameCode,
   downloadGameCode,
   uploadGame,
-  recordGamePlay
+  recordGamePlay,
+  getMyLibrary,
+  addToLibrary
 };

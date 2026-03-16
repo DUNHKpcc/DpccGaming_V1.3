@@ -27,7 +27,10 @@ router.delete('/match/queue', authenticateToken, discussionController.cancelMatc
 // 好友系统
 router.get('/friends', authenticateToken, discussionController.getFriends);
 router.get('/friends/requests', authenticateToken, discussionController.getFriendRequests);
+router.get('/friends/search', authenticateToken, discussionController.searchUsersForFriend);
 router.post('/friends/request', authenticateToken, discussionController.sendFriendRequest);
 router.post('/friends/requests/:requestId/respond', authenticateToken, discussionController.respondFriendRequest);
+router.post('/friends/invite-links', authenticateToken, discussionController.createFriendInviteLink);
+router.post('/friends/invite-links/redeem', authenticateToken, discussionController.redeemFriendInviteLink);
 
 module.exports = router;
