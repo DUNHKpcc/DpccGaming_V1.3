@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs').promises;
 const {
   getPool,
   beginTransaction,
@@ -14,6 +16,7 @@ const DEFAULT_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/chat/completi
 const FRIEND_INVITE_MIN_MINUTES = 5;
 const FRIEND_INVITE_MAX_MINUTES = 7 * 24 * 60;
 const FRIEND_INVITE_DEFAULT_MINUTES = 60;
+const UPLOADS_ROOT = process.env.UPLOADS_PATH || path.join(process.cwd(), 'uploads');
 
 let friendInviteLinksTableReady = false;
 let friendInviteLinksTableInitPromise = null;
@@ -21,6 +24,38 @@ let friendInviteLinksTableInitPromise = null;
 const toInt = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const sanitizeMessageMetadata = (rawMetadata) => {
+  if (!rawMetadata || typeof rawMetadata !== 'object' || Array.isArray(rawMetadata)) {
+    return null;
+  }
+
+  const next = {};
+  const rawCodePreview = rawMetadata.code_preview;
+  if (rawCodePreview && typeof rawCodePreview === 'object' && !Array.isArray(rawCodePreview)) {
+    const pathValue = String(rawCodePreview.path || '').trim().slice(0, 320);
+    const snippetValue = String(rawCodePreview.snippet || '')
+      .replace(/\r/g, '')
+      .slice(0, 2200);
+
+    if (pathValue && snippetValue) {
+      const codePreview = {
+        path: pathValue,
+        snippet: snippetValue
+      };
+
+      const language = String(rawCodePreview.language || '').trim().slice(0, 40);
+      if (language) codePreview.language = language;
+
+      const totalLines = toInt(rawCodePreview.total_lines);
+      if (totalLines && totalLines > 0) codePreview.total_lines = totalLines;
+
+      next.code_preview = codePreview;
+    }
+  }
+
+  return Object.keys(next).length ? next : null;
 };
 
 const buildRoomCode = (length = 6) => {
@@ -240,6 +275,15 @@ const notifyRoomMembers = async ({
   }
 };
 
+const removeUploadedFile = async (filePath) => {
+  if (!filePath) return;
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // ignore cleanup errors
+  }
+};
+
 const ensureFriendInviteLinksTable = async (pool) => {
   if (friendInviteLinksTableReady) return;
 
@@ -342,6 +386,35 @@ const listMyRooms = async (req, res) => {
       `SELECT r.id, r.room_uuid, r.room_code, r.game_id, r.mode, r.visibility, r.status, r.max_members,
               r.title, r.host_user_id, r.created_at, r.updated_at, g.title AS game_title, g.thumbnail_url AS game_thumbnail,
               (
+                SELECT rm.user_id
+                FROM discussion_room_members rm
+                WHERE rm.room_id = r.id
+                  AND rm.status = 'joined'
+                  AND rm.user_id <> ?
+                ORDER BY rm.joined_at ASC
+                LIMIT 1
+              ) AS friend_user_id,
+              (
+                SELECT u.username
+                FROM discussion_room_members rm
+                JOIN users u ON u.id = rm.user_id
+                WHERE rm.room_id = r.id
+                  AND rm.status = 'joined'
+                  AND rm.user_id <> ?
+                ORDER BY rm.joined_at ASC
+                LIMIT 1
+              ) AS friend_username,
+              (
+                SELECT u.avatar_url
+                FROM discussion_room_members rm
+                JOIN users u ON u.id = rm.user_id
+                WHERE rm.room_id = r.id
+                  AND rm.status = 'joined'
+                  AND rm.user_id <> ?
+                ORDER BY rm.joined_at ASC
+                LIMIT 1
+              ) AS friend_avatar_url,
+              (
                 SELECT COUNT(*)
                 FROM discussion_room_members rm
                 WHERE rm.room_id = r.id AND rm.status = 'joined'
@@ -367,7 +440,7 @@ const listMyRooms = async (req, res) => {
          AND me.status = 'joined'
          AND r.status IN ('waiting', 'active')
        ORDER BY COALESCE(last_message_at, r.updated_at, r.created_at) DESC`,
-      [userId]
+      [userId, userId, userId, userId]
     );
 
     res.json({ rooms });
@@ -627,7 +700,12 @@ const sendRoomMessage = async (req, res) => {
   try {
     const roomId = toInt(req.params.roomId);
     const userId = req.user.userId;
-    const content = (req.body?.content || '').toString().trim();
+    const rawContent = (req.body?.content || '').toString().trim();
+    const metadata = sanitizeMessageMetadata(req.body?.metadata);
+    const fallbackContent = metadata?.code_preview?.path
+      ? `代码预览：${metadata.code_preview.path}`
+      : '';
+    const content = rawContent || fallbackContent;
     if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
     if (!content) return res.status(400).json({ error: '消息内容不能为空' });
 
@@ -639,9 +717,9 @@ const sendRoomMessage = async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO discussion_messages
-       (room_id, sender_type, sender_user_id, message_type, content)
-       VALUES (?, 'user', ?, 'text', ?)`,
-      [roomId, userId, content]
+       (room_id, sender_type, sender_user_id, message_type, content, metadata_json)
+       VALUES (?, 'user', ?, 'text', ?, ?)`,
+      [roomId, userId, content, metadata ? JSON.stringify(metadata) : null]
     );
 
     const [rows] = await pool.execute(
@@ -665,6 +743,97 @@ const sendRoomMessage = async (req, res) => {
     res.status(201).json({ message: rows[0] });
   } catch (error) {
     console.error('发送房间消息失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const uploadRoomAttachment = async (req, res) => {
+  const uploadedPath = req.file?.path || '';
+  try {
+    const roomId = toInt(req.params.roomId);
+    const userId = req.user.userId;
+    const kind = String(req.params.kind || '').trim().toLowerCase();
+    if (!roomId) {
+      await removeUploadedFile(uploadedPath);
+      return res.status(400).json({ error: '无效的 roomId' });
+    }
+    if (!['image', 'video', 'code'].includes(kind)) {
+      await removeUploadedFile(uploadedPath);
+      return res.status(400).json({ error: '不支持的附件类型' });
+    }
+    if (!req.file) return res.status(400).json({ error: '请上传文件' });
+
+    const pool = getPool();
+    const member = await getJoinedMember(pool, roomId, userId, false);
+    if (!member || member.status !== 'joined') {
+      await removeUploadedFile(uploadedPath);
+      return res.status(403).json({ error: '仅房间成员可上传附件' });
+    }
+
+    const [roomRows] = await pool.execute(
+      `SELECT id, game_id
+       FROM discussion_rooms
+       WHERE id = ?
+       LIMIT 1`,
+      [roomId]
+    );
+    if (!roomRows.length) {
+      await removeUploadedFile(uploadedPath);
+      return res.status(404).json({ error: '房间不存在' });
+    }
+
+    const relativePath = path.relative(UPLOADS_ROOT, uploadedPath)
+      .split(path.sep)
+      .join('/');
+    const fileUrl = relativePath && !relativePath.startsWith('..')
+      ? `/uploads/${relativePath}`
+      : `/uploads/discussion/${kind}/${req.file.filename}`;
+    const originalName = String(req.file.originalname || req.file.filename || `${kind}-file`).trim();
+    const attachment = {
+      type: kind,
+      url: fileUrl,
+      name: originalName,
+      size: Number(req.file.size || 0),
+      mime: String(req.file.mimetype || '')
+    };
+
+    if (kind === 'code') {
+      attachment.game_id = roomRows[0].game_id;
+    }
+
+    const kindLabel = kind === 'image' ? '图片' : kind === 'video' ? '视频' : '代码文件';
+    const content = `上传了${kindLabel}：${originalName}`;
+    const metadataJson = JSON.stringify({ attachment });
+
+    const [result] = await pool.execute(
+      `INSERT INTO discussion_messages
+       (room_id, sender_type, sender_user_id, message_type, content, metadata_json)
+       VALUES (?, 'user', ?, 'text', ?, ?)`,
+      [roomId, userId, content, metadataJson]
+    );
+
+    const [rows] = await pool.execute(
+      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
+       FROM discussion_messages m
+       LEFT JOIN users u ON u.id = m.sender_user_id
+       WHERE m.id = ?
+       LIMIT 1`,
+      [result.insertId]
+    );
+
+    await notifyRoomMembers({
+      pool,
+      roomId,
+      excludeUserId: userId,
+      senderLabel: rows[0]?.username || '成员',
+      messageContent: rows[0]?.content || content
+    });
+
+    emitRoomMessage(roomId, rows[0]);
+    res.status(201).json({ message: rows[0] });
+  } catch (error) {
+    await removeUploadedFile(uploadedPath);
+    console.error('上传讨论附件失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 };
@@ -969,6 +1138,146 @@ const getFriends = async (req, res) => {
     res.json({ friends: rows });
   } catch (error) {
     console.error('获取好友列表失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const getOrCreateFriendDirectRoom = async (req, res) => {
+  let connection = null;
+  try {
+    const userId = req.user.userId;
+    const friendUserId = toInt(req.params.friendUserId);
+    if (!friendUserId) return res.status(400).json({ error: 'friendUserId 无效' });
+    if (friendUserId === userId) return res.status(400).json({ error: '不能与自己创建私聊' });
+
+    const pool = getPool();
+    const [friendRows] = await pool.execute(
+      `SELECT id, username, status
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [friendUserId]
+    );
+    if (!friendRows.length) return res.status(404).json({ error: '目标好友不存在' });
+    if (friendRows[0].status !== 'active') return res.status(400).json({ error: '目标好友状态不可用' });
+
+    const [friendshipRows] = await pool.execute(
+      `SELECT id, status
+       FROM friendships
+       WHERE (requester_id = ? AND addressee_id = ?)
+          OR (requester_id = ? AND addressee_id = ?)
+       ORDER BY id DESC
+       LIMIT 1`,
+      [userId, friendUserId, friendUserId, userId]
+    );
+    if (!friendshipRows.length || friendshipRows[0].status !== 'accepted') {
+      return res.status(403).json({ error: '仅可与已添加好友开启私聊协作' });
+    }
+
+    const [existingRooms] = await pool.execute(
+      `SELECT r.id
+       FROM discussion_rooms r
+       JOIN discussion_room_members me
+         ON me.room_id = r.id
+        AND me.user_id = ?
+        AND me.status = 'joined'
+       JOIN discussion_room_members peer
+         ON peer.room_id = r.id
+        AND peer.user_id = ?
+        AND peer.status = 'joined'
+       WHERE r.mode = 'friend'
+         AND r.status IN ('waiting', 'active')
+         AND (
+           SELECT COUNT(*)
+           FROM discussion_room_members rm
+           WHERE rm.room_id = r.id AND rm.status = 'joined'
+         ) = 2
+       ORDER BY COALESCE(r.updated_at, r.created_at) DESC
+       LIMIT 1`,
+      [userId, friendUserId]
+    );
+
+    if (existingRooms.length) {
+      const roomId = Number(existingRooms[0].id);
+      const room = await getRoomPayload(pool, roomId, userId);
+      if (room) {
+        return res.json({ room, created: false });
+      }
+    }
+
+    const [preferredGames] = await pool.execute(
+      `SELECT game_id
+       FROM games
+       WHERE uploaded_by IN (?, ?)
+       ORDER BY (status = 'approved') DESC, uploaded_at DESC, created_at DESC
+       LIMIT 1`,
+      [userId, friendUserId]
+    );
+    let fallbackGameId = preferredGames[0]?.game_id || null;
+
+    if (!fallbackGameId) {
+      const [anyGames] = await pool.execute(
+        `SELECT game_id
+         FROM games
+         ORDER BY (status = 'approved') DESC, uploaded_at DESC, created_at DESC
+         LIMIT 1`
+      );
+      fallbackGameId = anyGames[0]?.game_id || null;
+    }
+
+    if (!fallbackGameId) {
+      return res.status(400).json({ error: '当前没有可用游戏，暂时无法创建协作房间' });
+    }
+
+    connection = await beginTransaction();
+
+    const roomCode = await createUniqueRoomCode(connection);
+    if (!roomCode) {
+      await rollbackTransaction(connection);
+      connection = null;
+      return res.status(500).json({ error: '生成房间邀请码失败，请重试' });
+    }
+
+    const roomTitle = `${friendRows[0].username || '好友'} · 好友协作`;
+    const [insertRoomResult] = await connection.execute(
+      `INSERT INTO discussion_rooms
+       (room_uuid, room_code, game_id, host_user_id, mode, visibility, status, max_members, title, started_at)
+       VALUES (?, ?, ?, ?, 'friend', 'private', 'active', 2, ?, CURRENT_TIMESTAMP)`,
+      [crypto.randomUUID(), roomCode, fallbackGameId, userId, roomTitle]
+    );
+    const roomId = Number(insertRoomResult.insertId);
+
+    await connection.execute(
+      `INSERT INTO discussion_room_members
+       (room_id, user_id, role, join_source, status)
+       VALUES (?, ?, 'host', 'manual', 'joined')`,
+      [roomId, userId]
+    );
+
+    await connection.execute(
+      `INSERT INTO discussion_room_members
+       (room_id, user_id, role, join_source, status)
+       VALUES (?, ?, 'member', 'friend_invite', 'joined')`,
+      [roomId, friendUserId]
+    );
+
+    await connection.execute(
+      `INSERT INTO discussion_messages
+       (room_id, sender_type, sender_user_id, message_type, content, metadata_json)
+       VALUES (?, 'system', NULL, 'text', ?, JSON_OBJECT('type', 'friend_direct_room'))`,
+      [roomId, '好友协作房间已创建，开始你们的讨论吧。']
+    );
+
+    await commitTransaction(connection);
+    connection = null;
+
+    const room = await getRoomPayload(pool, roomId, userId);
+    res.status(201).json({ room, created: true });
+  } catch (error) {
+    if (connection) {
+      await rollbackTransaction(connection);
+    }
+    console.error('获取或创建好友私聊房间失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 };
@@ -1335,12 +1644,14 @@ module.exports = {
   leaveRoom,
   listRoomMessages,
   sendRoomMessage,
+  uploadRoomAttachment,
   sendAiRoomMessage,
   enqueueMatch,
   cancelMatchQueue,
   getMatchQueueStatus,
   sendFriendRequest,
   getFriends,
+  getOrCreateFriendDirectRoom,
   getFriendRequests,
   respondFriendRequest,
   searchUsersForFriend,

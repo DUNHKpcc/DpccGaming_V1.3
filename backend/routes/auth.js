@@ -34,9 +34,38 @@ const uploadAvatar = multer({
   }
 });
 
+const coverStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadsRoot = process.env.UPLOADS_PATH || path.join(process.cwd(), 'uploads');
+    const coverDir = path.join(uploadsRoot, 'covers');
+    fs.mkdirSync(coverDir, { recursive: true });
+    cb(null, coverDir);
+  },
+  filename: function (req, file, cb) {
+    const safeUserId = req.user?.userId || 'user';
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `cover-${safeUserId}-${uniqueSuffix}${path.extname(file.originalname || '')}`);
+  }
+});
+
+const uploadCover = multer({
+  storage: coverStorage,
+  limits: {
+    fileSize: 12 * 1024 * 1024
+  },
+  fileFilter: function (req, file, cb) {
+    const mime = (file.mimetype || '').toLowerCase();
+    if (mime.startsWith('image/')) {
+      return cb(null, true);
+    }
+    return cb(new Error('只允许上传图片文件'), false);
+  }
+});
+
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
+router.get('/user-levels', authController.getUserLevels);
 router.get('/auth/wechat/start', authController.startWechatLogin);
 router.get('/auth/wechat/bind/start', authenticateToken, authController.startWechatBind);
 router.get('/auth/wechat/bind-status', authenticateToken, authController.getWechatBindStatus);
@@ -58,6 +87,20 @@ router.post(
   },
   authController.updateAvatar
 );
+router.post(
+  '/user/cover',
+  authenticateToken,
+  (req, res, next) => {
+    uploadCover.single('cover')(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || '封面上传失败' });
+      }
+      next();
+    });
+  },
+  authController.updateCover
+);
+router.patch('/user/profile', authenticateToken, authController.updateUserProfile);
 
 router.get('/verify-token', authenticateToken, authController.verifyTokenEndpoint);
 router.get('/user/profile', authenticateToken, authController.getUserProfile);

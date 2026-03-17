@@ -208,9 +208,12 @@
                       @error="handleAvatarError"
                     />
                   </AvatarFriendAction>
-                  <span class="card-author-text">
-                    By {{ game.uploaded_by_username || '匿名开发者' }}
-                  </span>
+                  <div class="card-author-meta">
+                    <span class="card-author-text">
+                      By {{ game.uploaded_by_username || '匿名开发者' }}
+                    </span>
+                    <UserLevelBadge :user-id="game.uploaded_by_id" />
+                  </div>
                 </div>
                 <div class="flex items-center text-sm text-white/80 mb-4">
                   <i class="fa fa-tag mr-2"></i>
@@ -270,6 +273,7 @@ import { apiCall } from '../utils/api'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
 import AvatarFriendAction from '../components/AvatarFriendAction.vue'
+import UserLevelBadge from '../components/UserLevelBadge.vue'
 
 const gameStore = useGameStore()
 const modalStore = useModalStore()
@@ -1104,6 +1108,13 @@ watch(filteredGames, currentGames => {
   font-weight: 600;
   color: var(--games-text-80);
   line-height: 1;
+}
+
+.card-author-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .game-card {

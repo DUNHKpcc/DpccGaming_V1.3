@@ -110,7 +110,10 @@
               <i v-else class="fa fa-user text-[#1d1d1f] text-sm"></i>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-white truncate">{{ currentUser.username }}</div>
+              <div class="mobile-username-row">
+                <span class="mobile-username-text">{{ currentUser.username }}</span>
+                <UserLevelBadge :user-id="currentUser?.id" />
+              </div>
               <div class="text-xs text-white">已登录</div>
             </div>
           </div>
@@ -133,6 +136,7 @@ import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { gsap } from 'gsap'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -805,6 +809,22 @@ defineExpose({
   height: 100%;
   object-fit: cover;
   border-radius: 9999px;
+}
+
+.mobile-username-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.mobile-username-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .login-prompt {

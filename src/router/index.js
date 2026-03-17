@@ -62,7 +62,7 @@ const routes = [
     name: 'CodingMode',
     component: CodingMode,
     props: true,
-    meta: { hideSidebar: true }
+    meta: { hideSidebar: true, hideTopbar: true }
   },
   {
     path: '/discussion/:id?',

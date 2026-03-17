@@ -61,7 +61,10 @@
               />
               <i v-else class="fa fa-user"></i>
             </div>
-            <span class="username">{{ currentUser.username }}</span>
+            <div class="username-row">
+              <span class="username">{{ currentUser.username }}</span>
+              <UserLevelBadge :user-id="currentUser?.id" />
+            </div>
           </div>
           <div class="dropdown">
             <button @click="toggleDropdown" class="dropdown-toggle">
@@ -94,6 +97,7 @@ import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { useThemeStore } from '../stores/theme'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -468,6 +472,12 @@ onUnmounted(() => {
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.username-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 [data-theme="light"] .username {
   color: #1f2937;
 }
@@ -611,7 +621,7 @@ onUnmounted(() => {
     font-size: 0.8rem;
   }
 
-  .username {
+  .username-row {
     display: none;
   }
 }

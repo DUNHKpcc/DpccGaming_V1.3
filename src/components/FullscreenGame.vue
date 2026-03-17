@@ -73,7 +73,10 @@
                     @error="handleAvatarError"
                   />
                 </AvatarFriendAction>
-                <div class="font-medium text-white">{{ comment.username }}</div>
+                <div class="comment-name-row">
+                  <div class="font-medium text-white">{{ comment.username }}</div>
+                  <UserLevelBadge :user-id="comment.user_id" />
+                </div>
               </div>
               <div class="text-yellow-400 text-sm">
                 <i v-for="star in comment.rating" :key="star" class="fa fa-star"></i>
@@ -129,7 +132,10 @@
                         @error="handleAvatarError"
                       />
                     </AvatarFriendAction>
-                    <div class="font-medium text-sm text-white">{{ reply.username }}</div>
+                    <div class="comment-name-row">
+                      <div class="font-medium text-sm text-white">{{ reply.username }}</div>
+                      <UserLevelBadge :user-id="reply.user_id" />
+                    </div>
                   </div>
                   <button @click="showReplyForm(comment.id, reply.user_id, reply.id)" class="text-xs text-white/80 hover:text-white transition-colors duration-300">
                     回复
@@ -209,6 +215,7 @@ import { setupGameEventHandling, focusGameIframe } from '../utils/gameEvents'
 import { resolveMediaUrl } from '../utils/media'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 import AvatarFriendAction from './AvatarFriendAction.vue'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const modalStore = useModalStore()
 const authStore = useAuthStore()
@@ -855,6 +862,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.comment-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   min-width: 0;
 }
 

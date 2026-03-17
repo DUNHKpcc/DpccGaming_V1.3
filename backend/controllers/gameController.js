@@ -234,50 +234,130 @@ const getGameDetail = async (req, res) => {
   }
 };
 
-// 代码浏览：返回 uploads/code/<gameId> 下已上传源码的部分文件内容
-const getGameCode = async (req, res) => {
-  try {
-    const { gameId } = req.params;
-    const codeDir = path.join(process.env.CODE_ROOT_PATH || path.join(process.cwd(), 'uploads', 'code'), gameId);
+const CODE_BROWSE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.css', '.scss', '.less', '.html', '.json', '.md', '.c', '.cpp', '.h', '.cs', '.py']);
+const CODE_BROWSE_MAX_FILES = 60;
+const CODE_BROWSE_MAX_FILE_SIZE = 200 * 1024; // 200KB
+const CODE_BROWSE_SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.output', '.cache']);
 
-    // coding 模式只读取 uploads/code 下解压的源码
-    if (!fsSync.existsSync(codeDir) || !fsSync.lstatSync(codeDir).isDirectory()) {
-      return res.status(404).json({ error: '源码尚未上传或目录不存在' });
-    }
+const normalizeCodePath = (value = '') => String(value).replace(/\\/g, '/').replace(/^\/+/, '');
+const resolveCodeArtifacts = (codeRootPath, gameId) => {
+  const codeDir = path.join(codeRootPath, gameId);
+  const codeZipPath = path.join(codeRootPath, `${gameId}.zip`);
+  const dirExists = fsSync.existsSync(codeDir) && fsSync.lstatSync(codeDir).isDirectory();
+  const zipExists = fsSync.existsSync(codeZipPath);
+  return { codeDir, codeZipPath, dirExists, zipExists };
+};
 
-    const targetDir = codeDir;
+async function collectCodeFilesFromDirectory(targetDir) {
+  const files = [];
 
-    // 扫描与过滤
-    const exts = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.css', '.scss', '.less', '.html', '.json', '.md', '.c', '.cpp', '.h', '.cs', '.py']);
-    const MAX_FILES = 60;
-    const MAX_FILE_SIZE = 200 * 1024; // 200KB
+  async function walk(dir) {
+    const items = await fs.readdir(dir, { withFileTypes: true });
+    for (const item of items) {
+      if (files.length >= CODE_BROWSE_MAX_FILES) return;
+      const full = path.join(dir, item.name);
 
-    const files = [];
-    async function walk(dir) {
-      const items = await fs.readdir(dir, { withFileTypes: true });
-      for (const item of items) {
-        if (files.length >= MAX_FILES) return; // 控制数量
-        const full = path.join(dir, item.name);
-        if (item.isDirectory()) {
-          // 跳过庞大目录
-          if (['node_modules', 'dist', 'build', '.git', '.output', '.cache'].includes(item.name)) continue;
-          await walk(full);
-        } else {
-          const ext = path.extname(item.name).toLowerCase();
-          if (!exts.has(ext)) continue;
-          const rel = path.relative(targetDir, full).replace(/\\/g, '/');
-          try {
-            const stat = await fs.lstat(full);
-            if (stat.size > MAX_FILE_SIZE) continue;
-            const content = await fs.readFile(full, 'utf8');
-            files.push({ path: rel, content });
-          } catch (e) {
-            // 忽略无法读取的文件
-          }
-        }
+      if (item.isDirectory()) {
+        if (CODE_BROWSE_SKIP_DIRS.has(item.name)) continue;
+        await walk(full);
+        continue;
+      }
+
+      const ext = path.extname(item.name).toLowerCase();
+      if (!CODE_BROWSE_EXTS.has(ext)) continue;
+
+      const rel = normalizeCodePath(path.relative(targetDir, full));
+      if (!rel || rel.startsWith('..')) continue;
+
+      try {
+        const stat = await fs.lstat(full);
+        if (stat.size > CODE_BROWSE_MAX_FILE_SIZE) continue;
+        const content = await fs.readFile(full, 'utf8');
+        files.push({ path: rel, content });
+      } catch (e) {
+        // 忽略无法读取的文件
       }
     }
-    await walk(targetDir);
+  }
+
+  await walk(targetDir);
+  return files;
+}
+
+function collectCodeFilesFromZip(zipPath) {
+  try {
+    const files = [];
+    const zip = new AdmZip(zipPath);
+    const entries = zip.getEntries() || [];
+
+    for (const entry of entries) {
+      if (files.length >= CODE_BROWSE_MAX_FILES) break;
+      if (entry.isDirectory) continue;
+
+      const rel = normalizeCodePath(entry.entryName || '');
+      if (!rel || rel.includes('../')) continue;
+
+      const ext = path.extname(rel).toLowerCase();
+      if (!CODE_BROWSE_EXTS.has(ext)) continue;
+
+      const rawSize = Number(entry.header?.size || 0);
+      if (Number.isFinite(rawSize) && rawSize > CODE_BROWSE_MAX_FILE_SIZE) continue;
+
+      try {
+        const content = entry.getData().toString('utf8');
+        if (Buffer.byteLength(content, 'utf8') > CODE_BROWSE_MAX_FILE_SIZE) continue;
+        files.push({ path: rel, content });
+      } catch (e) {
+        // 忽略无法读取/解码的文件
+      }
+    }
+
+    return files;
+  } catch (error) {
+    console.warn('⚠️ 读取源码压缩包失败:', error.message);
+    return [];
+  }
+}
+
+// 代码浏览：优先读取 uploads/code/<gameId> 目录，不存在时回退读取 uploads/code/<gameId>.zip
+const getGameCode = async (req, res) => {
+  try {
+    const requestedGameId = String(req.params.gameId || '').trim();
+    if (!requestedGameId) {
+      return res.status(400).json({ error: '缺少游戏ID' });
+    }
+
+    const codeRootPath = process.env.CODE_ROOT_PATH || path.join(process.cwd(), 'uploads', 'code');
+    let resolvedGameId = requestedGameId;
+    let { codeDir, codeZipPath, dirExists, zipExists } = resolveCodeArtifacts(codeRootPath, resolvedGameId);
+
+    if (!dirExists && !zipExists) {
+      const pool = getPool();
+      const [rows] = await pool.execute(
+        'SELECT game_id FROM games WHERE game_id = ? OR CAST(id AS CHAR) = ? LIMIT 1',
+        [requestedGameId, requestedGameId]
+      );
+
+      const mappedGameId = rows?.[0]?.game_id ? String(rows[0].game_id).trim() : '';
+      if (mappedGameId) {
+        resolvedGameId = mappedGameId;
+        ({ codeDir, codeZipPath, dirExists, zipExists } = resolveCodeArtifacts(codeRootPath, resolvedGameId));
+      }
+    }
+
+    if (!dirExists && !zipExists) {
+      return res.status(404).json({ error: '源码尚未上传或目录不存在', game_id: resolvedGameId });
+    }
+
+    let files = [];
+
+    if (dirExists) {
+      files = await collectCodeFilesFromDirectory(codeDir);
+    }
+
+    if (!files.length && zipExists) {
+      files = collectCodeFilesFromZip(codeZipPath);
+    }
 
     res.json({ files });
   } catch (error) {

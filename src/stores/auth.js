@@ -8,7 +8,11 @@ export const useAuthStore = defineStore('auth', () => {
     if (!user) return null
     return {
       ...user,
-      avatar_url: user.avatar_url || DEFAULT_AVATAR_URL
+      avatar_url: user.avatar_url || DEFAULT_AVATAR_URL,
+      cover_url: user.cover_url || '',
+      bio: user.bio || '',
+      preferred_language: user.preferred_language || '',
+      preferred_engine: user.preferred_engine || ''
     }
   }
 
@@ -157,6 +161,77 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const uploadCover = async (file) => {
+    if (!file) {
+      return { success: false, message: '请选择封面文件' }
+    }
+
+    const formData = new FormData()
+    formData.append('cover', file)
+
+    const token = localStorage.getItem('token') || authToken.value
+    const headers = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    try {
+      const response = await fetch('/api/user/cover', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: formData
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || data.message || '封面上传失败')
+      }
+
+      if (data.user) {
+        updateCurrentUser(data.user)
+      }
+
+      return { success: true, message: data.message || '封面更新成功' }
+    } catch (error) {
+      console.error('上传封面失败:', error)
+      return { success: false, message: error.message || '封面上传失败' }
+    }
+  }
+
+  const updateProfile = async (payload = {}) => {
+    const token = localStorage.getItem('token') || authToken.value
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify(payload || {})
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || data.message || '资料保存失败')
+      }
+
+      if (data.user) {
+        updateCurrentUser(data.user)
+      }
+
+      return { success: true, message: data.message || '资料保存成功' }
+    } catch (error) {
+      console.error('更新资料失败:', error)
+      return { success: false, message: error.message || '资料保存失败' }
+    }
+  }
+
   return {
     currentUser,
     authToken,
@@ -166,6 +241,8 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     checkAuthStatus,
-    uploadAvatar
+    uploadAvatar,
+    uploadCover,
+    updateProfile
   }
 })

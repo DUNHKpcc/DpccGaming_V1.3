@@ -38,7 +38,10 @@
                   <i class="fa fa-user text-primary text-xl"></i>
                 </div>
                 <div>
-                  <h3 class="text-lg font-bold text-white drop-shadow-sm">{{ user.username }}</h3>
+                  <h3 class="text-lg font-bold text-white drop-shadow-sm admin-username-row">
+                    <span>{{ user.username }}</span>
+                    <UserLevelBadge :user-id="user.id" />
+                  </h3>
                   <p class="text-white/70 text-sm">{{ user.email || '未设置邮箱' }}</p>
                   <p class="text-white/60 text-xs">注册时间: {{ formatDate(user.created_at) }}</p>
                 </div>
@@ -106,6 +109,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useNotificationStore } from '../stores/notification'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const notificationStore = useNotificationStore()
 const users = ref([])
@@ -340,6 +344,12 @@ onMounted(() => {
   border: 1px solid #1f2937;
   border-radius: 20px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.admin-username-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 :deep(html[data-theme="light"]) .admin-page {

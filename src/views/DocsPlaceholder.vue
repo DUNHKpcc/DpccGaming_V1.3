@@ -32,12 +32,6 @@
                       <div class="loading-spinner"></div>
                     </div>
 
-                    <div class="docs-card-tint"></div>
-
-                    <div class="docs-card-head">
-                      <span class="docs-card-chip">{{ cardCategories[index] || 'AiDocs' }}</span>
-                    </div>
-
                     <div class="docs-card-title-wrap">
                       <p class="docs-card-breadcrumb">DpccGaming / AiDocs</p>
                       <h2 class="docs-card-title">{{ doc.title }}</h2>
@@ -115,7 +109,6 @@ const isLoadingDoc = ref(false)
 const docError = ref('')
 const imagesLoaded = reactive({})
 const imageErrors = reactive({})
-const cardCategories = ['Tutorial', 'Guide', 'Spec', 'Checklist']
 const readTimes = [8, 5, 4, 6]
 const updateTimes = ['今天更新', '2 天前', '3 天前', '1 周前']
 
@@ -376,7 +369,7 @@ onMounted(async () => {
   min-height: 340px;
   cursor: pointer;
   border: 1px solid rgba(177, 193, 255, 0.25);
-  border-radius: 22px;
+  border-radius: 12px;
   overflow: hidden;
   background: #040912;
   isolation: isolate;
@@ -423,32 +416,15 @@ onMounted(async () => {
 }
 
 .docs-card-tint {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background:
-    radial-gradient(130% 110% at 8% 0%, rgba(235, 160, 148, 0.45) 0%, rgba(62, 43, 116, 0.32) 24%, rgba(13, 17, 73, 0.2) 48%, rgba(4, 10, 34, 0.9) 100%),
-    linear-gradient(180deg, rgba(7, 10, 25, 0.05) 32%, rgba(3, 10, 26, 0.92) 100%);
+  display: none;
 }
 
 .docs-card-head {
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  z-index: 3;
+  display: none;
 }
 
 .docs-card-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(20, 22, 39, 0.55);
-  color: rgba(233, 237, 245, 0.94);
-  font-size: 1.01rem;
-  letter-spacing: 0.02em;
+  display: none;
 }
 
 .docs-card-title-wrap {
@@ -574,8 +550,8 @@ onMounted(async () => {
 
 .docs-card-featured .docs-card-read-btn {
   background: rgba(243, 246, 251, 0.95);
-  border-color: transparent;
   color: #111827;
+  border-color: transparent;
 }
 
 .docs-card:not(.docs-card-featured) .docs-card-read-btn {
@@ -637,7 +613,7 @@ onMounted(async () => {
 }
 
 [data-theme="light"] .docs-card-body {
-  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  background: #ffffff;
   border-top: 1px solid rgba(148, 163, 184, 0.28);
 }
 
@@ -856,7 +832,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   background: rgba(2, 10, 22, 0.66);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .loading-spinner {

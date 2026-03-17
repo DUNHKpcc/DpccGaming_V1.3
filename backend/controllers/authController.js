@@ -6,6 +6,7 @@ const sharp = require('sharp');
 const { executeQuery } = require('../config/database');
 const { generateToken } = require('../middleware/auth');
 const appConfig = require('../config/app');
+const { computeUserLevel } = require('../utils/userLevel');
 
 const AUTH_COOKIE_NAME = appConfig.jwt.cookieName || 'dpcc_auth_token';
 const AUTH_COOKIE_MAX_AGE = Number(appConfig.jwt.cookieDays || 30) * 24 * 60 * 60 * 1000;
@@ -13,6 +14,9 @@ const isProduction = appConfig.server.nodeEnv === 'production';
 const DEFAULT_AVATAR_URL = '/avatars/default-avatar.svg';
 const AVATAR_OUTPUT_SIZE = Number(process.env.AVATAR_SIZE || 256);
 const AVATAR_WEBP_QUALITY = Number(process.env.AVATAR_WEBP_QUALITY || 82);
+const COVER_OUTPUT_MAX_WIDTH = Number(process.env.COVER_MAX_WIDTH || 1920);
+const COVER_OUTPUT_MAX_HEIGHT = Number(process.env.COVER_MAX_HEIGHT || 1080);
+const COVER_WEBP_QUALITY = Number(process.env.COVER_WEBP_QUALITY || 84);
 const WECHAT_PROVIDER = 'wechat';
 const WECHAT_STATE_COOKIE_NAME = appConfig.wechat.stateCookieName || 'dpcc_wechat_oauth_state';
 const WECHAT_RETURN_TO_COOKIE_NAME = `${WECHAT_STATE_COOKIE_NAME}_return_to`;
@@ -28,6 +32,8 @@ const GOOGLE_STATE_TTL_SECONDS = Number(appConfig.google.stateTtlSeconds || 600)
 const GOOGLE_STATE_COOKIE_MAX_AGE = GOOGLE_STATE_TTL_SECONDS * 1000;
 
 let avatarColumnAvailableCache = null;
+let userProfileColumnsCache = null;
+let userProfileColumnsInitPromise = null;
 let oauthTableReady = false;
 let oauthTableInitPromise = null;
 
@@ -53,20 +59,125 @@ async function isAvatarColumnAvailable() {
   return avatarColumnAvailableCache;
 }
 
+const USER_PROFILE_COLUMN_DEFS = {
+  cover_url: 'VARCHAR(512) NULL',
+  bio: 'TEXT NULL',
+  preferred_language: 'VARCHAR(64) NULL',
+  preferred_engine: 'VARCHAR(64) NULL'
+};
+
+async function loadUserProfileColumns() {
+  const rows = await executeQuery(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'users'
+       AND COLUMN_NAME IN (?, ?, ?, ?)`,
+    ['cover_url', 'bio', 'preferred_language', 'preferred_engine']
+  );
+
+  const set = new Set(rows.map((item) => String(item.COLUMN_NAME || item.column_name || '').toLowerCase()));
+  return {
+    cover_url: set.has('cover_url'),
+    bio: set.has('bio'),
+    preferred_language: set.has('preferred_language'),
+    preferred_engine: set.has('preferred_engine')
+  };
+}
+
+async function ensureUserProfileColumns() {
+  if (userProfileColumnsCache) {
+    return userProfileColumnsCache;
+  }
+
+  if (userProfileColumnsInitPromise) {
+    await userProfileColumnsInitPromise;
+    return userProfileColumnsCache || {
+      cover_url: false,
+      bio: false,
+      preferred_language: false,
+      preferred_engine: false
+    };
+  }
+
+  userProfileColumnsInitPromise = (async () => {
+    try {
+      let currentColumns = await loadUserProfileColumns();
+      const missingColumns = Object.keys(USER_PROFILE_COLUMN_DEFS)
+        .filter((name) => !currentColumns[name]);
+
+      for (const columnName of missingColumns) {
+        await executeQuery(
+          `ALTER TABLE users ADD COLUMN ${columnName} ${USER_PROFILE_COLUMN_DEFS[columnName]}`
+        );
+      }
+
+      if (missingColumns.length > 0) {
+        currentColumns = await loadUserProfileColumns();
+      }
+
+      userProfileColumnsCache = currentColumns;
+    } catch (error) {
+      console.warn('初始化用户资料字段失败，回退为兼容模式:', error.message);
+      userProfileColumnsCache = {
+        cover_url: false,
+        bio: false,
+        preferred_language: false,
+        preferred_engine: false
+      };
+    } finally {
+      userProfileColumnsInitPromise = null;
+    }
+  })();
+
+  await userProfileColumnsInitPromise;
+  return userProfileColumnsCache;
+}
+
 function normalizeUser(user) {
   if (!user) return null;
   return {
     ...user,
-    avatar_url: user.avatar_url || DEFAULT_AVATAR_URL
+    avatar_url: user.avatar_url || DEFAULT_AVATAR_URL,
+    cover_url: user.cover_url || '',
+    bio: user.bio || '',
+    preferred_language: user.preferred_language || '',
+    preferred_engine: user.preferred_engine || ''
   };
 }
 
 async function fetchUserById(userId) {
   const hasAvatarColumn = await isAvatarColumnAvailable();
-  const query = hasAvatarColumn
-    ? 'SELECT id, username, email, role, status, created_at, COALESCE(avatar_url, ?) AS avatar_url FROM users WHERE id = ?'
-    : 'SELECT id, username, email, role, status, created_at FROM users WHERE id = ?';
-  const params = hasAvatarColumn ? [DEFAULT_AVATAR_URL, userId] : [userId];
+  const profileColumns = await ensureUserProfileColumns();
+  const selectFields = [
+    'id',
+    'username',
+    'email',
+    'role',
+    'status',
+    'created_at'
+  ];
+  const params = [];
+
+  if (hasAvatarColumn) {
+    selectFields.push('COALESCE(avatar_url, ?) AS avatar_url');
+    params.push(DEFAULT_AVATAR_URL);
+  }
+  if (profileColumns.cover_url) {
+    selectFields.push('cover_url');
+  }
+  if (profileColumns.bio) {
+    selectFields.push('bio');
+  }
+  if (profileColumns.preferred_language) {
+    selectFields.push('preferred_language');
+  }
+  if (profileColumns.preferred_engine) {
+    selectFields.push('preferred_engine');
+  }
+
+  const query = `SELECT ${selectFields.join(', ')} FROM users WHERE id = ?`;
+  params.push(userId);
   const users = await executeQuery(query, params);
   if (!users || users.length === 0) return null;
   return normalizeUser(users[0]);
@@ -92,6 +203,33 @@ async function processAvatarImage(inputPath) {
     .rotate()
     .resize(AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE, { fit: 'cover', position: 'attention' })
     .webp({ quality: AVATAR_WEBP_QUALITY })
+    .toFile(outputPath);
+
+  if (outputPath !== inputPath) {
+    await safeUnlink(inputPath);
+  }
+
+  return {
+    outputPath,
+    outputFilename: path.basename(outputPath)
+  };
+}
+
+async function processCoverImage(inputPath) {
+  if (!inputPath) {
+    throw new Error('封面文件路径无效');
+  }
+
+  const parsedPath = path.parse(inputPath);
+  const outputPath = path.join(parsedPath.dir, `${parsedPath.name}.webp`);
+
+  await sharp(inputPath)
+    .rotate()
+    .resize(COVER_OUTPUT_MAX_WIDTH, COVER_OUTPUT_MAX_HEIGHT, {
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .webp({ quality: COVER_WEBP_QUALITY })
     .toFile(outputPath);
 
   if (outputPath !== inputPath) {
@@ -170,6 +308,23 @@ function decodeCookieValue(value) {
   } catch {
     return '';
   }
+}
+
+function parseUserIds(rawValue) {
+  if (!rawValue) return [];
+
+  return [...new Set(
+    String(rawValue)
+      .split(',')
+      .map((item) => Number.parseInt(String(item).trim(), 10))
+      .filter((item) => Number.isInteger(item) && item > 0)
+  )].slice(0, 200);
+}
+
+function sanitizeProfileText(value, maxLength = 1000) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return '';
+  return normalized.slice(0, maxLength);
 }
 
 function getWechatConfig(req) {
@@ -1551,11 +1706,12 @@ async function login(req, res) {
 
     const token = generateToken(user);
     setAuthCookie(res, token);
+    const loginUser = await fetchUserById(user.id);
 
     res.json({
       message: '登录成功',
       token,
-      user: normalizeUser({
+      user: loginUser || normalizeUser({
         id: user.id,
         username: user.username,
         email: user.email,
@@ -1565,6 +1721,49 @@ async function login(req, res) {
   } catch (error) {
     console.error('登录错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
+  }
+}
+
+async function getUserLevels(req, res) {
+  try {
+    const ids = parseUserIds(req.query.ids || req.query.userIds || '');
+
+    if (!ids.length) {
+      return res.json({ levels: [] });
+    }
+
+    const placeholders = ids.map(() => '?').join(', ');
+    const rows = await executeQuery(
+      `SELECT u.id AS user_id,
+              GREATEST(TIMESTAMPDIFF(DAY, u.created_at, NOW()), 0) AS registration_days,
+              COALESCE(SUM(CASE WHEN g.status = 'approved' THEN 1 ELSE 0 END), 0) AS published_games
+       FROM users u
+       LEFT JOIN games g ON g.uploaded_by = u.id
+       WHERE u.id IN (${placeholders})
+       GROUP BY u.id, u.created_at`,
+      ids
+    );
+
+    const levels = rows.map((row) => {
+      const registrationDays = Number(row.registration_days || 0);
+      const publishedGames = Number(row.published_games || 0);
+      const levelResult = computeUserLevel({
+        registrationDays,
+        publishedGames
+      });
+
+      return {
+        user_id: Number(row.user_id),
+        registration_days: registrationDays,
+        published_games: publishedGames,
+        ...levelResult
+      };
+    });
+
+    return res.json({ levels });
+  } catch (error) {
+    console.error('获取用户等级失败:', error);
+    return res.status(500).json({ error: '服务器内部错误' });
   }
 }
 
@@ -1699,6 +1898,123 @@ async function updateAvatar(req, res) {
   }
 }
 
+async function updateCover(req, res) {
+  let uploadedFilePath = req.file?.path || null;
+
+  try {
+    if (!req.user) {
+      await safeUnlink(uploadedFilePath);
+      return res.status(401).json({ error: '未认证' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: '请上传封面图片' });
+    }
+
+    const profileColumns = await ensureUserProfileColumns();
+    if (!profileColumns.cover_url) {
+      await safeUnlink(uploadedFilePath);
+      return res.status(500).json({ error: '数据库缺少 cover_url 字段，请先执行更新脚本' });
+    }
+
+    const users = await executeQuery(
+      'SELECT id, cover_url FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+
+    if (!users || users.length === 0) {
+      await safeUnlink(uploadedFilePath);
+      return res.status(404).json({ error: '用户不存在' });
+    }
+
+    const previousCoverUrl = users[0].cover_url || '';
+    const { outputPath, outputFilename } = await processCoverImage(req.file.path);
+    uploadedFilePath = outputPath;
+    const newCoverUrl = `/uploads/covers/${outputFilename}`;
+
+    await executeQuery(
+      'UPDATE users SET cover_url = ? WHERE id = ?',
+      [newCoverUrl, req.user.userId]
+    );
+
+    const uploadsRoot = process.env.UPLOADS_PATH || path.join(process.cwd(), 'uploads');
+    const isCustomPreviousCover =
+      previousCoverUrl &&
+      previousCoverUrl.startsWith('/uploads/covers/');
+
+    if (isCustomPreviousCover) {
+      const previousFilename = path.basename(previousCoverUrl);
+      if (previousFilename && previousFilename !== outputFilename) {
+        const previousCoverPath = path.join(uploadsRoot, 'covers', previousFilename);
+        await safeUnlink(previousCoverPath);
+      }
+    }
+
+    const user = await fetchUserById(req.user.userId);
+    uploadedFilePath = null;
+
+    return res.json({
+      message: '封面更新成功',
+      user: user || {
+        id: req.user.userId,
+        username: req.user.username,
+        cover_url: newCoverUrl
+      }
+    });
+  } catch (error) {
+    console.error('更新封面错误:', error);
+    await safeUnlink(uploadedFilePath);
+    return res.status(500).json({ error: '封面上传失败' });
+  }
+}
+
+async function updateUserProfile(req, res) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: '未认证' });
+    }
+
+    const profileColumns = await ensureUserProfileColumns();
+    const fields = [];
+    const params = [];
+    const bio = sanitizeProfileText(req.body?.bio, 1200);
+    const preferredLanguage = sanitizeProfileText(req.body?.preferred_language, 64);
+    const preferredEngine = sanitizeProfileText(req.body?.preferred_engine, 64);
+
+    if (profileColumns.bio) {
+      fields.push('bio = ?');
+      params.push(bio || null);
+    }
+    if (profileColumns.preferred_language) {
+      fields.push('preferred_language = ?');
+      params.push(preferredLanguage || null);
+    }
+    if (profileColumns.preferred_engine) {
+      fields.push('preferred_engine = ?');
+      params.push(preferredEngine || null);
+    }
+
+    if (!fields.length) {
+      return res.status(500).json({ error: '数据库缺少资料字段，请先执行更新脚本' });
+    }
+
+    params.push(req.user.userId);
+    await executeQuery(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    const user = await fetchUserById(req.user.userId);
+    return res.json({
+      message: '资料保存成功',
+      user
+    });
+  } catch (error) {
+    console.error('更新用户资料错误:', error);
+    return res.status(500).json({ error: '资料保存失败' });
+  }
+}
+
 function logout(req, res) {
   clearAuthCookie(res);
   res.json({ message: '退出登录成功' });
@@ -1715,9 +2031,12 @@ module.exports = {
   getGoogleBindStatus,
   register,
   login,
+  getUserLevels,
   getCurrentUser,
   getUserProfile,
   verifyTokenEndpoint,
+  updateUserProfile,
   updateAvatar,
+  updateCover,
   logout
 };

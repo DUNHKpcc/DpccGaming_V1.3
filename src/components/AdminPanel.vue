@@ -47,7 +47,11 @@
                   
                   <div class="flex flex-wrap gap-4 text-sm text-white/70 mb-4">
                     <span><i class="fa fa-tag mr-1"></i>{{ categoryToZh(game.category) }}</span>
-                    <span><i class="fa fa-user mr-1"></i>上传者: {{ game.uploaded_by_username }}</span>
+                    <span class="admin-username-row">
+                      <i class="fa fa-user mr-1"></i>
+                      <span>上传者: {{ game.uploaded_by_username }}</span>
+                      <UserLevelBadge :user-id="game.uploaded_by" />
+                    </span>
                     <span><i class="fa fa-clock mr-1"></i>{{ formatDate(game.uploaded_at) }}</span>
                   </div>
 
@@ -85,6 +89,7 @@
 import { ref, onMounted } from 'vue'
 import { useNotificationStore } from '../stores/notification'
 import { categoryToZh } from '../utils/category'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const notificationStore = useNotificationStore()
 const pendingGames = ref([])
@@ -244,6 +249,12 @@ onMounted(async () => {
   border: 1px solid #1f2937;
   border-radius: 20px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.admin-username-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 :deep(html[data-theme="light"]) .admin-page {

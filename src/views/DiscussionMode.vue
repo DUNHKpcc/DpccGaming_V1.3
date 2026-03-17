@@ -17,7 +17,14 @@
             @click="selectChat(item.id)"
           >
             <div class="avatar" :style="{ background: item.avatarColor }">
-              {{ item.avatar }}
+              <img
+                v-if="item.avatarUrl"
+                :src="item.avatarUrl"
+                :alt="item.name"
+                class="avatar-image"
+                @error="handleRoomAvatarError(item)"
+              />
+              <span v-else>{{ item.avatar }}</span>
             </div>
 
             <div class="chat-item-main">
@@ -46,7 +53,14 @@
           <header class="chat-header">
             <div class="chat-user">
               <div class="avatar small" :style="{ background: currentChat.avatarColor }">
-                {{ currentChat.avatar }}
+                <img
+                  v-if="currentChat.avatarUrl"
+                  :src="currentChat.avatarUrl"
+                  :alt="currentChat.name"
+                  class="avatar-image"
+                  @error="handleRoomAvatarError(currentChat)"
+                />
+                <span v-else>{{ currentChat.avatar }}</span>
               </div>
               <div>
                 <div class="chat-user-name">{{ currentChat.name }}</div>
@@ -71,7 +85,10 @@
               :class="message.from === 'me' ? 'mine' : 'theirs'"
             >
               <div class="message-thread" :class="message.from === 'me' ? 'mine' : 'theirs'">
-                <span class="message-sender-name">{{ message.senderName }}</span>
+                <span class="message-sender-name">
+                  <span class="message-sender-text">{{ message.senderName }}</span>
+                  <UserLevelBadge v-if="message.senderUserId" :user-id="message.senderUserId" />
+                </span>
 
                 <div class="message-main">
                   <AvatarFriendAction
@@ -88,7 +105,42 @@
                     />
                   </AvatarFriendAction>
                   <div class="message-bubble">
-                    <div class="message-text">{{ message.text }}</div>
+                    <div v-if="message.text" class="message-text">{{ message.text }}</div>
+                    <div v-if="message.attachment" class="message-attachment">
+                      <img
+                        v-if="message.attachment.type === 'image'"
+                        :src="message.attachment.url"
+                        :alt="message.attachment.name || '图片附件'"
+                        class="message-attachment-image"
+                      />
+                      <video
+                        v-else-if="message.attachment.type === 'video'"
+                        class="message-attachment-video"
+                        controls
+                        preload="metadata"
+                      >
+                        <source :src="message.attachment.url" />
+                      </video>
+                      <a
+                        v-else
+                        class="message-attachment-file"
+                        :href="message.attachment.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <i class="fa fa-code"></i>
+                        <span>{{ message.attachment.name || '代码文件' }}</span>
+                      </a>
+                    </div>
+                    <div v-if="message.codePreview" class="message-code-preview">
+                      <div class="message-code-preview-head">
+                        <i class="fa fa-code"></i>
+                        <span class="message-code-preview-path" :title="message.codePreview.path">
+                          {{ message.codePreview.path }}
+                        </span>
+                      </div>
+                      <pre class="message-code-preview-snippet"><code>{{ message.codePreview.snippet }}</code></pre>
+                    </div>
                     <div class="message-meta">
                       <span>{{ message.time }}</span>
                     </div>
@@ -108,16 +160,88 @@
           </section>
 
           <footer class="chat-input-bar">
-            <button class="icon-btn light">😊</button>
+            <div v-if="showAttachmentMenu" class="attach-menu" @click.stop>
+              <button
+                type="button"
+                class="attach-option"
+                title="上传图片"
+                @click="openAttachmentPicker('image')"
+              >
+                <i class="fa fa-image"></i>
+              </button>
+              <button
+                type="button"
+                class="attach-option"
+                title="上传视频"
+                @click="openAttachmentPicker('video')"
+              >
+                <i class="fa fa-video-camera"></i>
+              </button>
+              <button
+                type="button"
+                class="attach-option"
+                title="发送代码预览"
+                @click="openCodePreviewPicker"
+              >
+                <i class="fa fa-code"></i>
+              </button>
+            </div>
+            <div class="attach-entry" @click.stop>
+              <button
+                class="icon-btn light attach-plus-btn"
+                :disabled="uploadingAttachment || !currentChat"
+                @click.stop="toggleAttachmentMenu"
+              >
+                <i class="fa fa-plus"></i>
+              </button>
+            </div>
+            <input
+              ref="attachmentInputRef"
+              type="file"
+              class="attachment-input-hidden"
+              :accept="attachmentAccept"
+              @change="onAttachmentFileChange"
+            />
             <input
               v-model="draft"
               type="text"
-              :placeholder="sendingMessage ? '发送中...' : 'Message'"
-              :disabled="sendingMessage"
+              :placeholder="sendingMessage ? '发送中...' : (uploadingAttachment ? '上传中...' : 'Message')"
+              :disabled="sendingMessage || uploadingAttachment"
               @keyup.enter="sendMessage"
             />
-            <button class="send-btn" :disabled="sendingMessage" @click="sendMessage">➤</button>
+            <button class="send-btn" :disabled="sendingMessage || uploadingAttachment" @click="sendMessage">➤</button>
           </footer>
+
+          <div v-if="showCodePicker" class="code-picker-mask" @click="closeCodePicker">
+            <div class="code-picker-panel" @click.stop>
+              <div class="code-picker-head">
+                <strong>选择当前游戏源码文件</strong>
+                <button type="button" class="icon-btn" @click="closeCodePicker">✕</button>
+              </div>
+              <div class="code-picker-search">
+                <input
+                  v-model.trim="codePickerKeyword"
+                  type="text"
+                  placeholder="搜索文件路径..."
+                />
+              </div>
+              <div class="code-picker-body">
+                <div v-if="codePickerLoading" class="chat-empty">源码加载中...</div>
+                <div v-else-if="!filteredCodePickerFiles.length" class="chat-empty">没有可选源码文件</div>
+                <button
+                  v-for="file in filteredCodePickerFiles"
+                  :key="file.path"
+                  type="button"
+                  class="code-picker-item"
+                  :disabled="uploadingAttachment"
+                  @click="sendCodePreviewFromFile(file)"
+                >
+                  <span class="code-picker-item-path">{{ file.path }}</span>
+                  <span class="code-picker-item-lang">{{ file.language }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </main>
 
         <main v-else class="chat-panel chat-panel-empty">
@@ -130,7 +254,7 @@
       <div class="code-header">
         <div>
           <h2>Code Preview</h2>
-          <p>显示当前房间的实时结构化数据，方便调试与联调。</p>
+          <p>自动展示当前房间 gameId 对应的源码。</p>
         </div>
         <button class="run-btn" :disabled="sendingAi || !currentChat" @click="sendAiMessage">
           {{ sendingAi ? 'Running...' : 'Run AI' }}
@@ -138,10 +262,35 @@
       </div>
 
       <div class="code-toolbar">
-        <span class="file-name">{{ currentFileName }}</span>
+        <select
+          v-if="currentRoomCodeFiles.length"
+          v-model="currentCodePath"
+          class="code-file-selector"
+        >
+          <option
+            v-for="file in currentRoomCodeFiles"
+            :key="file.path"
+            :value="file.path"
+          >
+            {{ file.path }}
+          </option>
+        </select>
+        <span v-else class="file-name">{{ currentFileName }}</span>
+        <button
+          class="icon-btn light code-refresh-btn"
+          :disabled="codePanelLoading || !currentChat?.gameId"
+          @click="refreshCurrentRoomCode"
+          title="刷新当前房间源码"
+        >
+          <i :class="codePanelLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
+        </button>
       </div>
 
-      <pre class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
+      <div v-if="codePanelLoading" class="code-empty-state">源码加载中...</div>
+      <div v-else-if="codePanelError" class="code-empty-state error">{{ codePanelError }}</div>
+      <div v-else-if="!currentChat" class="code-empty-state">请先选择一个讨论房间</div>
+      <div v-else-if="!currentRoomCodeFiles.length" class="code-empty-state">当前房间游戏暂无可浏览源码</div>
+      <pre v-else class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
     </section>
   </div>
 </template>
@@ -153,6 +302,7 @@ import json from 'highlight.js/lib/languages/json'
 import { apiCall, API_BASE_URL } from '../utils/api'
 import { getAvatarUrl, handleAvatarError as fallbackAvatar } from '../utils/avatar'
 import AvatarFriendAction from '../components/AvatarFriendAction.vue'
+import UserLevelBadge from '../components/UserLevelBadge.vue'
 
 hljs.registerLanguage('json', json)
 
@@ -192,7 +342,8 @@ const formatClock = (value) => {
 export default {
   name: 'DiscussionMode',
   components: {
-    AvatarFriendAction
+    AvatarFriendAction,
+    UserLevelBadge
   },
   props: {
     id: {
@@ -213,6 +364,18 @@ export default {
       loadingMessages: false,
       sendingMessage: false,
       sendingAi: false,
+      uploadingAttachment: false,
+      showAttachmentMenu: false,
+      showCodePicker: false,
+      codePickerLoading: false,
+      codePickerKeyword: '',
+      codePickerFiles: [],
+      codeFilesByGame: {},
+      codePanelLoading: false,
+      codePanelError: '',
+      currentCodePath: '',
+      attachmentKind: '',
+      attachmentAccept: '',
       errorText: '',
       socket: null,
       subscribedRoomId: null
@@ -233,43 +396,38 @@ export default {
         )
       })
     },
+    currentRoomCodeFiles() {
+      const gameKey = String(this.currentChat?.gameId || '').trim()
+      if (!gameKey) return []
+      return Array.isArray(this.codeFilesByGame[gameKey]) ? this.codeFilesByGame[gameKey] : []
+    },
+    currentCodeFile() {
+      if (!this.currentRoomCodeFiles.length) return null
+      return this.currentRoomCodeFiles.find((file) => file.path === this.currentCodePath) || this.currentRoomCodeFiles[0] || null
+    },
     currentFileName() {
-      if (!this.currentChat) return 'room-data.json'
-      return `room-${this.currentChat.id}.json`
+      if (this.currentCodeFile?.path) return this.currentCodeFile.path
+      if (!this.currentChat?.gameId) return '未绑定游戏源码'
+      return `game-${this.currentChat.gameId} 无源码`
     },
     codeText() {
-      if (!this.currentChat) {
-        return JSON.stringify({ message: '暂无房间可展示' }, null, 2)
+      if (this.currentCodeFile) {
+        return String(this.currentCodeFile.content || '')
       }
-
-      return JSON.stringify(
-        {
-          roomId: this.currentChat.id,
-          roomCode: this.currentChat.roomCode,
-          gameId: this.currentChat.gameId,
-          gameTitle: this.currentChat.gameTitle,
-          mode: this.currentChat.mode,
-          visibility: this.currentChat.visibility,
-          status: this.currentChat.statusRaw,
-          memberCount: this.currentChat.memberCount,
-          maxMembers: this.currentChat.maxMembers,
-          lastMessages: this.currentChat.messages.slice(-8).map((item) => ({
-            id: item.id,
-            from: item.senderType,
-            content: item.text,
-            time: item.time
-          }))
-        },
-        null,
-        2
-      )
+      if (this.codePanelError) return this.codePanelError
+      return '// 当前房间暂无可展示源码'
     },
     highlightedCodeText() {
       try {
-        return hljs.highlight(this.codeText, { language: 'json' }).value
+        return hljs.highlightAuto(this.codeText || '').value
       } catch (error) {
-        return hljs.highlightAuto(this.codeText).value
+        return hljs.highlightAuto(String(this.codeText || '')).value
       }
+    },
+    filteredCodePickerFiles() {
+      const keyword = String(this.codePickerKeyword || '').toLowerCase()
+      if (!keyword) return this.codePickerFiles
+      return this.codePickerFiles.filter((file) => file.path.toLowerCase().includes(keyword))
     }
   },
   watch: {
@@ -281,8 +439,10 @@ export default {
     this.currentUserId = this.readCurrentUserId()
     this.setupSocket()
     this.initializeDiscussion()
+    window.addEventListener('click', this.closeAttachmentMenu)
   },
   beforeUnmount() {
+    window.removeEventListener('click', this.closeAttachmentMenu)
     this.teardownSocket()
   },
   methods: {
@@ -306,8 +466,199 @@ export default {
       const colorIndex = Math.abs(Number(roomId || 0)) % AVATAR_COLORS.length
       return AVATAR_COLORS[colorIndex]
     },
+    resolveRoomAvatarUrl(rawAvatarUrl) {
+      const value = String(rawAvatarUrl || '').trim()
+      if (!value || value === '/avatars/default-avatar.svg') return ''
+      return getAvatarUrl(value)
+    },
+    parseMetadata(raw) {
+      if (!raw) return null
+      if (typeof raw === 'object') return raw
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return null
+        }
+      }
+      return null
+    },
+    normalizeAttachment(attachment) {
+      if (!attachment || typeof attachment !== 'object') return null
+      const url = String(attachment.url || '').trim()
+      if (!url) return null
+      const type = String(attachment.type || '').trim().toLowerCase()
+      if (!['image', 'video', 'code'].includes(type)) return null
+      return {
+        type,
+        url,
+        name: String(attachment.name || '').trim()
+      }
+    },
+    normalizeCodePreview(codePreview) {
+      if (!codePreview || typeof codePreview !== 'object') return null
+      const path = String(codePreview.path || '').trim()
+      const snippet = String(codePreview.snippet || '').replace(/\r/g, '').trim()
+      if (!path || !snippet) return null
+      return {
+        path,
+        snippet,
+        language: String(codePreview.language || '').trim(),
+        totalLines: Number.parseInt(codePreview.total_lines, 10) || null
+      }
+    },
+    inferCodeLanguage(filePath = '') {
+      const normalized = String(filePath || '').toLowerCase()
+      if (normalized.endsWith('.ts')) return 'TypeScript'
+      if (normalized.endsWith('.tsx')) return 'TSX'
+      if (normalized.endsWith('.js')) return 'JavaScript'
+      if (normalized.endsWith('.jsx')) return 'JSX'
+      if (normalized.endsWith('.vue')) return 'Vue'
+      if (normalized.endsWith('.css') || normalized.endsWith('.scss') || normalized.endsWith('.less')) return 'CSS'
+      if (normalized.endsWith('.json')) return 'JSON'
+      if (normalized.endsWith('.md')) return 'Markdown'
+      if (normalized.endsWith('.py')) return 'Python'
+      if (normalized.endsWith('.cs')) return 'C#'
+      if (normalized.endsWith('.cpp') || normalized.endsWith('.cc') || normalized.endsWith('.c')) return 'C/C++'
+      if (normalized.endsWith('.h')) return 'Header'
+      if (normalized.endsWith('.html')) return 'HTML'
+      return 'Code'
+    },
+    normalizeCodeFile(file = {}) {
+      const path = String(file.path || '').trim()
+      const content = String(file.content || '').replace(/\r/g, '')
+      if (!path) return null
+      return {
+        path,
+        content,
+        language: this.inferCodeLanguage(path)
+      }
+    },
+    buildCodePreview(file = {}) {
+      const lines = String(file.content || '').replace(/\r/g, '').split('\n')
+      const snippet = lines.slice(0, 14).join('\n').slice(0, 1500)
+      return {
+        path: file.path,
+        snippet,
+        language: file.language || this.inferCodeLanguage(file.path),
+        total_lines: lines.length
+      }
+    },
+    closeCodePicker() {
+      this.showCodePicker = false
+      this.codePickerKeyword = ''
+    },
+    async loadGameCodeFiles(gameId, options = {}) {
+      const gameKey = String(gameId || '').trim()
+      if (!gameKey) return []
+      const force = options?.force === true
+
+      if (!force && Array.isArray(this.codeFilesByGame[gameKey])) {
+        return this.codeFilesByGame[gameKey]
+      }
+
+      const data = await apiCall(`/games/${encodeURIComponent(gameKey)}/code`)
+      const files = Array.isArray(data?.files)
+        ? data.files.map((file) => this.normalizeCodeFile(file)).filter(Boolean)
+        : []
+      this.codeFilesByGame[gameKey] = files
+      return files
+    },
+    async syncCurrentRoomCode(options = {}) {
+      const gameId = this.currentChat?.gameId
+      this.codePanelError = ''
+
+      if (!gameId) {
+        this.currentCodePath = ''
+        return
+      }
+
+      this.codePanelLoading = true
+      try {
+        const files = await this.loadGameCodeFiles(gameId, options)
+        if (!files.length) {
+          this.currentCodePath = ''
+          return
+        }
+        if (!files.some((file) => file.path === this.currentCodePath)) {
+          this.currentCodePath = files[0].path
+        }
+      } catch (error) {
+        this.currentCodePath = ''
+        this.codePanelError = error.message || '加载源码失败'
+      } finally {
+        this.codePanelLoading = false
+      }
+    },
+    async refreshCurrentRoomCode() {
+      if (!this.currentChat?.gameId || this.codePanelLoading) return
+      await this.syncCurrentRoomCode({ force: true })
+    },
+    async openCodePreviewPicker() {
+      if (!this.currentChat || this.uploadingAttachment) return
+      const gameId = this.currentChat.gameId
+      if (!gameId) {
+        this.errorText = '当前房间没有可用的游戏源码'
+        return
+      }
+
+      this.showAttachmentMenu = false
+      this.showCodePicker = true
+      this.codePickerLoading = true
+      this.codePickerKeyword = ''
+      this.errorText = ''
+
+      try {
+        this.codePickerFiles = await this.loadGameCodeFiles(gameId)
+      } catch (error) {
+        this.codePickerFiles = []
+        this.errorText = error.message || '源码加载失败'
+      } finally {
+        this.codePickerLoading = false
+      }
+    },
+    async sendCodePreviewFromFile(file) {
+      if (!file || !this.currentChat || this.uploadingAttachment) return
+
+      const codePreview = this.buildCodePreview(file)
+      if (!codePreview.path || !codePreview.snippet) {
+        this.errorText = '该文件内容为空，无法发送预览'
+        return
+      }
+
+      this.uploadingAttachment = true
+      this.errorText = ''
+      try {
+        const response = await apiCall(`/discussion/rooms/${this.currentChat.id}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: `代码预览：${codePreview.path}`,
+            metadata: {
+              code_preview: codePreview
+            }
+          })
+        })
+
+        const rawMessage = response.message
+        const nextMessage = this.mapMessage(rawMessage)
+        this.currentChat.messages.push(nextMessage)
+        this.currentChat.messagesLoaded = true
+        this.updateChatSummary(this.currentChat, rawMessage)
+        this.closeCodePicker()
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      } catch (error) {
+        this.errorText = error.message || '代码预览发送失败'
+      } finally {
+        this.uploadingAttachment = false
+      }
+    },
     mapRoomToChat(room) {
       const roomName = room.title?.trim() || `${room.game_title || '未命名游戏'} 讨论房`
+      const isFriendRoom = room.mode === 'friend'
+      const friendName = String(room.friend_username || '').trim()
+      const displayName = isFriendRoom && friendName ? friendName : roomName
+      const avatarText = displayName.charAt(0).toUpperCase() || 'R'
+      const avatarUrl = isFriendRoom ? this.resolveRoomAvatarUrl(room.friend_avatar_url) : ''
       const memberCount = Number(room.joined_count || 0)
       const maxMembers = Number(room.max_members || 4)
       const modeLabel = MODE_LABELS[room.mode] || '房间'
@@ -316,12 +667,13 @@ export default {
 
       return {
         id: Number(room.id),
-        name: roomName,
+        name: displayName,
         verified: room.mode === 'match',
         time: formatClock(room.last_message_at || room.updated_at || room.created_at),
         preview,
         unread: 0,
-        avatar: roomName.charAt(0).toUpperCase() || 'R',
+        avatar: avatarText,
+        avatarUrl,
         avatarColor: this.roomColorById(room.id),
         status: `${modeLabel} · ${memberCount}/${maxMembers} · ${statusLabel}`,
         statusRaw: room.status,
@@ -340,7 +692,13 @@ export default {
       const senderType = item.sender_type || 'user'
       const senderUserId = toInt(item.sender_user_id)
       const isMine = senderType === 'user' && senderUserId === this.currentUserId
+      const metadata = this.parseMetadata(item.metadata_json)
+      const attachment = this.normalizeAttachment(metadata?.attachment || null)
+      const codePreview = this.normalizeCodePreview(metadata?.code_preview || null)
       let text = (item.content || '').toString()
+      if (codePreview && /^代码预览[:：]/.test(text)) {
+        text = ''
+      }
       const senderName = isMine
         ? this.currentUsername
         : item.username || (senderType === 'ai' ? 'AI 助手' : senderType === 'system' ? '系统' : '成员')
@@ -359,6 +717,8 @@ export default {
         senderUserId,
         senderName,
         avatarUrl,
+        attachment,
+        codePreview,
         text,
         time: formatClock(item.created_at),
         rawTime: item.created_at
@@ -366,6 +726,97 @@ export default {
     },
     handleAvatarError(event) {
       fallbackAvatar(event)
+    },
+    handleRoomAvatarError(chat) {
+      if (!chat || typeof chat !== 'object') return
+      chat.avatarUrl = ''
+    },
+    closeAttachmentMenu() {
+      this.showAttachmentMenu = false
+    },
+    toggleAttachmentMenu() {
+      if (!this.currentChat || this.uploadingAttachment) return
+      this.showCodePicker = false
+      this.showAttachmentMenu = !this.showAttachmentMenu
+    },
+    getAttachmentAccept(kind) {
+      if (kind === 'image') return 'image/*'
+      if (kind === 'video') return 'video/*'
+      return ''
+    },
+    openAttachmentPicker(kind) {
+      if (!this.currentChat || this.uploadingAttachment) return
+      if (!['image', 'video'].includes(kind)) return
+      this.attachmentKind = kind
+      this.attachmentAccept = this.getAttachmentAccept(kind)
+      this.showAttachmentMenu = false
+      this.$nextTick(() => {
+        const input = this.$refs.attachmentInputRef
+        if (!input) return
+        input.value = ''
+        input.click()
+      })
+    },
+    async onAttachmentFileChange(event) {
+      const file = event?.target?.files?.[0]
+      if (!file || !this.currentChat || this.uploadingAttachment) return
+
+      const kind = this.attachmentKind
+      if (!['image', 'video'].includes(kind)) {
+        this.errorText = '附件类型无效，请重试'
+        event.target.value = ''
+        return
+      }
+
+      this.uploadingAttachment = true
+      this.errorText = ''
+
+      try {
+        const rawMessage = await this.uploadAttachment(file, kind)
+        const nextMessage = this.mapMessage(rawMessage)
+        this.currentChat.messages.push(nextMessage)
+        this.currentChat.messagesLoaded = true
+        this.updateChatSummary(this.currentChat, rawMessage)
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      } catch (error) {
+        this.errorText = error.message || '附件上传失败'
+      } finally {
+        this.uploadingAttachment = false
+        this.attachmentKind = ''
+        if (event?.target) event.target.value = ''
+      }
+    },
+    async uploadAttachment(file, kind) {
+      const roomId = this.currentChat?.id
+      if (!roomId) throw new Error('当前没有可用房间')
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const headers = {}
+      const token = this.getAuthToken()
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/discussion/rooms/${roomId}/attachments/${kind}`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: formData
+        }
+      )
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || data.message || '附件上传失败')
+      }
+      if (!data?.message) {
+        throw new Error('上传成功但消息写入失败')
+      }
+      return data.message
     },
     updateChatSummary(chat, rawMessage) {
       if (!chat || !rawMessage) return
@@ -387,6 +838,9 @@ export default {
       this.errorText = ''
       this.chats = []
       this.currentChatId = null
+      this.currentCodePath = ''
+      this.codePanelError = ''
+      this.codePanelLoading = false
 
       const preferredRoomId = this.parseRoomId(this.id)
       if (preferredRoomId) {
@@ -418,16 +872,22 @@ export default {
     },
     async selectChat(chatId, options = {}) {
       if (!chatId) return
+      this.showAttachmentMenu = false
+      this.closeCodePicker()
       this.currentChatId = chatId
       this.joinSocketRoom(chatId)
 
       const chat = this.chats.find(item => item.id === chatId)
       if (!chat) return
       if (chat.messagesLoaded && !options.force) {
+        await this.syncCurrentRoomCode()
         this.$nextTick(() => this.scrollMessagesToBottom())
         return
       }
-      await this.fetchMessages(chatId)
+      await Promise.all([
+        this.fetchMessages(chatId),
+        this.syncCurrentRoomCode()
+      ])
     },
     async fetchMessages(roomId) {
       this.loadingMessages = true
@@ -692,6 +1152,7 @@ body {
 }
 
 .chat-panel {
+  position: relative;
   width: 66.6667%;
   display: flex;
   flex-direction: column;
@@ -736,12 +1197,20 @@ body {
   font-weight: 700;
   font-size: 22px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .avatar.small {
   width: 38px;
   height: 38px;
   font-size: 18px;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .chat-item-main {
@@ -939,12 +1408,18 @@ body {
 }
 
 .message-sender-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 11px;
   line-height: 1.3;
   min-height: 14px;
   padding-top: 1px;
   color: #6b7280;
   max-width: 100%;
+}
+
+.message-sender-text {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -967,6 +1442,86 @@ body {
   word-break: break-word;
 }
 
+.message-attachment {
+  margin-top: 8px;
+}
+
+.message-attachment-image {
+  max-width: min(360px, 48vw);
+  max-height: 260px;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  display: block;
+  object-fit: cover;
+}
+
+.message-attachment-video {
+  max-width: min(360px, 48vw);
+  max-height: 260px;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  background: #000000;
+  display: block;
+}
+
+.message-attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #d1d5db;
+  color: #111827;
+  text-decoration: none;
+  font-size: 13px;
+  max-width: min(360px, 48vw);
+}
+
+.message-attachment-file span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-code-preview {
+  margin-top: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  background: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
+}
+
+.message-code-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+  color: #374151;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.message-code-preview-path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-code-preview-snippet {
+  margin: 0;
+  padding: 8px 9px;
+  max-width: min(400px, 56vw);
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #111827;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .message-meta {
   display: flex;
   justify-content: flex-end;
@@ -981,6 +1536,146 @@ body {
   align-items: center;
   gap: 12px;
   padding: 10px 14px 12px;
+  position: relative;
+}
+
+.attach-entry {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.attach-plus-btn {
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.attach-menu {
+  position: absolute;
+  left: 62px;
+  bottom: calc(100% + 8px);
+  border-radius: 14px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.15);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 8;
+}
+
+.attach-option {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.attach-option:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.attachment-input-hidden {
+  display: none;
+}
+
+.code-picker-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+}
+
+.code-picker-panel {
+  width: min(620px, 92%);
+  max-height: min(78vh, 620px);
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-picker-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.code-picker-search {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.code-picker-search input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0 10px;
+  outline: none;
+  font-size: 14px;
+}
+
+.code-picker-body {
+  padding: 8px;
+  overflow: auto;
+  min-height: 120px;
+}
+
+.code-picker-item {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.code-picker-item:hover {
+  background: #f9fafb;
+}
+
+.code-picker-item-path {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-picker-item-lang {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 2px 7px;
 }
 
 .chat-input-bar input {
@@ -1071,10 +1766,34 @@ body {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.code-file-selector {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 13px;
+  padding: 0 10px;
+  outline: none;
+}
+
 .file-name {
   margin-left: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.code-refresh-btn {
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
 }
 
 .code-panel {
@@ -1090,6 +1809,21 @@ body {
   background: #ffffff;
   border: 1px solid #d1d5db;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.code-empty-state {
+  margin: 12px;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.code-empty-state.error {
+  border-color: #fecaca;
+  color: #7f1d1d;
 }
 
 :deep(.hljs) {
@@ -1160,6 +1894,16 @@ body {
 
   .message-bubble {
     max-width: 86%;
+  }
+
+  .message-attachment-image,
+  .message-attachment-video,
+  .message-attachment-file {
+    max-width: min(260px, 72vw);
+  }
+
+  .message-code-preview-snippet {
+    max-width: min(260px, 72vw);
   }
 }
 </style>

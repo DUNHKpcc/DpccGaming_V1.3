@@ -52,7 +52,10 @@
                       @error="handleAvatarError"
                     />
                   </div>
-                  <h3 class="text-xl font-bold text-white mb-2">{{ currentUser.username }}</h3>
+                  <h3 class="text-xl font-bold text-white mb-2 profile-name-row">
+                    <span>{{ currentUser.username }}</span>
+                    <UserLevelBadge :user-id="currentUser?.id" />
+                  </h3>
                   <p class="text-white/80 text-sm mb-4">{{ currentUser.email || '未设置邮箱' }}</p>
                   <input
                     ref="avatarInputRef"
@@ -60,6 +63,13 @@
                     accept="image/*"
                     class="hidden"
                     @change="onAvatarFileChange"
+                  />
+                  <input
+                    ref="coverInputRef"
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    @change="onCoverFileChange"
                   />
                   <button
                     type="button"
@@ -156,131 +166,206 @@
               <NotificationsSection compact />
             </section>
 
-            <section class="glass-card widget widget-stats p-6">
-              <div class="widget-title-row">
-                <h3 class="text-xl font-bold text-white">游戏统计</h3>
-              </div>
-
-              <div class="stats-scroll">
-                <div class="stats-tiles">
-                  <div class="stats-tile">
-                    <div class="w-12 h-12 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-2">
-                      <i class="fa fa-laptop text-lg account-icon-glyph"></i>
-                    </div>
-                    <div class="text-xl font-bold text-white">{{ totalGamesPlayed }}</div>
-                    <div class="text-xs text-white/80">总游戏次数</div>
-                  </div>
-
-                  <div class="stats-tile">
-                    <div class="w-12 h-12 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-2">
-                      <i class="fa fa-star text-lg account-icon-glyph"></i>
-                    </div>
-                    <div class="text-xl font-bold text-white">{{ averageRating }}</div>
-                    <div class="text-xs text-white/80">平均评分</div>
-                  </div>
-
-                  <div class="stats-tile">
-                    <div class="w-12 h-12 account-icon-circle rounded-full flex items-center justify-center mx-auto mb-2">
-                      <i class="fa fa-comment text-lg account-icon-glyph"></i>
-                    </div>
-                    <div class="text-xl font-bold text-white">{{ totalComments }}</div>
-                    <div class="text-xs text-white/80">总评论数</div>
-                  </div>
+            <div class="middle-panels">
+              <section class="glass-card widget widget-stats p-6">
+                <div class="widget-title-row">
+                  <h3 class="text-xl font-bold text-white">游戏统计</h3>
                 </div>
 
-                <div class="recent-games-block mt-5">
-                  <h4 class="text-sm font-bold text-white mb-3">最近游戏记录</h4>
-                  <div v-if="recentGames.length === 0" class="text-center py-6 text-white/80">
-                    <i class="fa fa-laptop text-3xl mb-2"></i>
-                    <p>还没有游戏记录</p>
+                <div class="stats-scroll">
+                  <div class="stats-tiles">
+                    <div class="stats-tile">
+                      <div class="w-10 h-10 account-icon-circle rounded-full flex items-center justify-center">
+                        <i class="fa fa-laptop text-base account-icon-glyph"></i>
+                      </div>
+                      <div class="stats-copy">
+                        <div class="stats-value">{{ totalGamesPlayed }}</div>
+                        <div class="stats-label">总游戏次数</div>
+                      </div>
+                    </div>
+
+                    <div class="stats-tile">
+                      <div class="w-10 h-10 account-icon-circle rounded-full flex items-center justify-center">
+                        <i class="fa fa-star text-base account-icon-glyph"></i>
+                      </div>
+                      <div class="stats-copy">
+                        <div class="stats-value">{{ averageRating }}</div>
+                        <div class="stats-label">平均评分</div>
+                      </div>
+                    </div>
+
+                    <div class="stats-tile">
+                      <div class="w-10 h-10 account-icon-circle rounded-full flex items-center justify-center">
+                        <i class="fa fa-comment text-base account-icon-glyph"></i>
+                      </div>
+                      <div class="stats-copy">
+                        <div class="stats-value">{{ totalComments }}</div>
+                        <div class="stats-label">总评论数</div>
+                      </div>
+                    </div>
                   </div>
-                  <div v-else class="recent-games-scroll space-y-2">
-                    <div
-                      v-for="game in recentGames"
-                      :key="game.id"
-                      class="account-recent-row flex items-center justify-between p-3 rounded-lg"
-                    >
-                      <div class="flex items-center">
-                        <div class="recent-game-media mr-3">
-                          <video
-                            v-if="hasPlayableVideo(game)"
-                            :src="getGameVideoUrl(game)"
-                            :poster="getGameCoverUrl(game) || '/GameImg.jpg'"
-                            class="recent-game-media-el"
-                            autoplay
-                            muted
-                            loop
-                            playsinline
-                            preload="metadata"
-                          ></video>
-                          <img
-                            v-else-if="getGameCoverUrl(game)"
-                            :src="getGameCoverUrl(game)"
-                            :alt="game.title"
-                            class="recent-game-media-el"
-                          />
-                          <div v-else class="recent-game-media-fallback">
-                            <i class="fa fa-laptop account-icon-glyph"></i>
+
+                  <div class="recent-games-block mt-5">
+                    <h4 class="text-sm font-bold text-white mb-3">最近游戏记录</h4>
+                    <div v-if="recentGames.length === 0" class="text-center py-6 text-white/80">
+                      <i class="fa fa-laptop text-3xl mb-2"></i>
+                      <p>还没有游戏记录</p>
+                    </div>
+                    <div v-else class="recent-games-scroll space-y-2">
+                      <div
+                        v-for="game in recentGames"
+                        :key="game.id"
+                        class="account-recent-row flex items-center justify-between p-3 rounded-lg"
+                      >
+                        <div class="flex items-center">
+                          <div class="recent-game-media mr-3">
+                            <video
+                              v-if="hasPlayableVideo(game)"
+                              :src="getGameVideoUrl(game)"
+                              :poster="getGameCoverUrl(game) || '/GameImg.jpg'"
+                              class="recent-game-media-el"
+                              autoplay
+                              muted
+                              loop
+                              playsinline
+                              preload="metadata"
+                            ></video>
+                            <img
+                              v-else-if="getGameCoverUrl(game)"
+                              :src="getGameCoverUrl(game)"
+                              :alt="game.title"
+                              class="recent-game-media-el"
+                            />
+                            <div v-else class="recent-game-media-fallback">
+                              <i class="fa fa-laptop account-icon-glyph"></i>
+                            </div>
+                          </div>
+                          <div>
+                            <div class="font-medium text-white">{{ game.title }}</div>
+                            <div class="text-xs text-white/80">{{ categoryToZh(game.category) }}</div>
                           </div>
                         </div>
-                        <div>
-                          <div class="font-medium text-white">{{ game.title }}</div>
-                          <div class="text-xs text-white/80">{{ categoryToZh(game.category) }}</div>
-                        </div>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-xs text-white/80">{{ game.play_count }} 次</div>
-                        <div class="flex items-center account-rating justify-end">
-                          <i class="fa fa-star text-[10px]"></i>
-                          <span class="ml-1 text-xs">{{ game.average_rating }}</span>
+                        <div class="text-right">
+                          <div class="text-xs text-white/80">{{ game.play_count }} 次</div>
+                          <div class="flex items-center account-rating justify-end">
+                            <i class="fa fa-star text-[10px]"></i>
+                            <span class="ml-1 text-xs">{{ game.average_rating }}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <section class="glass-card widget widget-friends p-6">
-              <div class="widget-title-row">
-                <h3 class="text-xl font-bold text-white">好友</h3>
-                <div class="friend-widget-actions">
-                  <span class="text-xs text-white/80">{{ friends.length }} 人</span>
+              <section class="glass-card widget widget-friends p-6">
+                <div class="widget-title-row">
+                  <h3 class="text-xl font-bold text-white">好友</h3>
+                  <div class="friend-widget-actions">
+                    <span class="text-xs text-white/80">{{ friends.length }} 人</span>
+                    <button
+                      type="button"
+                      class="friend-add-open-btn"
+                      @click="openFriendModal"
+                    >
+                      <i class="fa fa-user-plus"></i>
+                      <span>添加好友</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="friends-scroll">
+                  <div v-if="friendsLoading" class="text-sm text-white/80 py-3">加载中...</div>
+                  <div v-else-if="!friends.length" class="text-sm text-white/80 py-3">暂无好友</div>
+                  <div v-else class="space-y-2">
+                    <div
+                      v-for="friend in friends"
+                      :key="friend.id"
+                      class="friend-row"
+                      :class="{ 'is-opening': isOpeningFriendChat(friend.id) }"
+                      role="button"
+                      tabindex="0"
+                      @click="openFriendDiscussion(friend)"
+                      @keyup.enter="openFriendDiscussion(friend)"
+                      @keyup.space.prevent="openFriendDiscussion(friend)"
+                    >
+                      <img
+                        v-if="friend.avatar_url"
+                        :src="getAvatarUrl(friend.avatar_url)"
+                        :alt="friend.username"
+                        class="friend-avatar-img"
+                        @error="handleAvatarError"
+                      />
+                      <div v-else class="friend-avatar">
+                        {{ (friend.username || '?').charAt(0).toUpperCase() }}
+                      </div>
+                      <div class="friend-meta">
+                        <div class="username-level-row">
+                          <strong>{{ friend.username }}</strong>
+                          <UserLevelBadge :user-id="friend.id" />
+                        </div>
+                        <small>{{ friend.email || '未设置邮箱' }}</small>
+                      </div>
+                      <div class="friend-chat-indicator" :title="isOpeningFriendChat(friend.id) ? '正在打开协作聊天' : '进入协作聊天'">
+                        <i class="fa" :class="isOpeningFriendChat(friend.id) ? 'fa-spinner fa-spin' : 'fa-comments'"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <section class="glass-card widget widget-player-data p-0">
+              <PlayerDataPanel
+                :user="currentUser"
+                :games="gameStore.games"
+                :library-games="libraryGames"
+              />
+              <div class="player-data-editor">
+                <div class="player-data-editor-row">
                   <button
                     type="button"
-                    class="friend-add-open-btn"
-                    @click="openFriendModal"
+                    @click="openCoverPicker"
+                    :disabled="coverUploading"
+                    class="upload-avatar-btn"
                   >
-                    <i class="fa fa-user-plus"></i>
-                    <span>添加好友</span>
+                    {{ coverUploading ? '上传中...' : '上传背景图' }}
                   </button>
                 </div>
-              </div>
-
-              <div class="friends-scroll">
-                <div v-if="friendsLoading" class="text-sm text-white/80 py-3">加载中...</div>
-                <div v-else-if="!friends.length" class="text-sm text-white/80 py-3">暂无好友</div>
-                <div v-else class="space-y-2">
-                  <div
-                    v-for="friend in friends"
-                    :key="friend.id"
-                    class="friend-row"
-                  >
-                    <img
-                      v-if="friend.avatar_url"
-                      :src="getAvatarUrl(friend.avatar_url)"
-                      :alt="friend.username"
-                      class="friend-avatar-img"
-                      @error="handleAvatarError"
-                    />
-                    <div v-else class="friend-avatar">
-                      {{ (friend.username || '?').charAt(0).toUpperCase() }}
-                    </div>
-                    <div class="friend-meta">
-                      <strong>{{ friend.username }}</strong>
-                      <small>{{ friend.email || '未设置邮箱' }}</small>
-                    </div>
+                <div class="profile-edit-block">
+                  <textarea
+                    v-model.trim="profileBioInput"
+                    class="profile-textarea"
+                    rows="3"
+                    maxlength="1200"
+                    placeholder="输入个人简介..."
+                  ></textarea>
+                  <div class="profile-select-row">
+                    <select v-model="profilePreferredLanguage" class="profile-select">
+                      <option value="">编程语言偏好</option>
+                      <option value="TypeScript">TypeScript</option>
+                      <option value="JavaScript">JavaScript</option>
+                      <option value="C#">C#</option>
+                      <option value="Python">Python</option>
+                      <option value="其他">其他</option>
+                    </select>
+                    <select v-model="profilePreferredEngine" class="profile-select">
+                      <option value="">游戏引擎偏好</option>
+                      <option value="Cocos">Cocos</option>
+                      <option value="Unity">Unity</option>
+                      <option value="Godot">Godot</option>
+                      <option value="Unreal">Unreal</option>
+                      <option value="其他">其他</option>
+                    </select>
                   </div>
+                  <button
+                    type="button"
+                    class="upload-avatar-btn"
+                    :disabled="profileSaving"
+                    @click="saveProfileSettings"
+                  >
+                    {{ profileSaving ? '保存中...' : '保存资料' }}
+                  </button>
                 </div>
               </div>
             </section>
@@ -338,7 +423,10 @@
                             {{ (user.username || '?').charAt(0).toUpperCase() }}
                           </div>
                           <div class="friend-meta">
-                            <strong>{{ user.username }}</strong>
+                            <div class="username-level-row">
+                              <strong>{{ user.username }}</strong>
+                              <UserLevelBadge :user-id="user.id" />
+                            </div>
                             <small>{{ user.email || '未设置邮箱' }}</small>
                           </div>
                         </div>
@@ -436,7 +524,10 @@
                             {{ (request.requester_name || '?').charAt(0).toUpperCase() }}
                           </div>
                           <div class="friend-meta">
-                            <strong>{{ request.requester_name }}</strong>
+                            <div class="username-level-row">
+                              <strong>{{ request.requester_name }}</strong>
+                              <UserLevelBadge :user-id="request.requester_id" />
+                            </div>
                             <small>{{ formatSavedDate(request.created_at) }}</small>
                           </div>
                         </div>
@@ -452,6 +543,7 @@
             </div>
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -459,12 +551,14 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 import { useNotificationStore } from '../stores/notification'
 import NotificationsSection from '../components/NotificationsSection.vue'
+import PlayerDataPanel from '../components/PlayerDataPanel.vue'
+import UserLevelBadge from '../components/UserLevelBadge.vue'
 import { categoryToZh } from '../utils/category'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 import { API_BASE_URL, apiCall } from '../utils/api'
@@ -475,6 +569,7 @@ const gameStore = useGameStore()
 const modalStore = useModalStore()
 const notificationStore = useNotificationStore()
 const route = useRoute()
+const router = useRouter()
 
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
@@ -488,7 +583,13 @@ const libraryLoading = ref(false)
 const friends = ref([])
 const friendsLoading = ref(false)
 const avatarInputRef = ref(null)
+const coverInputRef = ref(null)
 const avatarUploading = ref(false)
+const coverUploading = ref(false)
+const profileSaving = ref(false)
+const profileBioInput = ref('')
+const profilePreferredLanguage = ref('')
+const profilePreferredEngine = ref('')
 const wechatBinding = ref(false)
 const wechatBound = ref(false)
 const wechatBoundLabel = ref('')
@@ -508,6 +609,14 @@ const inviteRedeeming = ref(false)
 const friendRequestsLoading = ref(false)
 const incomingRequests = ref([])
 const outgoingRequests = ref([])
+const friendChatOpening = ref({})
+
+const syncProfileEditor = (user) => {
+  const source = user || {}
+  profileBioInput.value = String(source.bio || source.profile_bio || '').trim()
+  profilePreferredLanguage.value = String(source.preferred_language || '').trim()
+  profilePreferredEngine.value = String(source.preferred_engine || '').trim()
+}
 
 const resetStats = () => {
   recentGames.value = []
@@ -825,6 +934,11 @@ const openAvatarPicker = () => {
   avatarInputRef.value?.click()
 }
 
+const openCoverPicker = () => {
+  if (coverUploading.value) return
+  coverInputRef.value?.click()
+}
+
 const onAvatarFileChange = async (event) => {
   const file = event.target.files && event.target.files[0]
   if (!file) return
@@ -850,6 +964,50 @@ const onAvatarFileChange = async (event) => {
     notificationStore.success('头像已更新', result.message)
   } else {
     notificationStore.error('头像上传失败', result.message)
+  }
+}
+
+const onCoverFileChange = async (event) => {
+  const file = event.target.files && event.target.files[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    notificationStore.warning('文件类型不支持', '请上传图片文件')
+    event.target.value = ''
+    return
+  }
+
+  if (file.size > 12 * 1024 * 1024) {
+    notificationStore.warning('文件过大', '背景图文件大小不能超过 12MB')
+    event.target.value = ''
+    return
+  }
+
+  coverUploading.value = true
+  const result = await authStore.uploadCover(file)
+  coverUploading.value = false
+  event.target.value = ''
+
+  if (result.success) {
+    notificationStore.success('背景图已更新', result.message)
+  } else {
+    notificationStore.error('背景图上传失败', result.message)
+  }
+}
+
+const saveProfileSettings = async () => {
+  profileSaving.value = true
+  const result = await authStore.updateProfile({
+    bio: profileBioInput.value,
+    preferred_language: profilePreferredLanguage.value,
+    preferred_engine: profilePreferredEngine.value
+  })
+  profileSaving.value = false
+
+  if (result.success) {
+    notificationStore.success('资料已更新', result.message)
+  } else {
+    notificationStore.error('资料保存失败', result.message)
   }
 }
 
@@ -887,6 +1045,35 @@ const openLibraryGame = (game = {}) => {
   })
 }
 
+const isOpeningFriendChat = (friendId) => {
+  if (!friendId) return false
+  return friendChatOpening.value[String(friendId)] === true
+}
+
+const openFriendDiscussion = async (friend = {}) => {
+  const friendId = Number.parseInt(friend?.id, 10)
+  if (!friendId || !isLoggedIn.value) return
+
+  const key = String(friendId)
+  if (friendChatOpening.value[key]) return
+
+  friendChatOpening.value[key] = true
+  try {
+    const data = await apiCall(`/discussion/friends/${friendId}/direct-room`, {
+      method: 'POST'
+    })
+    const roomId = Number.parseInt(data?.room?.id, 10)
+    if (!roomId) {
+      throw new Error('未获取到可用聊天房间')
+    }
+    router.push({ name: 'DiscussionMode', params: { id: String(roomId) } })
+  } catch (error) {
+    notificationStore.error('打开协作聊天失败', error.message || '请稍后重试')
+  } finally {
+    friendChatOpening.value[key] = false
+  }
+}
+
 onMounted(() => {
   const inviteFromQuery = String(route.query?.friendInvite || '').trim()
   if (inviteFromQuery) {
@@ -912,6 +1099,10 @@ onUnmounted(() => {
   window.removeEventListener('friends:changed', refreshFriendData)
 })
 
+watch(currentUser, (user) => {
+  syncProfileEditor(user)
+}, { immediate: true })
+
 watch(isLoggedIn, (loggedIn) => {
   if (!loggedIn) {
     resetStats()
@@ -925,6 +1116,9 @@ watch(isLoggedIn, (loggedIn) => {
     googleBoundLabel.value = ''
     friends.value = []
     friendsLoading.value = false
+    coverUploading.value = false
+    profileSaving.value = false
+    syncProfileEditor(null)
     incomingRequests.value = []
     outgoingRequests.value = []
     friendModalVisible.value = false
@@ -1006,6 +1200,10 @@ watch(isLoggedIn, (loggedIn) => {
   height: 100%;
 }
 
+.account-container {
+  position: relative;
+}
+
 .account-container > .max-w-6xl {
   height: 100%;
   min-height: 0;
@@ -1014,9 +1212,11 @@ watch(isLoggedIn, (loggedIn) => {
 }
 
 @media (min-width: 1024px) {
-  .account-container > .max-w-6xl {
-    margin-left: clamp(0.5rem, 1.8vw, 1.5rem) !important;
-    margin-right: auto !important;
+  .account-container > .max-w-6xl:not(.account-main-guest) {
+    max-width: none !important;
+    width: min(1680px, calc(100vw - 10rem));
+    margin-left: 2.0rem !important;
+    margin-right: 1.6rem !important;
   }
 
   .account-container > .max-w-6xl.account-main-guest {
@@ -1153,8 +1353,8 @@ watch(isLoggedIn, (loggedIn) => {
   min-height: 0;
   display: grid;
   gap: 0.9rem;
-  grid-template-columns: 1.05fr 1.45fr 1.1fr;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: 0.95fr 1.65fr 1.45fr;
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .widget {
@@ -1167,7 +1367,7 @@ watch(isLoggedIn, (loggedIn) => {
 
 .left-stack {
   grid-column: 1 / 2;
-  grid-row: 1 / 3;
+  grid-row: 1 / 4;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1187,11 +1387,20 @@ watch(isLoggedIn, (loggedIn) => {
 }
 
 .widget-notifications {
-  grid-column: 2 / 4;
+  grid-column: 2 / 3;
   grid-row: 1 / 2;
   padding: 0;
   align-self: start;
-  height: clamp(260px, 38vh, 420px);
+  height: clamp(240px, 35vh, 360px);
+}
+
+.middle-panels {
+  grid-column: 2 / 3;
+  grid-row: 2 / 4;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
 }
 
 .widget-library {
@@ -1201,13 +1410,17 @@ watch(isLoggedIn, (loggedIn) => {
 }
 
 .widget-stats {
-  grid-column: 2 / 3;
-  grid-row: 2 / 3;
+  min-height: 0;
 }
 
 .widget-friends {
+  min-height: 0;
+}
+
+.widget-player-data {
   grid-column: 3 / 4;
-  grid-row: 2 / 3;
+  grid-row: 1 / 4;
+  min-height: 0;
 }
 
 .widget-title-row {
@@ -1275,6 +1488,54 @@ watch(isLoggedIn, (loggedIn) => {
 .upload-avatar-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.profile-edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-textarea,
+.profile-select {
+  width: 100%;
+  border-radius: 0.55rem;
+  border: 1px solid var(--account-upload-border);
+  background: var(--account-recent-bg);
+  color: var(--account-text);
+  font-size: 0.8rem;
+}
+
+.profile-textarea {
+  resize: vertical;
+  min-height: 66px;
+  padding: 0.5rem 0.6rem;
+  line-height: 1.4;
+}
+
+.profile-select-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.profile-select {
+  height: 34px;
+  padding: 0 0.52rem;
+}
+
+.player-data-editor {
+  border-top: 1px solid var(--account-card-border);
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--account-card-bg);
+}
+
+.player-data-editor-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .bind-oauth-row {
@@ -1376,17 +1637,35 @@ watch(isLoggedIn, (loggedIn) => {
 }
 
 .stats-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 .stats-tile {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
   background: var(--account-recent-bg);
   border: 1px solid var(--account-recent-border);
   border-radius: 12px;
-  padding: 0.7rem 0.5rem;
+  padding: 0.55rem 0.62rem;
+}
+
+.stats-copy {
+  min-width: 0;
+}
+
+.stats-value {
+  font-size: 1.02rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--account-text);
+}
+
+.stats-label {
+  font-size: 0.75rem;
+  color: var(--account-text-soft);
 }
 
 .account-recent-row {
@@ -1483,6 +1762,23 @@ watch(isLoggedIn, (loggedIn) => {
   border: 1px solid var(--account-recent-border);
   border-radius: 12px;
   padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.friend-row:hover {
+  background: var(--account-card-bg-hover);
+  transform: translateY(-1px);
+}
+
+.friend-row:focus-visible {
+  outline: 2px solid var(--account-icon-bg);
+  outline-offset: 1px;
+}
+
+.friend-row.is-opening {
+  opacity: 0.78;
+  pointer-events: none;
 }
 
 .friend-avatar {
@@ -1512,6 +1808,20 @@ watch(isLoggedIn, (loggedIn) => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  flex: 1;
+}
+
+.profile-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.username-level-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
 .friend-meta strong,
@@ -1530,10 +1840,25 @@ watch(isLoggedIn, (loggedIn) => {
   font-size: 0.75rem;
 }
 
+.friend-chat-indicator {
+  flex-shrink: 0;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--account-recent-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--account-text-soft);
+  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--account-card-bg) 65%, transparent);
+}
+
 .widget-notifications :deep(.notifications-section) {
   height: 100%;
   border-radius: 20px;
 }
+
 
 .friend-modal-mask {
   position: fixed;
@@ -1720,7 +2045,7 @@ watch(isLoggedIn, (loggedIn) => {
 @media (max-width: 1280px) {
   .account-dashboard {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
   .left-stack {
@@ -1733,12 +2058,13 @@ watch(isLoggedIn, (loggedIn) => {
     grid-row: 1 / 2;
   }
 
-  .widget-stats {
-    grid-column: 2 / 3;
+  .middle-panels {
+    grid-column: 1 / 3;
     grid-row: 2 / 3;
+    grid-template-columns: 1fr;
   }
 
-  .widget-friends {
+  .widget-player-data {
     grid-column: 1 / 3;
     grid-row: 3 / 4;
   }
@@ -1786,8 +2112,8 @@ watch(isLoggedIn, (loggedIn) => {
 
   .left-stack,
   .widget-notifications,
-  .widget-stats,
-  .widget-friends {
+  .middle-panels,
+  .widget-player-data {
     grid-column: 1 / 2;
     grid-row: auto;
   }
@@ -1798,6 +2124,10 @@ watch(isLoggedIn, (loggedIn) => {
   }
 
   .friend-modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-select-row {
     grid-template-columns: 1fr;
   }
 }

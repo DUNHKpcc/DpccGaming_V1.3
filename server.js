@@ -10,6 +10,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fsSync = require('fs');
 
 const appConfig = require('./backend/config/app');
 const { initDatabase } = require('./backend/config/database');
@@ -31,6 +32,38 @@ const app = express();
 const isWindows = process.platform === 'win32';
 console.log('🔍 环境检测:', isWindows ? 'Windows开发环境' : 'Linux生产环境');
 
+const uniquePaths = (paths = []) => [...new Set(paths.filter(Boolean))];
+
+const toCandidatePaths = (rawPath = '') => {
+  const value = String(rawPath || '').trim();
+  if (!value) return [];
+  if (path.isAbsolute(value)) return [value];
+
+  const candidates = [
+    path.resolve(process.cwd(), value),
+    path.resolve(__dirname, value)
+  ];
+
+  // 兼容运维常见写法：wwwroot/...（缺少开头 /）
+  if (value.startsWith('wwwroot/')) {
+    candidates.unshift(`/${value}`);
+  }
+
+  return uniquePaths(candidates);
+};
+
+const pickDataPath = (envValue, defaults = []) => {
+  const envCandidates = toCandidatePaths(envValue);
+  const existingEnvPath = envCandidates.find((item) => fsSync.existsSync(item));
+  if (existingEnvPath) return existingEnvPath;
+  if (envCandidates.length > 0) return envCandidates[0];
+
+  const defaultCandidates = uniquePaths(defaults);
+  const existingDefaultPath = defaultCandidates.find((item) => fsSync.existsSync(item));
+  if (existingDefaultPath) return existingDefaultPath;
+  return defaultCandidates[0];
+};
+
 app.set('trust proxy', true);
 
 const generalLimiter = rateLimit({
@@ -50,14 +83,28 @@ const generalLimiter = rateLimit({
 });
 
 const uploadsPath = isWindows
-  ? path.join(__dirname, 'uploads')
-  : '/www/wwwroot/dpccgaming.xyz/uploads';
+  ? pickDataPath(process.env.UPLOADS_PATH, [path.join(__dirname, 'uploads')])
+  : pickDataPath(process.env.UPLOADS_PATH, [
+    '/wwwroot/dpccgaming.xyz/uploads',
+    '/www/wwwroot/dpccgaming.xyz/uploads',
+    path.join(__dirname, 'uploads')
+  ]);
 
 const gamesPath = isWindows
-  ? path.join(__dirname, 'games')
-  : path.join('/www', 'wwwroot', 'dpccgaming.xyz', 'games');
+  ? pickDataPath(process.env.GAMES_ROOT_PATH, [path.join(__dirname, 'games')])
+  : pickDataPath(process.env.GAMES_ROOT_PATH, [
+    '/wwwroot/dpccgaming.xyz/games',
+    '/www/wwwroot/dpccgaming.xyz/games',
+    path.join(__dirname, 'games')
+  ]);
 
-const codePath = path.join(uploadsPath, 'code');
+const codePath = isWindows
+  ? pickDataPath(process.env.CODE_ROOT_PATH, [path.join(uploadsPath, 'code')])
+  : pickDataPath(process.env.CODE_ROOT_PATH, [
+    '/wwwroot/dpccgaming.xyz/uploads/code',
+    '/www/wwwroot/dpccgaming.xyz/uploads/code',
+    path.join(uploadsPath, 'code')
+  ]);
 
 process.env.UPLOADS_PATH = process.env.UPLOADS_PATH || uploadsPath;
 process.env.GAMES_ROOT_PATH = process.env.GAMES_ROOT_PATH || gamesPath;
