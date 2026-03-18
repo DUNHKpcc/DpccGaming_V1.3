@@ -321,6 +321,50 @@ function parseUserIds(rawValue) {
   )].slice(0, 200);
 }
 
+const VERIFICATION_TYPES = ['enterprise', 'creator', 'beginner', 'developer'];
+
+function normalizeVerificationType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return VERIFICATION_TYPES.includes(normalized) ? normalized : '';
+}
+
+function resolveVerificationType(payload = {}) {
+  const explicit = normalizeVerificationType(payload.verificationType);
+  if (explicit) return explicit;
+
+  const role = String(payload.role || '').trim().toLowerCase();
+  const preferredEngine = String(payload.preferredEngine || '').trim();
+  const publishedGames = Number.parseInt(payload.publishedGames, 10) || 0;
+
+  if (['super_admin', 'admin'].includes(role)) {
+    return 'enterprise';
+  }
+
+  if (publishedGames > 0) {
+    return 'creator';
+  }
+
+  if (preferredEngine) {
+    return 'developer';
+  }
+
+  return 'beginner';
+}
+
+function resolveVerificationLabel(type) {
+  switch (type) {
+    case 'enterprise':
+      return '企业认证';
+    case 'creator':
+      return '创作者认证';
+    case 'developer':
+      return '开发者认证';
+    case 'beginner':
+    default:
+      return '初学者认证';
+  }
+}
+
 function sanitizeProfileText(value, maxLength = 1000) {
   const normalized = String(value ?? '').trim();
   if (!normalized) return '';
@@ -1767,6 +1811,54 @@ async function getUserLevels(req, res) {
   }
 }
 
+async function getUserVerifications(req, res) {
+  try {
+    const ids = parseUserIds(req.query.ids || req.query.userIds || '');
+
+    if (!ids.length) {
+      return res.json({ verifications: [] });
+    }
+
+    const profileColumns = await ensureUserProfileColumns();
+    const placeholders = ids.map(() => '?').join(', ');
+    const preferredEngineSelect = profileColumns.preferred_engine
+      ? 'COALESCE(u.preferred_engine, \'\') AS preferred_engine,'
+      : '\'\' AS preferred_engine,';
+    const preferredEngineGroupBy = profileColumns.preferred_engine ? ', u.preferred_engine' : '';
+
+    const rows = await executeQuery(
+      `SELECT u.id AS user_id,
+              u.role,
+              ${preferredEngineSelect}
+              COALESCE(SUM(CASE WHEN g.status = 'approved' THEN 1 ELSE 0 END), 0) AS published_games
+       FROM users u
+       LEFT JOIN games g ON g.uploaded_by = u.id
+       WHERE u.id IN (${placeholders})
+       GROUP BY u.id, u.role${preferredEngineGroupBy}`,
+      ids
+    );
+
+    const verifications = rows.map((row) => {
+      const type = resolveVerificationType({
+        role: row.role,
+        preferredEngine: row.preferred_engine,
+        publishedGames: row.published_games
+      });
+
+      return {
+        user_id: Number(row.user_id),
+        verification_type: type,
+        verification_label: resolveVerificationLabel(type)
+      };
+    });
+
+    return res.json({ verifications });
+  } catch (error) {
+    console.error('获取用户认证标识失败:', error);
+    return res.status(500).json({ error: '服务器内部错误' });
+  }
+}
+
 async function getCurrentUser(req, res) {
   try {
     if (!req.user) {
@@ -2032,6 +2124,7 @@ module.exports = {
   register,
   login,
   getUserLevels,
+  getUserVerifications,
   getCurrentUser,
   getUserProfile,
   verifyTokenEndpoint,

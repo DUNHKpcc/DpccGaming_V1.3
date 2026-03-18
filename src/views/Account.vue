@@ -167,97 +167,6 @@
             </section>
 
             <div class="middle-panels">
-              <section class="glass-card widget widget-stats p-6">
-                <div class="widget-title-row">
-                  <h3 class="text-xl font-bold text-white">游戏统计</h3>
-                </div>
-
-                <div class="stats-scroll">
-                  <div class="stats-tiles">
-                    <div class="stats-tile">
-                      <div class="w-10 h-10 account-icon-circle rounded-full flex items-center justify-center">
-                        <i class="fa fa-laptop text-base account-icon-glyph"></i>
-                      </div>
-                      <div class="stats-copy">
-                        <div class="stats-value">{{ totalGamesPlayed }}</div>
-                        <div class="stats-label">总游戏次数</div>
-                      </div>
-                    </div>
-
-                    <div class="stats-tile">
-                      <div class="w-10 h-10 account-icon-circle rounded-full flex items-center justify-center">
-                        <i class="fa fa-star text-base account-icon-glyph"></i>
-                      </div>
-                      <div class="stats-copy">
-                        <div class="stats-value">{{ averageRating }}</div>
-                        <div class="stats-label">平均评分</div>
-                      </div>
-                    </div>
-
-                    <div class="stats-tile">
-                      <div class="w-10 h-10 account-icon-circle rounded-full flex items-center justify-center">
-                        <i class="fa fa-comment text-base account-icon-glyph"></i>
-                      </div>
-                      <div class="stats-copy">
-                        <div class="stats-value">{{ totalComments }}</div>
-                        <div class="stats-label">总评论数</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="recent-games-block mt-5">
-                    <h4 class="text-sm font-bold text-white mb-3">最近游戏记录</h4>
-                    <div v-if="recentGames.length === 0" class="text-center py-6 text-white/80">
-                      <i class="fa fa-laptop text-3xl mb-2"></i>
-                      <p>还没有游戏记录</p>
-                    </div>
-                    <div v-else class="recent-games-scroll space-y-2">
-                      <div
-                        v-for="game in recentGames"
-                        :key="game.id"
-                        class="account-recent-row flex items-center justify-between p-3 rounded-lg"
-                      >
-                        <div class="flex items-center">
-                          <div class="recent-game-media mr-3">
-                            <video
-                              v-if="hasPlayableVideo(game)"
-                              :src="getGameVideoUrl(game)"
-                              :poster="getGameCoverUrl(game) || '/GameImg.jpg'"
-                              class="recent-game-media-el"
-                              autoplay
-                              muted
-                              loop
-                              playsinline
-                              preload="metadata"
-                            ></video>
-                            <img
-                              v-else-if="getGameCoverUrl(game)"
-                              :src="getGameCoverUrl(game)"
-                              :alt="game.title"
-                              class="recent-game-media-el"
-                            />
-                            <div v-else class="recent-game-media-fallback">
-                              <i class="fa fa-laptop account-icon-glyph"></i>
-                            </div>
-                          </div>
-                          <div>
-                            <div class="font-medium text-white">{{ game.title }}</div>
-                            <div class="text-xs text-white/80">{{ categoryToZh(game.category) }}</div>
-                          </div>
-                        </div>
-                        <div class="text-right">
-                          <div class="text-xs text-white/80">{{ game.play_count }} 次</div>
-                          <div class="flex items-center account-rating justify-end">
-                            <i class="fa fa-star text-[10px]"></i>
-                            <span class="ml-1 text-xs">{{ game.average_rating }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               <section class="glass-card widget widget-friends p-6">
                 <div class="widget-title-row">
                   <h3 class="text-xl font-bold text-white">好友</h3>
@@ -277,7 +186,7 @@
                 <div class="friends-scroll">
                   <div v-if="friendsLoading" class="text-sm text-white/80 py-3">加载中...</div>
                   <div v-else-if="!friends.length" class="text-sm text-white/80 py-3">暂无好友</div>
-                  <div v-else class="space-y-2">
+                  <div v-else class="friends-grid">
                     <div
                       v-for="friend in friends"
                       :key="friend.id"
@@ -320,54 +229,11 @@
                 :user="currentUser"
                 :games="gameStore.games"
                 :library-games="libraryGames"
+                :cover-uploading="coverUploading"
+                :profile-saving="profileSaving"
+                @request-cover-upload="openCoverPicker"
+                @auto-save-profile="onPlayerProfileAutoSave"
               />
-              <div class="player-data-editor">
-                <div class="player-data-editor-row">
-                  <button
-                    type="button"
-                    @click="openCoverPicker"
-                    :disabled="coverUploading"
-                    class="upload-avatar-btn"
-                  >
-                    {{ coverUploading ? '上传中...' : '上传背景图' }}
-                  </button>
-                </div>
-                <div class="profile-edit-block">
-                  <textarea
-                    v-model.trim="profileBioInput"
-                    class="profile-textarea"
-                    rows="3"
-                    maxlength="1200"
-                    placeholder="输入个人简介..."
-                  ></textarea>
-                  <div class="profile-select-row">
-                    <select v-model="profilePreferredLanguage" class="profile-select">
-                      <option value="">编程语言偏好</option>
-                      <option value="TypeScript">TypeScript</option>
-                      <option value="JavaScript">JavaScript</option>
-                      <option value="C#">C#</option>
-                      <option value="Python">Python</option>
-                      <option value="其他">其他</option>
-                    </select>
-                    <select v-model="profilePreferredEngine" class="profile-select">
-                      <option value="">游戏引擎偏好</option>
-                      <option value="Cocos">Cocos</option>
-                      <option value="Unity">Unity</option>
-                      <option value="Godot">Godot</option>
-                      <option value="Unreal">Unreal</option>
-                      <option value="其他">其他</option>
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    class="upload-avatar-btn"
-                    :disabled="profileSaving"
-                    @click="saveProfileSettings"
-                  >
-                    {{ profileSaving ? '保存中...' : '保存资料' }}
-                  </button>
-                </div>
-              </div>
             </section>
 
             <div
@@ -574,10 +440,6 @@ const router = useRouter()
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 
-const recentGames = ref([])
-const totalGamesPlayed = ref(0)
-const averageRating = ref(0)
-const totalComments = ref(0)
 const libraryGames = ref([])
 const libraryLoading = ref(false)
 const friends = ref([])
@@ -587,9 +449,6 @@ const coverInputRef = ref(null)
 const avatarUploading = ref(false)
 const coverUploading = ref(false)
 const profileSaving = ref(false)
-const profileBioInput = ref('')
-const profilePreferredLanguage = ref('')
-const profilePreferredEngine = ref('')
 const wechatBinding = ref(false)
 const wechatBound = ref(false)
 const wechatBoundLabel = ref('')
@@ -610,42 +469,22 @@ const friendRequestsLoading = ref(false)
 const incomingRequests = ref([])
 const outgoingRequests = ref([])
 const friendChatOpening = ref({})
+const profileDraftState = ref({
+  bio: '',
+  preferred_language: '',
+  preferred_engine: ''
+})
+const profilePendingPayload = ref(null)
 
-const syncProfileEditor = (user) => {
-  const source = user || {}
-  profileBioInput.value = String(source.bio || source.profile_bio || '').trim()
-  profilePreferredLanguage.value = String(source.preferred_language || '').trim()
-  profilePreferredEngine.value = String(source.preferred_engine || '').trim()
-}
-
-const resetStats = () => {
-  recentGames.value = []
-  totalGamesPlayed.value = 0
-  averageRating.value = '0.0'
-  totalComments.value = 0
-}
-
-const loadUserStats = async () => {
+const loadPlayerGames = async () => {
   if (!isLoggedIn.value) {
-    resetStats()
     return
   }
 
   try {
     await gameStore.loadGames()
-    recentGames.value = gameStore.games.slice(0, 8)
-
-    totalGamesPlayed.value = gameStore.games.reduce((sum, game) => sum + (game.play_count || 0), 0)
-    const ratings = gameStore.games.filter(game => game.average_rating && game.average_rating > 0)
-
-    averageRating.value = ratings.length
-      ? (ratings.reduce((sum, game) => sum + parseFloat(game.average_rating), 0) / ratings.length).toFixed(1)
-      : '0.0'
-
-    totalComments.value = gameStore.games.reduce((sum, game) => sum + (game.comment_count || 0), 0)
   } catch (error) {
-    console.error('加载用户统计失败:', error)
-    resetStats()
+    console.error('加载用户游戏失败:', error)
   }
 }
 
@@ -995,20 +834,82 @@ const onCoverFileChange = async (event) => {
   }
 }
 
-const saveProfileSettings = async () => {
-  profileSaving.value = true
-  const result = await authStore.updateProfile({
-    bio: profileBioInput.value,
-    preferred_language: profilePreferredLanguage.value,
-    preferred_engine: profilePreferredEngine.value
-  })
-  profileSaving.value = false
-
-  if (result.success) {
-    notificationStore.success('资料已更新', result.message)
-  } else {
-    notificationStore.error('资料保存失败', result.message)
+const getProfilePayloadFromUser = (user = {}) => {
+  const source = user || {}
+  return {
+    bio: String(source.bio || source.profile_bio || '').trim(),
+    preferred_language: String(source.preferred_language || '').trim(),
+    preferred_engine: String(source.preferred_engine || '').trim()
   }
+}
+
+const isSameProfilePayload = (left = {}, right = {}) => {
+  return String(left.bio || '') === String(right.bio || '')
+    && String(left.preferred_language || '') === String(right.preferred_language || '')
+    && String(left.preferred_engine || '') === String(right.preferred_engine || '')
+}
+
+const saveProfileSettings = async (patch = {}, options = {}) => {
+  const { silent = true } = options
+  const normalizedPatch = {
+    bio: patch?.bio !== undefined ? String(patch.bio || '').trim() : undefined,
+    preferred_language: patch?.preferred_language !== undefined ? String(patch.preferred_language || '').trim() : undefined,
+    preferred_engine: patch?.preferred_engine !== undefined ? String(patch.preferred_engine || '').trim() : undefined
+  }
+
+  const basePayload = {
+    ...profileDraftState.value
+  }
+  const nextPayload = {
+    ...basePayload,
+    ...(normalizedPatch.bio !== undefined ? { bio: normalizedPatch.bio } : {}),
+    ...(normalizedPatch.preferred_language !== undefined ? { preferred_language: normalizedPatch.preferred_language } : {}),
+    ...(normalizedPatch.preferred_engine !== undefined ? { preferred_engine: normalizedPatch.preferred_engine } : {})
+  }
+
+  if (isSameProfilePayload(nextPayload, basePayload)) {
+    return { success: true, skipped: true }
+  }
+
+  profileDraftState.value = nextPayload
+
+  if (profileSaving.value) {
+    profilePendingPayload.value = { ...nextPayload }
+    return { success: true, queued: true }
+  }
+
+  profileSaving.value = true
+  try {
+    let payloadToSave = { ...nextPayload }
+
+    while (payloadToSave) {
+      const result = await authStore.updateProfile(payloadToSave)
+      if (!result.success) {
+        profileDraftState.value = getProfilePayloadFromUser(currentUser.value)
+        notificationStore.error('资料保存失败', result.message)
+        return result
+      }
+
+      if (!silent) {
+        notificationStore.success('资料已更新', result.message)
+      }
+
+      const queuedPayload = profilePendingPayload.value
+      profilePendingPayload.value = null
+      if (queuedPayload && !isSameProfilePayload(queuedPayload, payloadToSave)) {
+        payloadToSave = { ...queuedPayload }
+        continue
+      }
+
+      return result
+    }
+  } finally {
+    profileSaving.value = false
+  }
+}
+
+const onPlayerProfileAutoSave = async (patch = {}) => {
+  await saveProfileSettings(patch, { silent: true })
 }
 
 const VIDEO_EXT_PATTERN = /\.(mp4|webm|ogg|m4v|mov)(\?.*)?$/i
@@ -1084,7 +985,7 @@ onMounted(() => {
   }
 
   if (isLoggedIn.value) {
-    loadUserStats()
+    loadPlayerGames()
     loadLibraryGames()
     loadFriends()
     loadFriendRequests()
@@ -1100,12 +1001,11 @@ onUnmounted(() => {
 })
 
 watch(currentUser, (user) => {
-  syncProfileEditor(user)
+  profileDraftState.value = getProfilePayloadFromUser(user)
 }, { immediate: true })
 
 watch(isLoggedIn, (loggedIn) => {
   if (!loggedIn) {
-    resetStats()
     libraryGames.value = []
     libraryLoading.value = false
     wechatBinding.value = false
@@ -1118,14 +1018,15 @@ watch(isLoggedIn, (loggedIn) => {
     friendsLoading.value = false
     coverUploading.value = false
     profileSaving.value = false
-    syncProfileEditor(null)
+    profileDraftState.value = getProfilePayloadFromUser(null)
+    profilePendingPayload.value = null
     incomingRequests.value = []
     outgoingRequests.value = []
     friendModalVisible.value = false
     return
   }
 
-  loadUserStats()
+  loadPlayerGames()
   loadLibraryGames()
   loadWechatBindStatus()
   loadGoogleBindStatus()
@@ -1161,7 +1062,6 @@ watch(isLoggedIn, (loggedIn) => {
   --account-recent-border: rgba(255, 255, 255, 0.14);
   --account-logout: #fca5a5;
   --account-logout-hover: #f87171;
-  --account-rating: #facc15;
   position: relative;
   height: calc(100vh - 4rem);
   min-height: calc(100vh - 4rem);
@@ -1192,7 +1092,6 @@ watch(isLoggedIn, (loggedIn) => {
   --account-recent-border: rgba(17, 17, 17, 0.14);
   --account-logout: #dc2626;
   --account-logout-hover: #b91c1c;
-  --account-rating: #b45309;
 }
 
 .content-wrapper,
@@ -1215,7 +1114,7 @@ watch(isLoggedIn, (loggedIn) => {
   .account-container > .max-w-6xl:not(.account-main-guest) {
     max-width: none !important;
     width: min(1680px, calc(100vw - 10rem));
-    margin-left: 2.0rem !important;
+    margin-left: 1.5rem !important;
     margin-right: 1.6rem !important;
   }
 
@@ -1308,7 +1207,7 @@ watch(isLoggedIn, (loggedIn) => {
 
 .account-login-primary-btn {
   width: 100%;
-  border-radius: 0.65rem;
+  border-radius: 5px;
   padding: 0.65rem 0.95rem;
   font-size: 0.95rem;
   font-weight: 700;
@@ -1316,7 +1215,7 @@ watch(isLoggedIn, (loggedIn) => {
 
 .account-login-secondary-btn {
   width: 100%;
-  border-radius: 0.65rem;
+  border-radius: 5px;
   border: 1px solid var(--account-upload-border);
   background: transparent;
   color: var(--account-text);
@@ -1344,7 +1243,7 @@ watch(isLoggedIn, (loggedIn) => {
   color: var(--account-text-soft);
   border: 1px solid var(--account-recent-border);
   background: var(--account-recent-bg);
-  border-radius: 999px;
+  border-radius: 5px;
   padding: 0.25rem 0.55rem;
 }
 
@@ -1398,9 +1297,7 @@ watch(isLoggedIn, (loggedIn) => {
   grid-column: 2 / 3;
   grid-row: 2 / 4;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.9rem;
+  display: flex;
 }
 
 .widget-library {
@@ -1409,12 +1306,9 @@ watch(isLoggedIn, (loggedIn) => {
   height: 0;
 }
 
-.widget-stats {
-  min-height: 0;
-}
-
 .widget-friends {
   min-height: 0;
+  flex: 1;
 }
 
 .widget-player-data {
@@ -1440,7 +1334,7 @@ watch(isLoggedIn, (loggedIn) => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  border-radius: 999px;
+  border-radius: 5px;
   padding: 0.3rem 0.7rem;
   font-size: 0.75rem;
   font-weight: 600;
@@ -1475,7 +1369,7 @@ watch(isLoggedIn, (loggedIn) => {
   border: 1px solid var(--account-upload-border);
   color: var(--account-upload-text);
   padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
   transition: background 0.2s ease;
@@ -1488,54 +1382,6 @@ watch(isLoggedIn, (loggedIn) => {
 .upload-avatar-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.profile-edit-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.profile-textarea,
-.profile-select {
-  width: 100%;
-  border-radius: 0.55rem;
-  border: 1px solid var(--account-upload-border);
-  background: var(--account-recent-bg);
-  color: var(--account-text);
-  font-size: 0.8rem;
-}
-
-.profile-textarea {
-  resize: vertical;
-  min-height: 66px;
-  padding: 0.5rem 0.6rem;
-  line-height: 1.4;
-}
-
-.profile-select-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem;
-}
-
-.profile-select {
-  height: 34px;
-  padding: 0 0.52rem;
-}
-
-.player-data-editor {
-  border-top: 1px solid var(--account-card-border);
-  padding: 0.65rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  background: var(--account-card-bg);
-}
-
-.player-data-editor-row {
-  display: flex;
-  justify-content: flex-end;
 }
 
 .bind-oauth-row {
@@ -1612,65 +1458,12 @@ watch(isLoggedIn, (loggedIn) => {
   color: var(--account-logout-hover);
 }
 
-.stats-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.recent-games-block {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.recent-games-scroll,
 .library-scroll,
 .friends-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 0.25rem;
-}
-
-.stats-tiles {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.stats-tile {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  background: var(--account-recent-bg);
-  border: 1px solid var(--account-recent-border);
-  border-radius: 12px;
-  padding: 0.55rem 0.62rem;
-}
-
-.stats-copy {
-  min-width: 0;
-}
-
-.stats-value {
-  font-size: 1.02rem;
-  line-height: 1.2;
-  font-weight: 700;
-  color: var(--account-text);
-}
-
-.stats-label {
-  font-size: 0.75rem;
-  color: var(--account-text-soft);
-}
-
-.account-recent-row {
-  background: var(--account-recent-bg);
-  border: 1px solid var(--account-recent-border);
 }
 
 .recent-game-media {
@@ -1699,17 +1492,13 @@ watch(isLoggedIn, (loggedIn) => {
   background: var(--account-icon-bg);
 }
 
-.account-rating {
-  color: var(--account-rating);
-}
-
 .library-row {
   display: flex;
   align-items: center;
   gap: 0.65rem;
   background: var(--account-recent-bg);
   border: 1px solid var(--account-recent-border);
-  border-radius: 12px;
+  border-radius: 5px;
   padding: 0.5rem 0.6rem;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
@@ -1754,13 +1543,19 @@ watch(isLoggedIn, (loggedIn) => {
   color: var(--account-text-soft);
 }
 
+.friends-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
 .friend-row {
   display: flex;
   align-items: center;
   gap: 0.7rem;
   background: var(--account-recent-bg);
   border: 1px solid var(--account-recent-border);
-  border-radius: 12px;
+  border-radius: 5px;
   padding: 0.55rem 0.65rem;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
@@ -1905,7 +1700,7 @@ watch(isLoggedIn, (loggedIn) => {
   color: var(--account-upload-text);
   width: 32px;
   height: 32px;
-  border-radius: 999px;
+  border-radius: 5px;
 }
 
 .friend-modal-body {
@@ -1920,7 +1715,7 @@ watch(isLoggedIn, (loggedIn) => {
 .friend-modal-section {
   border: 1px solid var(--account-recent-border);
   background: var(--account-recent-bg);
-  border-radius: 12px;
+  border-radius: 5px;
   padding: 0.75rem;
   min-height: 0;
   display: flex;
@@ -2013,7 +1808,7 @@ watch(isLoggedIn, (loggedIn) => {
 .friend-request-row {
   border: 1px solid var(--account-recent-border);
   background: var(--account-card-bg);
-  border-radius: 10px;
+  border-radius: 5px;
   padding: 0.5rem;
   display: flex;
   align-items: center;
@@ -2061,7 +1856,6 @@ watch(isLoggedIn, (loggedIn) => {
   .middle-panels {
     grid-column: 1 / 3;
     grid-row: 2 / 3;
-    grid-template-columns: 1fr;
   }
 
   .widget-player-data {
@@ -2123,12 +1917,13 @@ watch(isLoggedIn, (loggedIn) => {
     max-height: 92vh;
   }
 
+  .friends-grid {
+    grid-template-columns: 1fr;
+  }
+
   .friend-modal-body {
     grid-template-columns: 1fr;
   }
 
-  .profile-select-row {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

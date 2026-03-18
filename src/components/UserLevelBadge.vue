@@ -1,17 +1,20 @@
 <template>
-  <span
-    v-if="levelData"
-    class="user-level-badge"
-    :class="`tier-${levelData.tier || 'rookie'}`"
-    :title="badgeTitle"
-  >
-    Lv{{ levelData.level }}
+  <span v-if="levelData" class="user-level-badge-row">
+    <span
+      class="user-level-badge"
+      :class="`tier-${levelData.tier || 'rookie'}`"
+      :title="badgeTitle"
+    >
+      Lv{{ levelData.level }}
+    </span>
+    <VerificationBadge :user-id="normalizedUserId" />
   </span>
 </template>
 
 <script setup>
 import { computed, onMounted, watch } from 'vue'
 import { useUserLevelStore } from '../stores/userLevel'
+import VerificationBadge from './VerificationBadge.vue'
 
 const props = defineProps({
   userId: {
@@ -50,6 +53,12 @@ watch(normalizedUserId, loadLevel)
 </script>
 
 <style scoped>
+.user-level-badge-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .user-level-badge {
   display: inline-flex;
   align-items: center;
@@ -63,65 +72,49 @@ watch(normalizedUserId, loadLevel)
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  border: 1px solid transparent;
+  color: #f5f8ff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  text-shadow: 0 0 4px rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.08), 0 0 8px rgba(0, 0, 0, 0.26);
+  vertical-align: middle;
 }
 
 .tier-rookie {
-  background: rgba(141, 152, 171, 0.2);
-  border-color: rgba(141, 152, 171, 0.38);
-  color: #d7dfef;
+  background: linear-gradient(135deg, rgba(84, 107, 255, 0.48), rgba(122, 73, 255, 0.38));
+  border-color: rgba(160, 183, 255, 0.88);
+  color: #eef2ff;
+  box-shadow: inset 0 0 8px rgba(172, 185, 255, 0.28), 0 0 9px rgba(96, 118, 255, 0.38);
 }
 
 .tier-explorer {
-  background: rgba(99, 167, 255, 0.18);
-  border-color: rgba(99, 167, 255, 0.36);
-  color: #d9ecff;
+  background: linear-gradient(135deg, rgba(0, 209, 224, 0.48), rgba(0, 131, 255, 0.36));
+  border-color: rgba(120, 244, 255, 0.86);
+  color: #e8fdff;
+  box-shadow: inset 0 0 8px rgba(118, 255, 252, 0.26), 0 0 9px rgba(0, 184, 255, 0.4);
 }
 
 .tier-builder {
-  background: rgba(107, 197, 109, 0.18);
-  border-color: rgba(107, 197, 109, 0.34);
-  color: #dcf6de;
+  background: linear-gradient(135deg, rgba(39, 193, 103, 0.48), rgba(21, 148, 82, 0.38));
+  border-color: rgba(139, 255, 184, 0.86);
+  color: #eaffee;
+  box-shadow: inset 0 0 8px rgba(154, 255, 190, 0.26), 0 0 9px rgba(49, 222, 120, 0.42);
 }
 
 .tier-master {
-  background: rgba(227, 179, 79, 0.2);
-  border-color: rgba(227, 179, 79, 0.38);
-  color: #fff2d2;
+  background: linear-gradient(135deg, rgba(234, 172, 53, 0.5), rgba(205, 117, 20, 0.38));
+  border-color: rgba(255, 224, 138, 0.9);
+  color: #fff6db;
+  box-shadow: inset 0 0 8px rgba(255, 234, 162, 0.28), 0 0 10px rgba(238, 165, 62, 0.44);
 }
 
 .tier-legend {
-  background: rgba(214, 118, 255, 0.18);
-  border-color: rgba(214, 118, 255, 0.34);
-  color: #f7ddff;
+  background: linear-gradient(135deg, rgba(224, 80, 214, 0.48), rgba(139, 84, 255, 0.38));
+  border-color: rgba(255, 156, 242, 0.9);
+  color: #ffe6ff;
+  box-shadow: inset 0 0 8px rgba(255, 178, 246, 0.28), 0 0 10px rgba(206, 95, 246, 0.44);
 }
 
 [data-theme='light'] .user-level-badge {
-  color: #1d1d1f;
-}
-
-[data-theme='light'] .tier-rookie {
-  background: rgba(96, 108, 130, 0.12);
-  border-color: rgba(96, 108, 130, 0.2);
-}
-
-[data-theme='light'] .tier-explorer {
-  background: rgba(51, 132, 233, 0.14);
-  border-color: rgba(51, 132, 233, 0.22);
-}
-
-[data-theme='light'] .tier-builder {
-  background: rgba(63, 170, 80, 0.14);
-  border-color: rgba(63, 170, 80, 0.22);
-}
-
-[data-theme='light'] .tier-master {
-  background: rgba(201, 152, 40, 0.16);
-  border-color: rgba(201, 152, 40, 0.24);
-}
-
-[data-theme='light'] .tier-legend {
-  background: rgba(165, 86, 198, 0.14);
-  border-color: rgba(165, 86, 198, 0.24);
+  color: #000;
 }
 </style>

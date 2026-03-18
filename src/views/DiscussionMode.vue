@@ -104,7 +104,13 @@
                       @error="handleAvatarError"
                     />
                   </AvatarFriendAction>
-                  <div class="message-bubble">
+                  <div
+                    class="message-bubble"
+                    :class="{
+                      'code-preview-standalone': message.codePreview && !message.text && !message.attachment,
+                      'image-attachment-standalone': message.attachment?.type === 'image' && !message.text && !message.codePreview
+                    }"
+                  >
                     <div v-if="message.text" class="message-text">{{ message.text }}</div>
                     <div v-if="message.attachment" class="message-attachment">
                       <img
@@ -134,12 +140,18 @@
                     </div>
                     <div v-if="message.codePreview" class="message-code-preview">
                       <div class="message-code-preview-head">
-                        <i class="fa fa-code"></i>
+                        <img
+                          class="code-type-icon"
+                          :src="getCodeTypeIconByPath(message.codePreview.path)"
+                          alt="code type"
+                        />
                         <span class="message-code-preview-path" :title="message.codePreview.path">
                           {{ message.codePreview.path }}
                         </span>
                       </div>
-                      <pre class="message-code-preview-snippet"><code>{{ message.codePreview.snippet }}</code></pre>
+                      <pre class="message-code-preview-snippet">
+                        <code class="hljs" v-html="getCodePreviewSnippetHtml(message.codePreview)"></code>
+                      </pre>
                     </div>
                     <div class="message-meta">
                       <span>{{ message.time }}</span>
@@ -160,56 +172,77 @@
           </section>
 
           <footer class="chat-input-bar">
-            <div v-if="showAttachmentMenu" class="attach-menu" @click.stop>
-              <button
-                type="button"
-                class="attach-option"
-                title="上传图片"
-                @click="openAttachmentPicker('image')"
-              >
-                <i class="fa fa-image"></i>
-              </button>
-              <button
-                type="button"
-                class="attach-option"
-                title="上传视频"
-                @click="openAttachmentPicker('video')"
-              >
-                <i class="fa fa-video-camera"></i>
-              </button>
-              <button
-                type="button"
-                class="attach-option"
-                title="发送代码预览"
-                @click="openCodePreviewPicker"
-              >
-                <i class="fa fa-code"></i>
+            <div class="chat-input-main">
+              <div class="attach-entry" @click.stop>
+                <button
+                  class="icon-btn light attach-plus-btn"
+                  :disabled="uploadingAttachment || !currentChat"
+                  @click.stop="toggleAttachmentMenu"
+                >
+                  <i class="fa fa-plus"></i>
+                </button>
+              </div>
+              <input
+                ref="attachmentInputRef"
+                type="file"
+                class="attachment-input-hidden"
+                :accept="attachmentAccept"
+                @change="onAttachmentFileChange"
+              />
+              <input
+                ref="draftInputRef"
+                v-model="draft"
+                type="text"
+                :placeholder="sendingMessage ? '发送中...' : (uploadingAttachment ? '上传中...' : 'Message')"
+                :disabled="sendingMessage || uploadingAttachment"
+                @keyup.enter="sendMessage"
+              />
+              <button class="send-btn" :disabled="sendingMessage || uploadingAttachment" @click="sendMessage" aria-label="发送">
+                <svg
+                  class="send-icon-lucide"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m22 2-7 20-4-9-9-4Z" />
+                  <path d="M22 2 11 13" />
+                </svg>
               </button>
             </div>
-            <div class="attach-entry" @click.stop>
-              <button
-                class="icon-btn light attach-plus-btn"
-                :disabled="uploadingAttachment || !currentChat"
-                @click.stop="toggleAttachmentMenu"
-              >
-                <i class="fa fa-plus"></i>
-              </button>
-            </div>
-            <input
-              ref="attachmentInputRef"
-              type="file"
-              class="attachment-input-hidden"
-              :accept="attachmentAccept"
-              @change="onAttachmentFileChange"
-            />
-            <input
-              v-model="draft"
-              type="text"
-              :placeholder="sendingMessage ? '发送中...' : (uploadingAttachment ? '上传中...' : 'Message')"
-              :disabled="sendingMessage || uploadingAttachment"
-              @keyup.enter="sendMessage"
-            />
-            <button class="send-btn" :disabled="sendingMessage || uploadingAttachment" @click="sendMessage">➤</button>
+
+            <transition name="attach-tray">
+              <div v-if="showAttachmentMenu" class="attach-menu" @click.stop>
+                <button
+                  type="button"
+                  class="attach-option"
+                  title="上传图片"
+                  @click="openAttachmentPicker('image')"
+                >
+                  <i class="fa fa-image"></i>
+                </button>
+                <button
+                  type="button"
+                  class="attach-option"
+                  title="上传视频"
+                  @click="openAttachmentPicker('video')"
+                >
+                  <i class="fa fa-video-camera"></i>
+                </button>
+                <button
+                  type="button"
+                  class="attach-option"
+                  title="发送代码预览"
+                  @click="openCodePreviewPicker"
+                >
+                  <i class="fa fa-code"></i>
+                </button>
+              </div>
+            </transition>
           </footer>
 
           <div v-if="showCodePicker" class="code-picker-mask" @click="closeCodePicker">
@@ -251,21 +284,32 @@
     </section>
 
     <section class="right-side">
-      <div class="code-header">
-        <div>
-          <h2>Code Preview</h2>
-          <p>自动展示当前房间 gameId 对应的源码。</p>
+      <div class="right-slider-wrap">
+        <div class="right-slider">
+          <div class="right-slider-pill" :style="{ transform: `translateX(${rightTabIndex * 100}%)` }"></div>
+          <button
+            v-for="tab in rightPanelTabs"
+            :key="tab.key"
+            type="button"
+            class="right-slider-tab"
+            :class="{ active: activeRightTab === tab.key }"
+            @click="activeRightTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
         </div>
-        <button class="run-btn" :disabled="sendingAi || !currentChat" @click="sendAiMessage">
-          {{ sendingAi ? 'Running...' : 'Run AI' }}
-        </button>
       </div>
 
-      <div class="code-toolbar">
+      <div class="right-path-row">
+        <img
+          class="right-filetype-icon"
+          :src="getCodeTypeIconByPath(currentFileName)"
+          alt="code type"
+        />
         <select
           v-if="currentRoomCodeFiles.length"
           v-model="currentCodePath"
-          class="code-file-selector"
+          class="right-path-input right-path-select"
         >
           <option
             v-for="file in currentRoomCodeFiles"
@@ -275,22 +319,31 @@
             {{ file.path }}
           </option>
         </select>
-        <span v-else class="file-name">{{ currentFileName }}</span>
+        <input
+          v-else
+          class="right-path-input"
+          type="text"
+          :value="currentFileName"
+          readonly
+        />
         <button
-          class="icon-btn light code-refresh-btn"
+          type="button"
+          class="right-plus-btn"
           :disabled="codePanelLoading || !currentChat?.gameId"
-          @click="refreshCurrentRoomCode"
           title="刷新当前房间源码"
+          @click="refreshCurrentRoomCode"
         >
           <i :class="codePanelLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
         </button>
       </div>
 
-      <div v-if="codePanelLoading" class="code-empty-state">源码加载中...</div>
-      <div v-else-if="codePanelError" class="code-empty-state error">{{ codePanelError }}</div>
-      <div v-else-if="!currentChat" class="code-empty-state">请先选择一个讨论房间</div>
-      <div v-else-if="!currentRoomCodeFiles.length" class="code-empty-state">当前房间游戏暂无可浏览源码</div>
-      <pre v-else class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
+      <div class="right-code-shell">
+        <div v-if="codePanelLoading" class="code-empty-state">源码加载中...</div>
+        <div v-else-if="codePanelError" class="code-empty-state error">{{ codePanelError }}</div>
+        <div v-else-if="!currentChat" class="code-empty-state">请先选择一个讨论房间</div>
+        <div v-else-if="!currentRoomCodeFiles.length" class="code-empty-state">当前房间游戏暂无可浏览源码</div>
+        <pre v-else class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
+      </div>
     </section>
   </div>
 </template>
@@ -298,13 +351,28 @@
 <script>
 import { io } from 'socket.io-client'
 import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
 import json from 'highlight.js/lib/languages/json'
+import xml from 'highlight.js/lib/languages/xml'
+import css from 'highlight.js/lib/languages/css'
+import python from 'highlight.js/lib/languages/python'
+import cpp from 'highlight.js/lib/languages/cpp'
+import csharp from 'highlight.js/lib/languages/csharp'
 import { apiCall, API_BASE_URL } from '../utils/api'
 import { getAvatarUrl, handleAvatarError as fallbackAvatar } from '../utils/avatar'
 import AvatarFriendAction from '../components/AvatarFriendAction.vue'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
 
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('typescript', typescript)
 hljs.registerLanguage('json', json)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('css', css)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('cpp', cpp)
+hljs.registerLanguage('c', cpp)
+hljs.registerLanguage('csharp', csharp)
 
 const MODE_LABELS = {
   friend: '好友',
@@ -378,7 +446,16 @@ export default {
       attachmentAccept: '',
       errorText: '',
       socket: null,
-      subscribedRoomId: null
+      subscribedRoomId: null,
+      messagePollTimer: null,
+      messagePollPending: false,
+      rightPanelTabs: [
+        { key: 'docs', label: '文档区' },
+        { key: 'code', label: '代码区' },
+        { key: 'task', label: '任务区' },
+        { key: 'file', label: '文件区' }
+      ],
+      activeRightTab: 'code'
     }
   },
   computed: {
@@ -418,16 +495,16 @@ export default {
       return '// 当前房间暂无可展示源码'
     },
     highlightedCodeText() {
-      try {
-        return hljs.highlightAuto(this.codeText || '').value
-      } catch (error) {
-        return hljs.highlightAuto(String(this.codeText || '')).value
-      }
+      return this.highlightCode(String(this.codeText || ''), this.currentCodeFile?.path || '')
     },
     filteredCodePickerFiles() {
       const keyword = String(this.codePickerKeyword || '').toLowerCase()
       if (!keyword) return this.codePickerFiles
       return this.codePickerFiles.filter((file) => file.path.toLowerCase().includes(keyword))
+    },
+    rightTabIndex() {
+      const index = this.rightPanelTabs.findIndex((tab) => tab.key === this.activeRightTab)
+      return index >= 0 ? index : 1
     }
   },
   watch: {
@@ -438,11 +515,13 @@ export default {
   mounted() {
     this.currentUserId = this.readCurrentUserId()
     this.setupSocket()
+    this.startMessagePolling()
     this.initializeDiscussion()
     window.addEventListener('click', this.closeAttachmentMenu)
   },
   beforeUnmount() {
     window.removeEventListener('click', this.closeAttachmentMenu)
+    this.stopMessagePolling()
     this.teardownSocket()
   },
   methods: {
@@ -523,6 +602,52 @@ export default {
       if (normalized.endsWith('.h')) return 'Header'
       if (normalized.endsWith('.html')) return 'HTML'
       return 'Code'
+    },
+    getCodeTypeIconByPath(filePath = '') {
+      const normalized = String(filePath || '').toLowerCase()
+      if (normalized.endsWith('.ts') || normalized.endsWith('.tsx')) return '/codeType/typescript.jpg'
+      if (normalized.endsWith('.cs')) return '/codeType/csharp.webp'
+      return '/codeType/js.webp'
+    },
+    inferHighlightLanguage(filePath = '') {
+      const normalized = String(filePath || '').toLowerCase()
+      if (normalized.endsWith('.ts') || normalized.endsWith('.tsx')) return 'typescript'
+      if (normalized.endsWith('.js') || normalized.endsWith('.jsx')) return 'javascript'
+      if (normalized.endsWith('.vue') || normalized.endsWith('.html')) return 'xml'
+      if (normalized.endsWith('.css')) return 'css'
+      if (normalized.endsWith('.scss') || normalized.endsWith('.less')) return 'css'
+      if (normalized.endsWith('.json')) return 'json'
+      if (normalized.endsWith('.py')) return 'python'
+      if (normalized.endsWith('.cs')) return 'csharp'
+      if (normalized.endsWith('.cpp') || normalized.endsWith('.cc')) return 'cpp'
+      if (normalized.endsWith('.c') || normalized.endsWith('.h')) return 'c'
+      return ''
+    },
+    highlightCode(content = '', filePath = '') {
+      const source = String(content || '')
+      if (!source) return ''
+
+      const language = this.inferHighlightLanguage(filePath)
+      if (language && hljs.getLanguage(language)) {
+        try {
+          return hljs.highlight(source, { language }).value
+        } catch {
+          // fallback to auto detect
+        }
+      }
+
+      try {
+        return hljs.highlightAuto(source).value
+      } catch {
+        return source
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+      }
+    },
+    getCodePreviewSnippetHtml(codePreview) {
+      if (!codePreview) return ''
+      return this.highlightCode(codePreview.snippet || '', codePreview.path || '')
     },
     normalizeCodeFile(file = {}) {
       const path = String(file.path || '').trim()
@@ -640,8 +765,7 @@ export default {
         })
 
         const rawMessage = response.message
-        const nextMessage = this.mapMessage(rawMessage)
-        this.currentChat.messages.push(nextMessage)
+        this.appendMessageIfNeeded(this.currentChat, rawMessage)
         this.currentChat.messagesLoaded = true
         this.updateChatSummary(this.currentChat, rawMessage)
         this.closeCodePicker()
@@ -699,6 +823,10 @@ export default {
       if (codePreview && /^代码预览[:：]/.test(text)) {
         text = ''
       }
+      if (attachment?.type === 'image') {
+        // 图片消息仅展示图片本体，不显示后端自动生成的“上传了图片：文件名”文本
+        text = ''
+      }
       const senderName = isMine
         ? this.currentUsername
         : item.username || (senderType === 'ai' ? 'AI 助手' : senderType === 'system' ? '系统' : '成员')
@@ -723,6 +851,30 @@ export default {
         time: formatClock(item.created_at),
         rawTime: item.created_at
       }
+    },
+    normalizeMessageId(rawId) {
+      if (rawId === null || rawId === undefined) return ''
+      const text = String(rawId).trim()
+      if (!text) return ''
+      if (/^\d+$/.test(text)) return String(Number(text))
+      return text
+    },
+    findMessageIndexById(chat, rawId) {
+      if (!chat || !Array.isArray(chat.messages)) return -1
+      const targetId = this.normalizeMessageId(rawId)
+      if (!targetId) return -1
+      return chat.messages.findIndex((item) => this.normalizeMessageId(item?.id) === targetId)
+    },
+    appendMessageIfNeeded(chat, rawMessage) {
+      if (!chat || !rawMessage) return false
+      const nextMessage = this.mapMessage(rawMessage)
+      const index = this.findMessageIndexById(chat, rawMessage.id)
+      if (index >= 0) {
+        chat.messages.splice(index, 1, nextMessage)
+        return false
+      }
+      chat.messages.push(nextMessage)
+      return true
     },
     handleAvatarError(event) {
       fallbackAvatar(event)
@@ -773,8 +925,7 @@ export default {
 
       try {
         const rawMessage = await this.uploadAttachment(file, kind)
-        const nextMessage = this.mapMessage(rawMessage)
-        this.currentChat.messages.push(nextMessage)
+        this.appendMessageIfNeeded(this.currentChat, rawMessage)
         this.currentChat.messagesLoaded = true
         this.updateChatSummary(this.currentChat, rawMessage)
         this.$nextTick(() => this.scrollMessagesToBottom())
@@ -792,27 +943,13 @@ export default {
 
       const formData = new FormData()
       formData.append('file', file)
-
-      const headers = {}
-      const token = this.getAuthToken()
-      if (token) {
-        headers.Authorization = `Bearer ${token}`
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/discussion/rooms/${roomId}/attachments/${kind}`,
+      const data = await apiCall(
+        `/discussion/rooms/${roomId}/attachments/${kind}`,
         {
           method: 'POST',
-          credentials: 'include',
-          headers,
           body: formData
         }
       )
-
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data.error || data.message || '附件上传失败')
-      }
       if (!data?.message) {
         throw new Error('上传成功但消息写入失败')
       }
@@ -926,8 +1063,7 @@ export default {
         })
 
         const rawMessage = response.message
-        const nextMessage = this.mapMessage(rawMessage)
-        this.currentChat.messages.push(nextMessage)
+        this.appendMessageIfNeeded(this.currentChat, rawMessage)
         this.currentChat.messagesLoaded = true
         this.updateChatSummary(this.currentChat, rawMessage)
         this.draft = ''
@@ -936,6 +1072,7 @@ export default {
         this.errorText = error.message || '发送消息失败'
       } finally {
         this.sendingMessage = false
+        this.$nextTick(() => this.focusDraftInput())
       }
     },
     async sendAiMessage() {
@@ -952,8 +1089,7 @@ export default {
         })
 
         const rawMessage = response.message
-        const nextMessage = this.mapMessage(rawMessage)
-        this.currentChat.messages.push(nextMessage)
+        this.appendMessageIfNeeded(this.currentChat, rawMessage)
         this.currentChat.messagesLoaded = true
         this.updateChatSummary(this.currentChat, rawMessage)
         this.$nextTick(() => this.scrollMessagesToBottom())
@@ -967,6 +1103,71 @@ export default {
       const container = this.$refs.messagesPaneRef
       if (container) {
         container.scrollTop = container.scrollHeight
+      }
+    },
+    focusDraftInput() {
+      const input = this.$refs.draftInputRef
+      if (!input || typeof input.focus !== 'function') return
+      input.focus({ preventScroll: true })
+    },
+    getLastMessageId(chat) {
+      if (!chat || !Array.isArray(chat.messages) || !chat.messages.length) return 0
+      return chat.messages.reduce((maxId, message) => {
+        const nextId = Number(message?.id || 0)
+        return nextId > maxId ? nextId : maxId
+      }, 0)
+    },
+    startMessagePolling() {
+      if (this.messagePollTimer) return
+      this.messagePollTimer = window.setInterval(() => {
+        this.pollLatestMessages()
+      }, 3000)
+    },
+    stopMessagePolling() {
+      if (!this.messagePollTimer) return
+      window.clearInterval(this.messagePollTimer)
+      this.messagePollTimer = null
+    },
+    async pollLatestMessages(options = {}) {
+      const roomId = Number(this.currentChatId)
+      if (!roomId || this.messagePollPending || this.loadingMessages) return
+
+      const realtimeHealthy = this.socket?.connected && this.subscribedRoomId === roomId
+      if (realtimeHealthy && !options.force) return
+
+      this.messagePollPending = true
+      try {
+        const chat = this.chats.find((item) => item.id === roomId)
+        if (!chat) return
+
+        const afterId = this.getLastMessageId(chat)
+        const query = new URLSearchParams()
+        query.set('limit', '100')
+        if (afterId > 0) query.set('afterId', String(afterId))
+
+        const data = await apiCall(`/discussion/rooms/${roomId}/messages?${query.toString()}`)
+        const rawMessages = Array.isArray(data?.messages) ? data.messages : []
+        if (!rawMessages.length) {
+          if (!chat.messagesLoaded) chat.messagesLoaded = true
+          return
+        }
+
+        let appendedCount = 0
+        rawMessages.forEach((rawItem) => {
+          if (this.appendMessageIfNeeded(chat, rawItem)) {
+            appendedCount += 1
+          }
+        })
+        if (!appendedCount) return
+        chat.messagesLoaded = true
+        this.updateChatSummary(chat, rawMessages[rawMessages.length - 1])
+        if (this.currentChatId === roomId) {
+          this.$nextTick(() => this.scrollMessagesToBottom())
+        }
+      } catch {
+        // 静默失败，避免对话中断；下一轮轮询会继续尝试。
+      } finally {
+        this.messagePollPending = false
       }
     },
     getSocketBaseUrl() {
@@ -1004,6 +1205,10 @@ export default {
       this.socket.on('disconnect', () => {
         this.subscribedRoomId = null
       })
+
+      this.socket.on('connect_error', () => {
+        this.subscribedRoomId = null
+      })
     },
     teardownSocket() {
       if (!this.socket) return
@@ -1029,6 +1234,7 @@ export default {
           return
         }
         this.subscribedRoomId = roomId
+        this.pollLatestMessages({ force: true })
       })
     },
     handleSocketMessage(payload) {
@@ -1038,10 +1244,7 @@ export default {
 
       const chat = this.chats.find(item => item.id === roomId)
       if (!chat) return
-      if (chat.messages.some(message => message.id === rawMessage.id)) return
-
-      const nextMessage = this.mapMessage(rawMessage)
-      chat.messages.push(nextMessage)
+      if (!this.appendMessageIfNeeded(chat, rawMessage)) return
       chat.messagesLoaded = true
       this.updateChatSummary(chat, rawMessage)
 
@@ -1098,10 +1301,7 @@ body {
   min-height: 0;
   border: 1px solid #d1d5db;
   border-radius: 2px;
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.03)),
-    radial-gradient(circle at 20% 20%, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
-  background-size: auto, 24px 24px;
+  background: #ececec;
   color: #111827;
   overflow: hidden;
 }
@@ -1435,6 +1635,38 @@ body {
   border-top-right-radius: 6px;
 }
 
+.message-bubble.code-preview-standalone {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.message-row.theirs .message-bubble.code-preview-standalone,
+.message-row.mine .message-bubble.code-preview-standalone {
+  background: transparent;
+}
+
+.message-bubble.code-preview-standalone .message-code-preview {
+  margin-top: 0;
+}
+
+.message-bubble.image-attachment-standalone {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.message-row.theirs .message-bubble.image-attachment-standalone,
+.message-row.mine .message-bubble.image-attachment-standalone {
+  background: transparent;
+}
+
+.message-bubble.image-attachment-standalone .message-attachment {
+  margin-top: 0;
+}
+
 .message-text {
   font-size: 15px;
   line-height: 1.45;
@@ -1495,11 +1727,21 @@ body {
 .message-code-preview-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 7px 9px;
   font-size: 12px;
   color: #374151;
   border-bottom: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.code-type-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  flex-shrink: 0;
 }
 
 .message-code-preview-path {
@@ -1533,57 +1775,78 @@ body {
 
 .chat-input-bar {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 10px 14px 12px;
   position: relative;
 }
 
+.chat-input-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .attach-entry {
-  position: relative;
   flex-shrink: 0;
 }
 
 .attach-plus-btn {
+  background: #07090d !important;
+  color: #ffffff;
   font-size: 15px;
   line-height: 1;
   font-weight: 500;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
 }
 
 .attach-menu {
-  position: absolute;
-  left: 62px;
-  bottom: calc(100% + 8px);
-  border-radius: 14px;
-  border: 1px solid #d1d5db;
-  background: #ffffff;
-  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.15);
-  padding: 8px;
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  z-index: 8;
+  gap: 12px;
+  padding: 8px 2px 0;
+  min-height: 40px;
+  border-top: 1px solid #d7dbe0;
+}
+
+.attach-tray-enter-active,
+.attach-tray-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.attach-tray-enter-from,
+.attach-tray-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.attach-tray-enter-to,
+.attach-tray-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .attach-option {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #d1d5db;
-  border-radius: 50%;
-  background: #ffffff;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
   color: #111827;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  font-size: 15px;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  font-size: 16px;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .attach-option:hover {
-  background: #f3f4f6;
-  border-color: #9ca3af;
+  background: rgba(17, 24, 39, 0.08);
+  color: #000000;
 }
 
 .attachment-input-hidden {
@@ -1678,7 +1941,7 @@ body {
   padding: 2px 7px;
 }
 
-.chat-input-bar input {
+.chat-input-main input[type="text"] {
   flex: 1;
   height: 44px;
   border: none;
@@ -1691,8 +1954,7 @@ body {
 }
 
 .icon-btn,
-.send-btn,
-.run-btn {
+.send-btn {
   border: none;
   cursor: pointer;
 }
@@ -1712,6 +1974,10 @@ body {
 .send-btn {
   width: 44px;
   height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   background: #111827;
   color: #ffffff;
@@ -1719,135 +1985,222 @@ body {
   box-shadow: 0 8px 18px rgba(17, 24, 39, 0.28);
 }
 
+.send-icon-lucide {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
 .send-btn:disabled,
-.run-btn:disabled {
+.right-plus-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
 }
 
-.code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid rgba(219, 226, 234, 0.9);
+.right-slider-wrap {
+  padding: 6px 12px 4px;
 }
 
-.code-header h2 {
-  margin: 0 0 6px;
-  font-size: 17px;
+.right-slider {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  background: #dedfe1;
+  border-radius: 14px;
+  padding: 2px;
+  border: 1px solid #d1d5db;
 }
 
-.code-header p {
-  margin: 0;
-  color: #6b7280;
+.right-slider-pill {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 4);
+  height: calc(100% - 4px);
+  border-radius: 10px;
+  background: #07090d;
+  box-shadow: 0 5px 12px rgba(17, 24, 39, 0.22);
+  transition: transform 0.22s ease;
+}
+
+.right-slider-tab {
+  position: relative;
+  z-index: 1;
+  border: none;
+  background: transparent;
+  height: 26px;
+  border-radius: 10px;
   font-size: 12px;
+  color: #7c818b;
+  cursor: pointer;
+  transition: color 0.2s ease;
 }
 
-.run-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 18px;
-  background: #111827;
+.right-slider-tab.active {
   color: #ffffff;
-  font-size: 13px;
-  box-shadow: 0 6px 14px rgba(17, 24, 39, 0.24);
+  font-weight: 600;
 }
 
-.code-toolbar {
+.right-path-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid #d1d5db;
-  background: rgba(255, 255, 255, 0.92);
+  gap: 6px;
+  padding: 6px 12px 4px;
+  border-top: 1px solid #d6d9dd;
+  border-bottom: 1px solid #d6d9dd;
+  background: #ececec;
 }
 
-.code-file-selector {
+.right-filetype-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid #bfc4ca;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.right-path-input {
   flex: 1;
   min-width: 0;
-  height: 34px;
-  border: 1px solid #d1d5db;
-  border-radius: 9px;
-  background: #ffffff;
+  height: 30px;
+  border: 1px solid #bfc4ca;
+  border-radius: 10px;
+  background: #f6f7f8;
   color: #111827;
-  font-size: 13px;
-  padding: 0 10px;
+  font-size: 14px;
+  padding: 0 12px;
   outline: none;
 }
 
-.file-name {
-  margin-left: 0;
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  color: #6b7280;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.right-path-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3 5.25L7 9.25L11 5.25' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: calc(100% - 16px) center;
+  background-size: 14px 14px;
 }
 
-.code-refresh-btn {
+.right-plus-btn {
   width: 30px;
   height: 30px;
-  font-size: 14px;
+  border: none;
+  border-radius: 50%;
+  background: #05070b;
+  color: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 7px 16px rgba(17, 24, 39, 0.22);
+}
+
+.right-code-shell {
+  margin: 10px 12px 12px;
+  border: 1px solid #bfc4ca;
+  border-radius: 14px;
+  background: #f1f2f4;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  overflow: hidden;
 }
 
 .code-panel {
   flex: 1;
-  margin: 12px;
+  margin: 0;
   padding: 14px;
   overflow: auto;
   font-size: 13px;
   line-height: 1.5;
   font-family: Consolas, Monaco, monospace;
   white-space: pre-wrap;
-  border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid #d1d5db;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .code-empty-state {
-  margin: 12px;
-  padding: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
+  flex: 1;
+  margin: 0;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
   color: #6b7280;
   font-size: 13px;
 }
 
 .code-empty-state.error {
-  border-color: #fecaca;
   color: #7f1d1d;
 }
 
 :deep(.hljs) {
   display: block;
   background: transparent;
-  color: #111827;
+  color: #1f2937;
   padding: 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-:deep(.hljs-attr),
-:deep(.hljs-attribute) {
-  color: #374151;
+:deep(.hljs-comment),
+:deep(.hljs-quote) {
+  color: #6b7280;
+  font-style: italic;
 }
 
-:deep(.hljs-string) {
-  color: #111827;
-  font-weight: 600;
+:deep(.hljs-keyword),
+:deep(.hljs-selector-tag),
+:deep(.hljs-subst) {
+  color: #7c3aed;
+}
+
+:deep(.hljs-string),
+:deep(.hljs-doctag),
+:deep(.hljs-regexp),
+:deep(.hljs-template-tag),
+:deep(.hljs-template-variable) {
+  color: #0f766e;
+}
+
+:deep(.hljs-title),
+:deep(.hljs-title.function_),
+:deep(.hljs-title.class_),
+:deep(.hljs-function .hljs-title) {
+  color: #0f4c81;
 }
 
 :deep(.hljs-number),
-:deep(.hljs-literal) {
-  color: #4b5563;
+:deep(.hljs-literal),
+:deep(.hljs-symbol),
+:deep(.hljs-bullet) {
+  color: #b45309;
+}
+
+:deep(.hljs-type),
+:deep(.hljs-built_in),
+:deep(.hljs-class .hljs-title) {
+  color: #1d4ed8;
+}
+
+:deep(.hljs-attr),
+:deep(.hljs-attribute),
+:deep(.hljs-variable),
+:deep(.hljs-property) {
+  color: #be185d;
+}
+
+:deep(.hljs-operator),
+:deep(.hljs-punctuation),
+:deep(.hljs-meta) {
+  color: #475569;
 }
 
 @media (max-width: 1400px) {
@@ -1904,6 +2257,15 @@ body {
 
   .message-code-preview-snippet {
     max-width: min(260px, 72vw);
+  }
+
+  .right-slider-tab {
+    font-size: 12px;
+    height: 24px;
+  }
+
+  .right-path-input {
+    font-size: 13px;
   }
 }
 </style>

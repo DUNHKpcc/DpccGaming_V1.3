@@ -670,12 +670,30 @@ const listRoomMessages = async (req, res) => {
 
     const limit = Math.min(Math.max(toInt(req.query.limit) || 50, 1), 200);
     const beforeId = toInt(req.query.beforeId);
+    const afterId = toInt(req.query.afterId);
+    if (beforeId && afterId) {
+      return res.status(400).json({ error: 'beforeId 与 afterId 不能同时传入' });
+    }
     const userId = req.user.userId;
     const pool = getPool();
 
     const member = await getJoinedMember(pool, roomId, userId, false);
     if (!member || member.status !== 'joined') {
       return res.status(403).json({ error: '仅房间成员可查看消息' });
+    }
+
+    if (afterId) {
+      const [messages] = await pool.execute(
+        `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
+         FROM discussion_messages m
+         LEFT JOIN users u ON u.id = m.sender_user_id
+         WHERE m.room_id = ?
+           AND m.id > ?
+         ORDER BY m.id ASC
+         LIMIT ${limit}`,
+        [roomId, afterId]
+      );
+      return res.json({ messages });
     }
 
     const [messages] = await pool.execute(
@@ -689,7 +707,7 @@ const listRoomMessages = async (req, res) => {
       beforeId ? [roomId, beforeId] : [roomId]
     );
 
-    res.json({ messages: messages.reverse() });
+    return res.json({ messages: messages.reverse() });
   } catch (error) {
     console.error('获取房间消息失败:', error);
     res.status(500).json({ error: '服务器内部错误' });

@@ -1,15 +1,30 @@
 import { useAuthStore } from '../stores/auth'
-export const API_BASE_URL = 'https://dpccgaming.xyz/api'
+
+const envApiBase = typeof import.meta !== 'undefined' && import.meta.env
+  ? import.meta.env.VITE_API_BASE_URL
+  : ''
+
+const normalizeApiBase = (rawBase = '') => {
+  const value = String(rawBase || '').trim()
+  if (!value) return '/api'
+  return value.replace(/\/+$/, '')
+}
+
+export const API_BASE_URL = normalizeApiBase(envApiBase || '/api')
 
 export async function apiCall(endpoint, options = {}) {
   const authStore = useAuthStore()
   const url = `${API_BASE_URL}${endpoint}`
 
+  const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
+
   const defaultOptions = {
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: {},
+  }
+
+  if (!isFormDataBody) {
+    defaultOptions.headers['Content-Type'] = 'application/json'
   }
 
   // 优先使用localStorage中的token，然后使用store中的token
@@ -25,6 +40,11 @@ export async function apiCall(endpoint, options = {}) {
       ...defaultOptions.headers,
       ...options.headers,
     },
+  }
+
+  if (isFormDataBody && finalOptions.headers) {
+    delete finalOptions.headers['Content-Type']
+    delete finalOptions.headers['content-type']
   }
 
   try {

@@ -1,34 +1,78 @@
 <template>
   <div class="player-data-panel">
-    <div class="player-hero" :style="heroStyle">
+    <div
+      class="player-hero player-editable-surface"
+      :class="{ 'is-disabled': coverUploading }"
+      :style="heroStyle"
+      role="button"
+      tabindex="0"
+      aria-label="更换背景图"
+      @click="requestCoverUpload"
+      @keyup.enter.prevent="requestCoverUpload"
+      @keyup.space.prevent="requestCoverUpload"
+    >
       <div class="player-hero-mask"></div>
-      <div class="player-hero-main">
-        <img
-          :src="avatarUrl"
-          alt="用户头像"
-          class="player-hero-avatar"
-          @error="handleAvatarError"
-        />
-        <div class="player-hero-meta">
-          <div class="player-name-row">
-            <h3>{{ username }}</h3>
-            <UserLevelBadge :user-id="normalizedUserId" />
-          </div>
-          <p>注册 {{ registrationDays }} 天</p>
-        </div>
-      </div>
+      <button
+        type="button"
+        class="player-hero-edit-btn"
+        :disabled="coverUploading"
+        @click.stop="requestCoverUpload"
+      >
+        <i class="fa fa-image"></i>
+        <span>{{ coverUploading ? '上传中...' : '更换背景图' }}</span>
+      </button>
     </div>
 
     <div class="player-body">
       <section class="player-section">
-        <div class="player-section-title">个人简介</div>
-        <p class="player-bio">{{ profileBio }}</p>
+        <div class="player-section-head">
+          <div class="player-section-title">个人简介</div>
+          <span class="player-edit-hint">点击编辑 · 自动保存</span>
+        </div>
+        <textarea
+          v-if="editingBio"
+          ref="bioTextareaRef"
+          v-model="bioDraft"
+          class="player-bio-editor"
+          rows="4"
+          maxlength="1200"
+          placeholder="输入个人简介..."
+          @blur="commitBioEdit"
+          @keydown.esc.prevent="cancelBioEdit"
+          @keydown.ctrl.enter.prevent="commitBioEdit"
+          @keydown.meta.enter.prevent="commitBioEdit"
+        ></textarea>
+        <p
+          v-else
+          class="player-bio player-editable-surface"
+          :class="{ 'is-disabled': profileSaving }"
+          @click="startBioEdit"
+        >
+          {{ profileBio }}
+        </p>
       </section>
 
       <section class="player-section player-prefs">
-        <article class="pref-card">
+        <article
+          class="pref-card pref-card-editable player-editable-surface"
+          :class="{ 'is-disabled': profileSaving }"
+          @click="startLanguageEdit"
+        >
           <span>编程语言</span>
-          <strong class="pref-value-row">
+          <select
+            v-if="editingLanguage"
+            v-model="languageDraft"
+            class="pref-inline-select"
+            @click.stop
+            @change="commitLanguageEdit"
+            @blur="commitLanguageEdit"
+          >
+            <option value="">未设置</option>
+            <option v-for="option in languageOptions" :key="`lang-${option}`" :value="option">
+              {{ option }}
+            </option>
+          </select>
+          <strong v-else class="pref-value-row">
             <img
               v-if="preferredLanguageLogo"
               :src="preferredLanguageLogo"
@@ -38,9 +82,26 @@
             <span>{{ preferredLanguage }}</span>
           </strong>
         </article>
-        <article class="pref-card">
+        <article
+          class="pref-card pref-card-editable player-editable-surface"
+          :class="{ 'is-disabled': profileSaving }"
+          @click="startEngineEdit"
+        >
           <span>游戏引擎</span>
-          <strong class="pref-value-row">
+          <select
+            v-if="editingEngine"
+            v-model="engineDraft"
+            class="pref-inline-select"
+            @click.stop
+            @change="commitEngineEdit"
+            @blur="commitEngineEdit"
+          >
+            <option value="">未设置</option>
+            <option v-for="option in engineOptions" :key="`engine-${option}`" :value="option">
+              {{ option }}
+            </option>
+          </select>
+          <strong v-else class="pref-value-row">
             <img
               v-if="preferredEngineLogo"
               :src="preferredEngineLogo"
@@ -73,10 +134,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import { computed, nextTick, ref, watch } from 'vue'
 import { resolveMediaUrl } from '../utils/media'
-import UserLevelBadge from './UserLevelBadge.vue'
 
 const props = defineProps({
   user: {
@@ -90,19 +149,36 @@ const props = defineProps({
   libraryGames: {
     type: Array,
     default: () => []
+  },
+  coverUploading: {
+    type: Boolean,
+    default: false
+  },
+  profileSaving: {
+    type: Boolean,
+    default: false
   }
 })
+
+const emit = defineEmits(['request-cover-upload', 'auto-save-profile'])
+
+const languageOptions = ['TypeScript', 'JavaScript', 'C#', 'Python', '其他']
+const engineOptions = ['Cocos', 'Unity', 'Godot', 'Unreal', '其他']
+const coverUploading = computed(() => Boolean(props.coverUploading))
+const profileSaving = computed(() => Boolean(props.profileSaving))
+
+const editingBio = ref(false)
+const editingLanguage = ref(false)
+const editingEngine = ref(false)
+const bioDraft = ref('')
+const languageDraft = ref('')
+const engineDraft = ref('')
+const bioTextareaRef = ref(null)
 
 const normalizedUserId = computed(() => {
   const parsed = Number.parseInt(props.user?.id, 10)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 })
-
-const username = computed(() => {
-  return String(props.user?.username || '玩家').trim() || '玩家'
-})
-
-const avatarUrl = computed(() => getAvatarUrl(props.user?.avatar_url || ''))
 
 const myGames = computed(() => {
   if (!normalizedUserId.value) return []
@@ -136,23 +212,14 @@ const heroStyle = computed(() => {
   }
 })
 
-const profileBio = computed(() => {
+const profileBioRaw = computed(() => {
   const source = props.user || {}
-  const bio = source.bio || source.profile_bio || source.intro || source.signature || ''
-  if (String(bio || '').trim()) {
-    return String(bio).trim()
-  }
-  return '这个人很神秘，暂时还没有填写个人简介。'
+  return String(source.bio || source.profile_bio || '').trim()
 })
 
-const registrationDays = computed(() => {
-  const createdAt = props.user?.created_at
-  if (!createdAt) return 0
-  const createdDate = new Date(createdAt)
-  if (Number.isNaN(createdDate.getTime())) return 0
-  const diff = Date.now() - createdDate.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  return Math.max(0, days)
+const profileBio = computed(() => {
+  if (profileBioRaw.value) return profileBioRaw.value
+  return '这个人很神秘，暂时还没有填写个人简介。'
 })
 
 const normalizeCode = (value = '') => {
@@ -161,6 +228,8 @@ const normalizeCode = (value = '') => {
   if (['ts', 'typescript'].includes(normalized)) return 'TypeScript'
   if (['js', 'javascript'].includes(normalized)) return 'JavaScript'
   if (['c#', 'csharp', 'cs'].includes(normalized)) return 'C#'
+  if (['python', 'py'].includes(normalized)) return 'Python'
+  if (['other', 'others', '其他'].includes(normalized)) return '其他'
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
 
@@ -170,6 +239,8 @@ const normalizeEngine = (value = '') => {
   if (['cocos', 'cocos creator', 'cocos-creator'].includes(normalized)) return 'Cocos'
   if (['unity'].includes(normalized)) return 'Unity'
   if (['godot'].includes(normalized)) return 'Godot'
+  if (['unreal', 'ue', 'ue4', 'ue5'].includes(normalized)) return 'Unreal'
+  if (['other', 'others', '其他'].includes(normalized)) return '其他'
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
 }
 
@@ -198,9 +269,11 @@ const engineLogoMap = {
   godot: '/engineType/godot.webp'
 }
 
+const userPreferredLanguageRaw = computed(() => String(props.user?.preferred_language || '').trim())
+const userPreferredEngineRaw = computed(() => String(props.user?.preferred_engine || '').trim())
+
 const preferredLanguage = computed(() => {
-  const fromUser = String(props.user?.preferred_language || '').trim()
-  if (fromUser) return normalizeCode(fromUser)
+  if (userPreferredLanguageRaw.value) return normalizeCode(userPreferredLanguageRaw.value)
   return pickTopPreference(
     myGames.value,
     (game) => game?.code_type || game?.codeType || game?.code_category,
@@ -209,8 +282,7 @@ const preferredLanguage = computed(() => {
 })
 
 const preferredEngine = computed(() => {
-  const fromUser = String(props.user?.preferred_engine || '').trim()
-  if (fromUser) return normalizeEngine(fromUser)
+  if (userPreferredEngineRaw.value) return normalizeEngine(userPreferredEngineRaw.value)
   return pickTopPreference(
     myGames.value,
     (game) => game?.engine || game?.game_engine || game?.gameEngine,
@@ -227,6 +299,94 @@ const preferredEngineLogo = computed(() => {
   const key = normalizeEngine(preferredEngine.value).toLowerCase()
   return engineLogoMap[key] || ''
 })
+
+const toLanguageOption = (value = '') => {
+  const normalized = normalizeCode(value)
+  return languageOptions.includes(normalized) ? normalized : ''
+}
+
+const toEngineOption = (value = '') => {
+  const normalized = normalizeEngine(value)
+  return engineOptions.includes(normalized) ? normalized : ''
+}
+
+watch(
+  () => [
+    profileBioRaw.value,
+    userPreferredLanguageRaw.value,
+    preferredLanguage.value,
+    userPreferredEngineRaw.value,
+    preferredEngine.value
+  ],
+  () => {
+    if (!editingBio.value) {
+      bioDraft.value = profileBioRaw.value
+    }
+    if (!editingLanguage.value) {
+      languageDraft.value = toLanguageOption(userPreferredLanguageRaw.value || preferredLanguage.value)
+    }
+    if (!editingEngine.value) {
+      engineDraft.value = toEngineOption(userPreferredEngineRaw.value || preferredEngine.value)
+    }
+  },
+  { immediate: true }
+)
+
+const requestCoverUpload = () => {
+  if (coverUploading.value) return
+  emit('request-cover-upload')
+}
+
+const startBioEdit = async () => {
+  if (profileSaving.value) return
+  editingBio.value = true
+  bioDraft.value = profileBioRaw.value
+  await nextTick()
+  bioTextareaRef.value?.focus()
+}
+
+const cancelBioEdit = () => {
+  editingBio.value = false
+  bioDraft.value = profileBioRaw.value
+}
+
+const commitBioEdit = () => {
+  if (!editingBio.value) return
+  editingBio.value = false
+  const next = String(bioDraft.value || '').trim()
+  if (next === profileBioRaw.value) return
+  emit('auto-save-profile', { bio: next })
+}
+
+const startLanguageEdit = () => {
+  if (profileSaving.value) return
+  editingLanguage.value = true
+  languageDraft.value = toLanguageOption(userPreferredLanguageRaw.value || preferredLanguage.value)
+}
+
+const commitLanguageEdit = () => {
+  if (!editingLanguage.value) return
+  editingLanguage.value = false
+  const next = toLanguageOption(languageDraft.value)
+  const current = toLanguageOption(userPreferredLanguageRaw.value)
+  if (next === current) return
+  emit('auto-save-profile', { preferred_language: next })
+}
+
+const startEngineEdit = () => {
+  if (profileSaving.value) return
+  editingEngine.value = true
+  engineDraft.value = toEngineOption(userPreferredEngineRaw.value || preferredEngine.value)
+}
+
+const commitEngineEdit = () => {
+  if (!editingEngine.value) return
+  editingEngine.value = false
+  const next = toEngineOption(engineDraft.value)
+  const current = toEngineOption(userPreferredEngineRaw.value)
+  if (next === current) return
+  emit('auto-save-profile', { preferred_engine: next })
+}
 
 const formatShortTime = (rawTime) => {
   if (!rawTime) return '刚刚'
@@ -283,6 +443,20 @@ const recentActivities = computed(() => {
   background: var(--account-card-bg);
 }
 
+.player-editable-surface {
+  cursor: pointer;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.player-editable-surface:hover {
+  filter: brightness(1.04);
+}
+
+.player-editable-surface.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .player-hero {
   position: relative;
   min-height: 180px;
@@ -297,50 +471,26 @@ const recentActivities = computed(() => {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0.72));
 }
 
-.player-hero-main {
-  position: relative;
-  z-index: 1;
-  min-height: 180px;
-  padding: 1rem 1.1rem;
-  display: flex;
-  align-items: flex-end;
-  gap: 0.85rem;
-}
-
-.player-hero-avatar {
-  width: 74px;
-  height: 74px;
-  border-radius: 999px;
-  object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.88);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
-}
-
-.player-hero-meta {
-  min-width: 0;
-}
-
-.player-name-row {
+.player-hero-edit-btn {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.8rem;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  max-width: 100%;
-}
-
-.player-name-row h3 {
-  margin: 0;
-  font-size: 1.12rem;
-  font-weight: 700;
+  gap: 0.38rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(17, 24, 39, 0.45);
   color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
-.player-hero-meta p {
-  margin: 0.3rem 0 0;
-  font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.88);
+.player-hero-edit-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
 }
 
 .player-body {
@@ -360,13 +510,24 @@ const recentActivities = computed(() => {
   padding: 0.7rem 0.75rem;
 }
 
+.player-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}
+
 .player-section-title {
   font-size: 0.74rem;
   font-weight: 700;
   color: var(--account-text-soft);
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  margin-bottom: 0.45rem;
+}
+
+.player-edit-hint {
+  font-size: 0.68rem;
+  color: var(--account-text-soft);
 }
 
 .player-bio {
@@ -374,6 +535,20 @@ const recentActivities = computed(() => {
   font-size: 0.85rem;
   color: var(--account-text);
   line-height: 1.45;
+}
+
+.player-bio-editor {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid var(--account-upload-border);
+  background: var(--account-card-bg);
+  color: var(--account-text);
+  padding: 0.55rem 0.62rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  outline: none;
 }
 
 .player-prefs {
@@ -401,6 +576,22 @@ const recentActivities = computed(() => {
   font-size: 0.95rem;
   color: var(--account-text);
   font-weight: 700;
+}
+
+.pref-card-editable.is-disabled {
+  pointer-events: none;
+}
+
+.pref-inline-select {
+  width: 100%;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--account-upload-border);
+  background: var(--account-recent-bg);
+  color: var(--account-text);
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  outline: none;
 }
 
 .pref-value-row {
@@ -485,8 +676,7 @@ const recentActivities = computed(() => {
 }
 
 @media (max-width: 768px) {
-  .player-hero,
-  .player-hero-main {
+  .player-hero {
     min-height: 156px;
   }
 
