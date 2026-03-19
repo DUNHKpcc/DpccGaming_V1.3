@@ -73,45 +73,45 @@ watch(normalizedUserId, loadLevel)
   letter-spacing: 0.02em;
   white-space: nowrap;
   color: #f5f8ff;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  text-shadow: 0 0 4px rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.08), 0 0 8px rgba(0, 0, 0, 0.26);
+  border: 1px solid #8ea2d8;
+  text-shadow: none;
+  box-shadow: none;
   vertical-align: middle;
 }
 
 .tier-rookie {
-  background: linear-gradient(135deg, rgba(84, 107, 255, 0.48), rgba(122, 73, 255, 0.38));
-  border-color: rgba(160, 183, 255, 0.88);
+  background: linear-gradient(135deg, #4f6dff, #6d44ff);
+  border-color: #9ab0ff;
   color: #eef2ff;
-  box-shadow: inset 0 0 8px rgba(172, 185, 255, 0.28), 0 0 9px rgba(96, 118, 255, 0.38);
+  box-shadow: none;
 }
 
 .tier-explorer {
-  background: linear-gradient(135deg, rgba(0, 209, 224, 0.48), rgba(0, 131, 255, 0.36));
-  border-color: rgba(120, 244, 255, 0.86);
+  background: linear-gradient(135deg, #00c7d9, #0d78ff);
+  border-color: #84e9ff;
   color: #e8fdff;
-  box-shadow: inset 0 0 8px rgba(118, 255, 252, 0.26), 0 0 9px rgba(0, 184, 255, 0.4);
+  box-shadow: none;
 }
 
 .tier-builder {
-  background: linear-gradient(135deg, rgba(39, 193, 103, 0.48), rgba(21, 148, 82, 0.38));
-  border-color: rgba(139, 255, 184, 0.86);
+  background: linear-gradient(135deg, #22b565, #0f8a4e);
+  border-color: #97f0c0;
   color: #eaffee;
-  box-shadow: inset 0 0 8px rgba(154, 255, 190, 0.26), 0 0 9px rgba(49, 222, 120, 0.42);
+  box-shadow: none;
 }
 
 .tier-master {
-  background: linear-gradient(135deg, rgba(234, 172, 53, 0.5), rgba(205, 117, 20, 0.38));
-  border-color: rgba(255, 224, 138, 0.9);
+  background: linear-gradient(135deg, #e4a235, #c77716);
+  border-color: #ffd88f;
   color: #fff6db;
-  box-shadow: inset 0 0 8px rgba(255, 234, 162, 0.28), 0 0 10px rgba(238, 165, 62, 0.44);
+  box-shadow: none;
 }
 
 .tier-legend {
-  background: linear-gradient(135deg, rgba(224, 80, 214, 0.48), rgba(139, 84, 255, 0.38));
-  border-color: rgba(255, 156, 242, 0.9);
+  background: linear-gradient(135deg, #d84fd0, #7e4dff);
+  border-color: #ffb0f4;
   color: #ffe6ff;
-  box-shadow: inset 0 0 8px rgba(255, 178, 246, 0.28), 0 0 10px rgba(206, 95, 246, 0.44);
+  box-shadow: none;
 }
 
 [data-theme='light'] .user-level-badge {

@@ -8,6 +8,7 @@ const discussionController = require('../controllers/discussionController');
 const { authenticateToken } = require('../middleware/auth');
 
 const DISCUSSION_ATTACHMENT_DIR = path.join(process.env.UPLOADS_PATH || path.join(process.cwd(), 'uploads'), 'discussion');
+const DISCUSSION_DOCUMENT_DIR = path.join(DISCUSSION_ATTACHMENT_DIR, 'document');
 
 const ensureDir = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -102,6 +103,54 @@ const uploadDiscussionAttachment = (req, res, next) => {
   });
 };
 
+const createDocumentUploader = () => {
+  ensureDir(DISCUSSION_DOCUMENT_DIR);
+
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, DISCUSSION_DOCUMENT_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const suffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `document-${suffix}${ext}`);
+    }
+  });
+
+  return multer({
+    storage,
+    limits: { fileSize: 60 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const mime = String(file.mimetype || '').toLowerCase();
+
+      const allowExts = new Set(['.pdf', '.md', '.txt', '.doc', '.docx']);
+      const allowMimes = new Set([
+        'application/pdf',
+        'text/markdown',
+        'text/plain',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/octet-stream'
+      ]);
+
+      if (allowExts.has(ext) || allowMimes.has(mime)) return cb(null, true);
+      return cb(new Error('仅支持 PDF/MD/TXT/DOC/DOCX 文档'));
+    }
+  }).single('file');
+};
+
+const uploadDiscussionDocument = (req, res, next) => {
+  const uploader = createDocumentUploader();
+  uploader(req, res, (error) => {
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: '文件大小超出限制（最大 60MB）' });
+    }
+    if (error) {
+      return res.status(400).json({ error: error.message || '文档上传失败' });
+    }
+    next();
+  });
+};
+
 // 房间（按游戏查看公开房间）
 router.get('/games/:gameId/rooms', authenticateToken, discussionController.listPublicRoomsByGame);
 
@@ -117,6 +166,8 @@ router.get('/rooms/:roomId/messages', authenticateToken, discussionController.li
 router.post('/rooms/:roomId/messages', authenticateToken, discussionController.sendRoomMessage);
 router.post('/rooms/:roomId/attachments/:kind', authenticateToken, uploadDiscussionAttachment, discussionController.uploadRoomAttachment);
 router.post('/rooms/:roomId/ai-message', authenticateToken, discussionController.sendAiRoomMessage);
+router.get('/rooms/:roomId/documents', authenticateToken, discussionController.listRoomDocuments);
+router.post('/rooms/:roomId/documents', authenticateToken, uploadDiscussionDocument, discussionController.uploadRoomDocument);
 
 // 匹配队列
 router.get('/match/queue', authenticateToken, discussionController.getMatchQueueStatus);
