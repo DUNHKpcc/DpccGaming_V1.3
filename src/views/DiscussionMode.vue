@@ -311,41 +311,23 @@
             type="button"
             class="right-slider-tab"
             :class="{ active: activeRightTab === tab.key }"
-            @click="activeRightTab = tab.key"
+            @click="switchRightTab(tab.key)"
           >
             {{ tab.label }}
           </button>
         </div>
       </div>
       <div class="right-panel-stage">
-        <transition name="right-panel-switch">
-          <DiscussionDocsPanel
-            v-show="activeRightTab === 'docs'"
-            :current-chat="currentChat"
-            :is-active="activeRightTab === 'docs'"
-          />
-        </transition>
-
-        <transition name="right-panel-switch">
-          <DiscussionCodePanel
-            v-show="activeRightTab === 'code'"
-            :current-chat="currentChat"
-            :current-room-code-files="currentRoomCodeFiles"
-            :current-code-path="currentCodePath"
-            :current-file-name="currentFileName"
-            :code-panel-loading="codePanelLoading"
-            :code-panel-error="codePanelError"
-            :highlighted-code-text="highlightedCodeText"
-            @refresh="refreshCurrentRoomCode"
-            @update:currentCodePath="currentCodePath = $event"
-          />
-        </transition>
-
-        <transition name="right-panel-switch">
-          <div v-show="activeRightTab === 'task' || activeRightTab === 'file'" class="right-fallback-shell">
-            <h3>{{ activeRightTab === 'task' ? '任务区' : '文件区' }}</h3>
-            <p>该区域正在完善中，当前版本优先支持文档区与代码区。</p>
-          </div>
+        <transition name="right-panel-switch" mode="out-in">
+          <KeepAlive :include="['DiscussionDocsPanel', 'DiscussionCodePanel']">
+            <component
+              :is="activeRightPanelComponent"
+              :key="activeRightPanelKey"
+              class="right-panel-view"
+              v-bind="activeRightPanelProps"
+              v-on="activeRightPanelListeners"
+            />
+          </KeepAlive>
         </transition>
       </div>
     </section>
@@ -353,6 +335,7 @@
 </template>
 
 <script>
+import { h } from 'vue'
 import { io } from 'socket.io-client'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -413,13 +396,31 @@ const formatClock = (value) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+const DiscussionPlaceholderPanel = {
+  name: 'DiscussionPlaceholderPanel',
+  props: {
+    activeTab: {
+      type: String,
+      default: 'task'
+    }
+  },
+  render() {
+    const title = this.activeTab === 'task' ? '任务区' : '文件区'
+    return h('div', { class: 'right-fallback-shell' }, [
+      h('h3', title),
+      h('p', '该区域正在完善中，当前版本优先支持文档区与代码区。')
+    ])
+  }
+}
+
 export default {
   name: 'DiscussionMode',
   components: {
     AvatarFriendAction,
     UserLevelBadge,
     DiscussionDocsPanel,
-    DiscussionCodePanel
+    DiscussionCodePanel,
+    DiscussionPlaceholderPanel
   },
   props: {
     id: {
@@ -513,6 +514,43 @@ export default {
     rightTabIndex() {
       const index = this.rightPanelTabs.findIndex((tab) => tab.key === this.activeRightTab)
       return index >= 0 ? index : 1
+    },
+    activeRightPanelKey() {
+      return `right-panel-${this.activeRightTab}`
+    },
+    activeRightPanelComponent() {
+      if (this.activeRightTab === 'docs') return DiscussionDocsPanel
+      if (this.activeRightTab === 'code') return DiscussionCodePanel
+      return DiscussionPlaceholderPanel
+    },
+    activeRightPanelProps() {
+      if (this.activeRightTab === 'docs') {
+        return {
+          currentChat: this.currentChat,
+          isActive: true
+        }
+      }
+      if (this.activeRightTab === 'code') {
+        return {
+          currentChat: this.currentChat,
+          currentRoomCodeFiles: this.currentRoomCodeFiles,
+          currentCodePath: this.currentCodePath,
+          currentFileName: this.currentFileName,
+          codePanelLoading: this.codePanelLoading,
+          codePanelError: this.codePanelError,
+          highlightedCodeText: this.highlightedCodeText
+        }
+      }
+      return {
+        activeTab: this.activeRightTab
+      }
+    },
+    activeRightPanelListeners() {
+      if (this.activeRightTab !== 'code') return {}
+      return {
+        refresh: this.refreshCurrentRoomCode,
+        'update:currentCodePath': this.handleCodePathUpdate
+      }
     }
   },
   watch: {
@@ -657,11 +695,23 @@ export default {
       if (!codePreview) return ''
       return this.highlightCode(codePreview.snippet || '', codePreview.path || '')
     },
+    switchRightTab(nextTab, options = {}) {
+      if (!nextTab || this.activeRightTab === nextTab) return
+      this.activeRightTab = nextTab
+
+      const shouldPrefetchCode = options.prefetchCode !== false
+      if (shouldPrefetchCode && nextTab === 'code' && this.currentChat && !this.codePanelLoading && !this.currentRoomCodeFiles.length) {
+        this.syncCurrentRoomCode()
+      }
+    },
+    handleCodePathUpdate(nextPath) {
+      this.currentCodePath = String(nextPath || '')
+    },
     async openCodePreviewInRightPanel(codePreview) {
       const previewPath = String(codePreview?.path || '').trim()
       if (!previewPath || !this.currentChat) return
 
-      this.activeRightTab = 'code'
+      this.switchRightTab('code', { prefetchCode: false })
       this.codePanelError = ''
       this.errorText = ''
 
@@ -1073,14 +1123,18 @@ export default {
       const chat = this.chats.find(item => item.id === chatId)
       if (!chat) return
       if (chat.messagesLoaded && !options.force) {
-        await this.syncCurrentRoomCode()
+        if (this.activeRightTab === 'code') {
+          await this.syncCurrentRoomCode()
+        }
         this.$nextTick(() => this.scrollMessagesToBottom())
         return
       }
-      await Promise.all([
-        this.fetchMessages(chatId),
-        this.syncCurrentRoomCode()
-      ])
+
+      const loadingTasks = [this.fetchMessages(chatId)]
+      if (this.activeRightTab === 'code') {
+        loadingTasks.push(this.syncCurrentRoomCode())
+      }
+      await Promise.all(loadingTasks)
     },
     async fetchMessages(roomId) {
       this.loadingMessages = true
@@ -2175,7 +2229,8 @@ body {
   border-radius: 10px;
   background: #07090d;
   box-shadow: 0 5px 12px rgba(17, 24, 39, 0.22);
-  transition: transform 0.22s ease;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
 .right-slider-tab {
@@ -2188,7 +2243,7 @@ body {
   font-size: 12px;
   color: #7c818b;
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: color 0.18s ease;
 }
 
 .right-slider-tab.active {
@@ -2201,23 +2256,33 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.right-panel-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .right-panel-switch-enter-active,
 .right-panel-switch-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
 }
 
 .right-panel-switch-enter-from,
 .right-panel-switch-leave-to {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translate3d(0, 6px, 0) scale(0.996);
 }
 
 .right-panel-switch-enter-to,
 .right-panel-switch-leave-from {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 .right-fallback-shell {
@@ -2362,6 +2427,14 @@ body {
   .right-slider-tab {
     font-size: 12px;
     height: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-slider-pill,
+  .right-panel-switch-enter-active,
+  .right-panel-switch-leave-active {
+    transition: none;
   }
 }
 </style>

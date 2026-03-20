@@ -506,7 +506,7 @@ const recentActivities = computed(() => {
 .player-section {
   border: 1px solid var(--account-recent-border);
   background: var(--account-recent-bg);
-  border-radius: 12px;
+  border-radius: 9px;
   padding: 0.7rem 0.75rem;
 }
 
@@ -541,7 +541,7 @@ const recentActivities = computed(() => {
   width: 100%;
   min-height: 96px;
   resize: vertical;
-  border-radius: 10px;
+  border-radius: 9px;
   border: 1px solid var(--account-upload-border);
   background: var(--account-card-bg);
   color: var(--account-text);
@@ -559,7 +559,7 @@ const recentActivities = computed(() => {
 
 .pref-card {
   border: 1px solid var(--account-upload-border);
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--account-card-bg);
   padding: 0.62rem;
   display: flex;
@@ -585,7 +585,7 @@ const recentActivities = computed(() => {
 .pref-inline-select {
   width: 100%;
   height: 34px;
-  border-radius: 8px;
+  border-radius: 9px;
   border: 1px solid var(--account-upload-border);
   background: var(--account-recent-bg);
   color: var(--account-text);

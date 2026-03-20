@@ -4,10 +4,11 @@
       <h3 class="text-xl font-bold text-white">通知中心</h3>
       <div class="flex items-center gap-2">
         <span class="text-sm text-white/80">{{ unreadCount }} 条未读</span>
-        <button 
-          @click="markAllAsRead"
+        <button
           v-if="unreadCount > 0"
-          class="text-xs notification-ghost-btn px-2 py-1 rounded transition-colors">
+          @click="markAllAsRead"
+          class="text-xs notification-ghost-btn px-2 py-1 rounded transition-colors"
+        >
           全部已读
         </button>
       </div>
@@ -20,16 +21,16 @@
       </div>
 
       <div v-else class="space-y-3">
-        <div 
-          v-for="notification in displayedNotifications" 
+        <div
+          v-for="notification in displayedNotifications"
           :key="notification.id"
           :class="[
             'notification-item',
             notification.is_read ? 'read' : 'unread'
           ]"
-          @click="markAsRead(notification)">
-          
-          <div class="notification-icon">
+          @click="markAsRead(notification)"
+        >
+          <div class="notification-icon" :class="getNotificationIconToneClass(notification)">
             <i :class="getNotificationIconByNotification(notification)"></i>
           </div>
 
@@ -39,7 +40,7 @@
               <span class="notification-time">{{ formatTime(notification.created_at) }}</span>
             </div>
             <p class="notification-text">{{ displayNotificationText(notification) }}</p>
-            
+
             <div v-if="shouldShowPrimaryAction(notification) || hasFriendRequestActions(notification)" class="notification-actions">
               <button
                 v-if="shouldShowPrimaryAction(notification)"
@@ -77,16 +78,18 @@
     <div v-if="shouldShowToggle" class="text-center mt-4">
       <button
         @click="toggleNotificationVisibility"
-        class="notification-ghost-btn px-4 py-2 rounded-lg transition-colors">
+        class="notification-ghost-btn px-4 py-2 rounded-lg transition-colors"
+      >
         {{ showAllNotifications ? '收起通知' : '展开通知' }}
       </button>
     </div>
 
     <div v-if="hasMore && !props.compact" class="text-center mt-6">
-      <button 
+      <button
         @click="loadMore"
         :disabled="loading"
-        class="notification-ghost-btn px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+        class="notification-ghost-btn px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+      >
         <i v-if="loading" class="fa fa-spinner fa-spin mr-2"></i>
         {{ loading ? '加载中...' : '加载更多' }}
       </button>
@@ -108,6 +111,7 @@ const authStore = useAuthStore()
 const gameStore = useGameStore()
 const modalStore = useModalStore()
 const notificationStore = useNotificationStore()
+
 const props = defineProps({
   compact: {
     type: Boolean,
@@ -142,7 +146,7 @@ const toggleNotificationVisibility = () => {
 }
 
 const unreadCount = computed(() => {
-  return notifications.value.filter(n => !n.is_read).length
+  return notifications.value.filter((n) => !n.is_read).length
 })
 
 const emitNotificationsUpdated = () => {
@@ -155,10 +159,9 @@ const fetchNotifications = async (page = 1, reset = false) => {
   try {
     loading.value = true
     const token = localStorage.getItem('token')
-
     const response = await fetch(`/api/notifications?page=${page}&limit=${pageSize.value}`, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`
       }
     })
 
@@ -173,7 +176,6 @@ const fetchNotifications = async (page = 1, reset = false) => {
       }
 
       emitNotificationsUpdated()
-
       hasMore.value = Boolean(data.hasMore ?? data.pagination?.hasMore)
       currentPage.value = page
     } else {
@@ -194,7 +196,7 @@ const markAsRead = async (notification) => {
     const response = await fetch(`/api/notifications/${notification.id}/read`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`
       }
     })
 
@@ -213,12 +215,12 @@ const markAllAsRead = async () => {
     const response = await fetch('/api/notifications/mark-all-read', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`
       }
     })
 
     if (response.ok) {
-      notifications.value.forEach(n => { n.is_read = true })
+      notifications.value.forEach((n) => { n.is_read = true })
       emitNotificationsUpdated()
     }
   } catch (error) {
@@ -270,6 +272,34 @@ const getNotificationIconByNotification = (notification) => {
   if (isFriendRequestNotification(notification)) return 'fa fa-user-plus'
   if (isDiscussionNotification(notification)) return 'fa fa-comments'
   return getNotificationIcon(notification?.type)
+}
+
+const isRejectedReviewNotification = (notification) => {
+  const type = String(notification?.type || '').toLowerCase()
+  if (type === 'game_rejected') return true
+  const text = `${notification?.title || ''} ${notification?.content || ''}`
+  return /审核未通过|未通过审核|已拒绝|拒绝通过/.test(text)
+}
+
+const isWarningNotification = (notification) => {
+  const type = String(notification?.type || '').toLowerCase()
+  if (['warning', 'error', 'danger', 'risk_warning'].includes(type)) return true
+  const text = `${notification?.title || ''} ${notification?.content || ''}`
+  return /警告|风险|违规|异常|封禁/.test(text)
+}
+
+const isMessageNotification = (notification) => {
+  if (!notification) return false
+  if (isDiscussionNotification(notification) || isFriendRequestNotification(notification)) return true
+  const type = String(notification?.type || '').toLowerCase()
+  return ['comment_reply', 'message', 'chat_message'].includes(type)
+}
+
+const getNotificationIconToneClass = (notification) => {
+  if (isRejectedReviewNotification(notification)) return 'icon-tone-rejected'
+  if (isWarningNotification(notification)) return 'icon-tone-warning'
+  if (isMessageNotification(notification)) return 'icon-tone-message'
+  return ''
 }
 
 const displayNotificationText = (notification) => {
@@ -327,7 +357,6 @@ const respondFriendRequest = async (notification, action) => {
 
 const handleNotificationClick = async (notification) => {
   if (isFriendRequestNotification(notification)) return
-
   await markAsRead(notification)
 
   if (isDiscussionNotification(notification)) {
@@ -350,14 +379,13 @@ const handleNotificationClick = async (notification) => {
 
 const openGameModal = async (gameId) => {
   try {
-    const game = gameStore.games.find(g => g.game_id === gameId || g.id === gameId)
+    const game = gameStore.games.find((g) => g.game_id === gameId || g.id === gameId)
 
     if (game) {
       modalStore.openGameModal(game)
     } else {
       await gameStore.loadGames()
-      const foundGame = gameStore.games.find(g => g.game_id === gameId || g.id === gameId)
-
+      const foundGame = gameStore.games.find((g) => g.game_id === gameId || g.id === gameId)
       if (foundGame) {
         modalStore.openGameModal(foundGame)
       } else {
@@ -414,7 +442,6 @@ const formatTime = (dateString) => {
   const date = new Date(dateString)
   const now = new Date()
   const diff = now - date
-
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
@@ -423,7 +450,6 @@ const formatTime = (dateString) => {
   if (minutes < 60) return `${minutes}分钟前`
   if (hours < 24) return `${hours}小时前`
   if (days < 7) return `${days}天前`
-
   return date.toLocaleDateString('zh-CN')
 }
 
@@ -444,6 +470,12 @@ onMounted(() => {
   --notify-unread-accent: #9ca3af;
   --notify-icon-bg: #ffffff;
   --notify-icon-text: #111111;
+  --notify-icon-message-bg: #16a34a;
+  --notify-icon-message-text: #ffffff;
+  --notify-icon-rejected-bg: #f59e0b;
+  --notify-icon-rejected-text: #111111;
+  --notify-icon-warning-bg: #dc2626;
+  --notify-icon-warning-text: #ffffff;
   --notify-title: #ffffff;
   --notify-text: rgba(255, 255, 255, 0.82);
   --notify-time: rgba(255, 255, 255, 0.68);
@@ -501,6 +533,12 @@ onMounted(() => {
   --notify-unread-accent: #6b7280;
   --notify-icon-bg: #111111;
   --notify-icon-text: #ffffff;
+  --notify-icon-message-bg: #16a34a;
+  --notify-icon-message-text: #ffffff;
+  --notify-icon-rejected-bg: #f59e0b;
+  --notify-icon-rejected-text: #111111;
+  --notify-icon-warning-bg: #dc2626;
+  --notify-icon-warning-text: #ffffff;
   --notify-title: #111111;
   --notify-text: rgba(17, 17, 17, 0.8);
   --notify-time: rgba(17, 17, 17, 0.62);
@@ -526,8 +564,7 @@ onMounted(() => {
   gap: 1rem;
   padding: 1rem;
   background: var(--notify-item-bg);
-  border-radius: 12px;
-  border: 1px solid var(--notify-item-border);
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
@@ -539,7 +576,6 @@ onMounted(() => {
 }
 
 .notification-item.unread {
-  border-left: 4px solid var(--notify-unread-accent);
   background: var(--notify-unread-bg);
 }
 
@@ -552,11 +588,36 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .notification-icon i {
   font-size: 1.25rem;
   color: var(--notify-icon-text);
+}
+
+.notification-icon.icon-tone-message {
+  background: var(--notify-icon-message-bg);
+}
+
+.notification-icon.icon-tone-message i {
+  color: var(--notify-icon-message-text);
+}
+
+.notification-icon.icon-tone-rejected {
+  background: var(--notify-icon-rejected-bg);
+}
+
+.notification-icon.icon-tone-rejected i {
+  color: var(--notify-icon-rejected-text);
+}
+
+.notification-icon.icon-tone-warning {
+  background: var(--notify-icon-warning-bg);
+}
+
+.notification-icon.icon-tone-warning i {
+  color: var(--notify-icon-warning-text);
 }
 
 .notification-content {
@@ -646,7 +707,6 @@ onMounted(() => {
   background: var(--notify-ghost-bg-hover);
 }
 
-/* 响应式设计 */
 @media (max-width: 640px) {
   .section-header {
     flex-direction: column;
@@ -657,21 +717,21 @@ onMounted(() => {
     padding: 0.75rem;
     gap: 0.75rem;
   }
-  
+
   .notification-icon {
     width: 2rem;
     height: 2rem;
   }
-  
+
   .notification-icon i {
     font-size: 1rem;
   }
-  
+
   .notification-header {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .notification-time {
     margin-left: 0;
     margin-top: 0.25rem;

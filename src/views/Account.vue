@@ -96,7 +96,7 @@
                       :disabled="googleBinding || googleBound"
                       class="google-bind-btn"
                     >
-                      <i class="fab fa-google"></i>
+                       <img src="/Ai/Google.png" alt="Google" class="wechat-bind-logo" />
                     </button>
                   </div>
                   <p v-if="wechatBoundLabel" class="wechat-bind-hint mb-3">{{ wechatBoundLabel }}</p>
@@ -104,7 +104,7 @@
                   <button
                     @click="logout"
                     class="account-logout-btn text-sm font-medium">
-                    退出登录
+                    {{ logoutConfirmPending ? '再次点击确认退出' : '退出登录' }}
                   </button>
                 </div>
               </section>
@@ -469,12 +469,15 @@ const friendRequestsLoading = ref(false)
 const incomingRequests = ref([])
 const outgoingRequests = ref([])
 const friendChatOpening = ref({})
+const logoutConfirmPending = ref(false)
+const logoutConfirmTimer = ref(null)
 const profileDraftState = ref({
   bio: '',
   preferred_language: '',
   preferred_engine: ''
 })
 const profilePendingPayload = ref(null)
+const LOGOUT_CONFIRM_WINDOW_MS = 4500
 
 const loadPlayerGames = async () => {
   if (!isLoggedIn.value) {
@@ -618,7 +621,7 @@ const startWechatBind = async () => {
 
   wechatBinding.value = true
   const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  const bindUrl = new URL(`${API_BASE_URL}/auth/wechat/bind/start`)
+  const bindUrl = new URL(`${API_BASE_URL}/auth/wechat/bind/start`, window.location.origin)
   bindUrl.searchParams.set('returnTo', currentPath || '/account')
   window.location.href = bindUrl.toString()
 }
@@ -636,7 +639,7 @@ const startGoogleBind = () => {
 
   googleBinding.value = true
   const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  const bindUrl = new URL(`${API_BASE_URL}/auth/google/bind/start`)
+  const bindUrl = new URL(`${API_BASE_URL}/auth/google/bind/start`, window.location.origin)
   bindUrl.searchParams.set('returnTo', currentPath || '/account')
   window.location.href = bindUrl.toString()
 }
@@ -764,7 +767,29 @@ const redeemFriendInvite = async () => {
   }
 }
 
+const clearLogoutConfirmState = () => {
+  logoutConfirmPending.value = false
+  if (logoutConfirmTimer.value) {
+    window.clearTimeout(logoutConfirmTimer.value)
+    logoutConfirmTimer.value = null
+  }
+}
+
 const logout = () => {
+  if (!logoutConfirmPending.value) {
+    logoutConfirmPending.value = true
+    if (logoutConfirmTimer.value) {
+      window.clearTimeout(logoutConfirmTimer.value)
+    }
+    logoutConfirmTimer.value = window.setTimeout(() => {
+      logoutConfirmPending.value = false
+      logoutConfirmTimer.value = null
+    }, LOGOUT_CONFIRM_WINDOW_MS)
+    notificationStore.warning('确认退出登录', '再次点击“退出登录”将退出当前账号')
+    return
+  }
+
+  clearLogoutConfirmState()
   authStore.logout()
 }
 
@@ -998,6 +1023,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('friends:changed', refreshFriendData)
+  clearLogoutConfirmState()
 })
 
 watch(currentUser, (user) => {
@@ -1006,6 +1032,7 @@ watch(currentUser, (user) => {
 
 watch(isLoggedIn, (loggedIn) => {
   if (!loggedIn) {
+    clearLogoutConfirmState()
     libraryGames.value = []
     libraryLoading.value = false
     wechatBinding.value = false
@@ -1114,7 +1141,7 @@ watch(isLoggedIn, (loggedIn) => {
   .account-container > .max-w-6xl:not(.account-main-guest) {
     max-width: none !important;
     width: min(1680px, calc(100vw - 10rem));
-    margin-left: 1.5rem !important;
+    margin-left: 1.2rem !important;
     margin-right: 1.6rem !important;
   }
 
@@ -1135,7 +1162,7 @@ watch(isLoggedIn, (loggedIn) => {
 .glass-card {
   background: var(--account-card-bg);
   border: 1px solid var(--account-card-border);
-  border-radius: 20px;
+  border-radius: 8px;
   box-shadow: var(--account-card-shadow);
   transition: background 0.2s ease, transform 0.2s ease;
 }
@@ -1481,6 +1508,7 @@ watch(isLoggedIn, (loggedIn) => {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: filter 0.2s ease;
 }
 
 .recent-game-media-fallback {
@@ -1501,12 +1529,17 @@ watch(isLoggedIn, (loggedIn) => {
   border-radius: 5px;
   padding: 0.5rem 0.6rem;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .library-row:hover {
-  background: var(--account-card-bg-hover);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--account-card-bg-hover) 88%, var(--account-icon-bg) 12%);
+  border-color: color-mix(in srgb, var(--account-icon-bg) 50%, var(--account-recent-border) 50%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--account-icon-bg) 24%, transparent);
+}
+
+.library-row:hover .recent-game-media-el {
+  filter: saturate(1.08) contrast(1.03);
 }
 
 .library-row:focus-visible {
@@ -1558,12 +1591,18 @@ watch(isLoggedIn, (loggedIn) => {
   border-radius: 5px;
   padding: 0.55rem 0.65rem;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .friend-row:hover {
-  background: var(--account-card-bg-hover);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--account-card-bg-hover) 88%, var(--account-icon-bg) 12%);
+  border-color: color-mix(in srgb, var(--account-icon-bg) 50%, var(--account-recent-border) 50%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--account-icon-bg) 24%, transparent);
+}
+
+.friend-row:hover .friend-chat-indicator {
+  color: var(--account-icon-text);
+  background: color-mix(in srgb, var(--account-icon-bg) 24%, transparent);
 }
 
 .friend-row:focus-visible {
