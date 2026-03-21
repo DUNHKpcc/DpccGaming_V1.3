@@ -166,9 +166,9 @@ export default {
 
 .right-code-shell {
   margin: 10px 12px 12px;
-  border: 1px solid #bfc4ca;
+  border: none;
   border-radius: 14px;
-  background: #f1f2f4;
+  background: #ffffff;
   min-height: 0;
   flex: 1;
   display: flex;

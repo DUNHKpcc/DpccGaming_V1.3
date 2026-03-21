@@ -34,9 +34,6 @@
           <aside v-if="!docsSidebarCollapsed" class="docs-sidebar">
             <div class="docs-sidebar-head">
               <strong>文档</strong>
-              <button type="button" class="docs-sidebar-toggle" @click="docsSidebarCollapsed = true">
-                <i class="fa fa-angle-left"></i>
-              </button>
             </div>
 
             <div class="docs-sidebar-section">
@@ -638,9 +635,9 @@ export default {
 
 .docs-fallback-shell {
   margin: 10px 12px 12px;
-  border: 1px solid #bfc4ca;
+  border: none;
   border-radius: 14px;
-  background: #f1f2f4;
+  background: #ffffff;
   min-height: 0;
   flex: 1;
   padding: 16px;
@@ -662,9 +659,9 @@ export default {
 
 .right-docs-shell {
   margin: 10px 12px 12px;
-  border: 1px solid #bfc4ca;
+  border: none;
   border-radius: 14px;
-  background: #f1f2f4;
+  background: #ffffff;
   min-height: 0;
   flex: 1;
   display: flex;
@@ -782,14 +779,15 @@ export default {
 .docs-sidebar {
   width: 240px;
   border-right: 1px solid #d1d5db;
-  background: #f5f5f5;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   min-height: 0;
   transition: width 0.22s ease;
 }
 
-.docs-sidebar-head {
+.docs-sidebar-head,
+.docs-preview-head {
   height: 35px;
   border-bottom: 1px solid #d1d5db;
   padding: 0 10px;
@@ -798,11 +796,14 @@ export default {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.docs-sidebar-head strong {
+.docs-sidebar-head strong,
+.docs-preview-head strong {
   font-size: 12px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .docs-sidebar-toggle {
@@ -891,19 +892,7 @@ export default {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #f4f5f6;
-}
-
-.docs-preview-head {
-  height: 35px;
-  border-bottom: 1px solid #d1d5db;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 11px;
-  font-weight: 700;
+  background: #ffffff;
 }
 
 .docs-preview-head-main {

@@ -168,6 +168,10 @@ router.post('/rooms/:roomId/attachments/:kind', authenticateToken, uploadDiscuss
 router.post('/rooms/:roomId/ai-message', authenticateToken, discussionController.sendAiRoomMessage);
 router.get('/rooms/:roomId/documents', authenticateToken, discussionController.listRoomDocuments);
 router.post('/rooms/:roomId/documents', authenticateToken, uploadDiscussionDocument, discussionController.uploadRoomDocument);
+router.get('/rooms/:roomId/tasks', authenticateToken, discussionController.listRoomTasks);
+router.post('/rooms/:roomId/tasks', authenticateToken, discussionController.createRoomTask);
+router.patch('/rooms/:roomId/tasks/:taskId', authenticateToken, discussionController.updateRoomTask);
+router.delete('/rooms/:roomId/tasks/:taskId', authenticateToken, discussionController.deleteRoomTask);
 
 // 匹配队列
 router.get('/match/queue', authenticateToken, discussionController.getMatchQueueStatus);
