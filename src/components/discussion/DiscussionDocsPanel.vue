@@ -24,76 +24,84 @@
             :disabled="uploadingDocument || !currentChat"
             @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
           >
-            <i class="fa fa-folder-open-o"></i>
+            <i class="fa fa-book"></i>
             <span>选择官方文档上传</span>
           </button>
           <div v-if="docsError" class="docs-upload-error">{{ docsError }}</div>
         </div>
 
         <div v-else key="docs-library" class="docs-library-layout" :class="{ collapsed: docsSidebarCollapsed }">
-          <aside class="docs-sidebar">
+          <aside v-if="!docsSidebarCollapsed" class="docs-sidebar">
             <div class="docs-sidebar-head">
               <strong>文档</strong>
-              <button type="button" class="docs-sidebar-toggle" @click="docsSidebarCollapsed = !docsSidebarCollapsed">
-                <i :class="docsSidebarCollapsed ? 'fa fa-angle-right' : 'fa fa-angle-left'"></i>
+              <button type="button" class="docs-sidebar-toggle" @click="docsSidebarCollapsed = true">
+                <i class="fa fa-angle-left"></i>
               </button>
             </div>
 
-            <template v-if="!docsSidebarCollapsed">
-              <div class="docs-sidebar-section">
-                <h4>已上传文档（{{ currentRoomDocuments.length }}）</h4>
-                <div v-if="docsLoading && !currentRoomDocuments.length" class="docs-side-empty">文档加载中...</div>
-                <div v-else-if="!currentRoomDocuments.length" class="docs-side-empty">还没有上传文档</div>
-                <button
-                  v-for="doc in currentRoomDocuments"
-                  :key="doc.id"
-                  type="button"
-                  class="docs-item"
-                  :class="{ active: currentRoomDocument?.id === doc.id }"
-                  @click="selectRoomDocument(doc.id)"
-                >
-                  <i class="fa fa-file-text-o"></i>
-                  <span>{{ doc.name }}</span>
-                </button>
-              </div>
+            <div class="docs-sidebar-section">
+              <h4>已上传文档（{{ currentRoomDocuments.length }}）</h4>
+              <div v-if="docsLoading && !currentRoomDocuments.length" class="docs-side-empty">文档加载中...</div>
+              <div v-else-if="!currentRoomDocuments.length" class="docs-side-empty">还没有上传文档</div>
+              <button
+                v-for="doc in currentRoomDocuments"
+                :key="doc.id"
+                type="button"
+                class="docs-item"
+                :class="{ active: currentRoomDocument?.id === doc.id }"
+                @click="selectRoomDocument(doc.id)"
+              >
+                <i class="fa fa-file-text-o"></i>
+                <span>{{ doc.name }}</span>
+              </button>
+            </div>
 
-              <div class="docs-sidebar-actions">
-                <button
-                  type="button"
-                  class="docs-upload-primary side"
-                  :disabled="uploadingDocument || !currentChat"
-                  @click="openDocumentUploader({ lockToLibrary: true, source: 'local' })"
-                >
-                  <i class="fa fa-upload"></i>
-                  <span>{{ uploadingDocument ? '上传中...' : '上传文档' }}</span>
-                </button>
-                <button
-                  type="button"
-                  class="docs-upload-secondary side"
-                  :disabled="uploadingDocument || !currentChat"
-                  @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
-                >
-                  <i class="fa fa-folder-open-o"></i>
-                  <span>官方文档</span>
-                </button>
-              </div>
-            </template>
+            <div class="docs-sidebar-actions">
+              <button
+                type="button"
+                class="docs-upload-primary side"
+                :disabled="uploadingDocument || !currentChat"
+                @click="openDocumentUploader({ lockToLibrary: true, source: 'local' })"
+              >
+                <i class="fa fa-upload"></i>
+                <span>{{ uploadingDocument ? '上传中...' : '上传文档' }}</span>
+              </button>
+              <button
+                type="button"
+                class="docs-upload-secondary side"
+                :disabled="uploadingDocument || !currentChat"
+                @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
+              >
+                <i class="fa fa-book"></i>
+                <span>官方文档</span>
+              </button>
+            </div>
           </aside>
 
           <section class="docs-preview-pane">
             <header class="docs-preview-head">
-              <strong>{{ currentRoomDocument?.name || '未选择文档' }}</strong>
+              <div class="docs-preview-head-main">
+                <button type="button" class="docs-sidebar-toggle header" @click="docsSidebarCollapsed = !docsSidebarCollapsed">
+                  <i :class="docsSidebarCollapsed ? 'fa fa-angle-right' : 'fa fa-angle-left'"></i>
+                </button>
+                <strong>{{ currentRoomDocument?.name || '未选择文档' }}</strong>
+              </div>
               <span>{{ currentRoomDocumentPageLabel }}</span>
             </header>
             <div class="docs-preview-body">
-              <div v-if="docsError" class="docs-error-state">{{ docsError }}</div>
+              <div v-if="docsPreviewLoading" class="docs-loading-state">文档加载中...</div>
+              <div v-else-if="docsPreviewError" class="docs-error-state">{{ docsPreviewError }}</div>
+              <div
+                v-else-if="renderedMarkdown"
+                class="docs-markdown-content"
+                v-html="renderedMarkdown"
+              ></div>
               <template v-else>
                 <h3>Discussion Mode 文档展示</h3>
                 <p>该区域为文档直接展示区。点击左侧文档列表可快速切换当前阅读内容，侧边栏支持收起。</p>
                 <hr />
                 <p>当前文档：{{ currentRoomDocument?.name || '尚未上传文档' }}</p>
                 <p>状态：{{ currentRoomDocument ? '已上传，可用于会话上下文。' : '暂未上传，点击左下角上传文档继续。' }}</p>
-                <p v-if="currentRoomDocument?.previewText" class="docs-preview-excerpt">{{ currentRoomDocument.previewText }}</p>
               </template>
             </div>
           </section>
@@ -108,11 +116,39 @@
       :accept="documentAccept"
       @change="onDocumentFileChange"
     />
+
+    <div v-if="showOfficialDocsPicker" class="docs-picker-mask" @click="closeOfficialDocsPicker">
+      <div class="docs-picker-panel" @click.stop>
+        <div class="docs-picker-head">
+          <strong>选择官方文档</strong>
+          <button type="button" class="docs-picker-close" @click="closeOfficialDocsPicker">
+            <i class="fa fa-times"></i>
+          </button>
+        </div>
+        <div class="docs-picker-body">
+          <button
+            v-for="doc in officialDocs"
+            :key="doc.id"
+            type="button"
+            class="docs-picker-item"
+            :disabled="uploadingDocument"
+            @click="selectOfficialDocument(doc)"
+          >
+            <div class="docs-picker-item-main">
+              <strong>{{ doc.title }}</strong>
+              <span>{{ doc.summary }}</span>
+            </div>
+            <i class="fa fa-angle-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import { apiCall } from '../../utils/api'
+import { docsList } from '../../data/docsList'
 
 export default {
   name: 'DiscussionDocsPanel',
@@ -135,8 +171,13 @@ export default {
       docsSidebarCollapsed: false,
       docsLoading: false,
       docsError: '',
+      docsPreviewLoading: false,
+      docsPreviewError: '',
+      renderedMarkdown: '',
       uploadingDocument: false,
-      pendingDocumentSource: 'local'
+      pendingDocumentSource: 'local',
+      showOfficialDocsPicker: false,
+      officialDocs: docsList
     }
   },
   computed: {
@@ -178,12 +219,201 @@ export default {
       if (nextKey === previousKey) return
       this.docsSidebarCollapsed = false
       this.docsError = ''
+      this.docsPreviewError = ''
+      this.renderedMarkdown = ''
       if (this.isActive && nextKey) {
         this.ensureCurrentRoomDocuments()
+      }
+    },
+    currentRoomDocument: {
+      immediate: true,
+      handler(nextDocument) {
+        if (!this.isActive) return
+        this.loadCurrentDocumentContent(nextDocument)
       }
     }
   },
   methods: {
+    escapeHtml(text = '') {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+    },
+    resolveDocAssetUrl(url = '', baseUrl = '') {
+      const value = String(url || '').trim()
+      if (!value) return ''
+      if (/^(https?:|data:|blob:)/i.test(value) || value.startsWith('/')) return value
+      if (!baseUrl) return value
+      try {
+        return new URL(value, baseUrl).toString()
+      } catch {
+        return value
+      }
+    },
+    renderInline(text = '', baseUrl = '') {
+      const escaped = this.escapeHtml(text)
+      return escaped
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => `<img src="${this.resolveDocAssetUrl(src, baseUrl)}" alt="${this.escapeHtml(alt)}" loading="lazy" />`)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => `<a href="${this.resolveDocAssetUrl(href, baseUrl)}" target="_blank" rel="noopener noreferrer">${label}</a>`)
+    },
+    markdownToHtml(markdown = '', baseUrl = '') {
+      const lines = String(markdown).replace(/\r\n?/g, '\n').split('\n')
+      let html = ''
+      let paragraph = []
+      let inCode = false
+      let codeLang = ''
+      let codeLines = []
+      let inUnorderedList = false
+      let inOrderedList = false
+
+      const flushParagraph = () => {
+        if (!paragraph.length) return
+        html += `<p>${this.renderInline(paragraph.join(' '), baseUrl)}</p>`
+        paragraph = []
+      }
+
+      const closeLists = () => {
+        if (inUnorderedList) {
+          html += '</ul>'
+          inUnorderedList = false
+        }
+        if (inOrderedList) {
+          html += '</ol>'
+          inOrderedList = false
+        }
+      }
+
+      for (const line of lines) {
+        const codeFenceMatch = line.match(/^```(\w+)?/)
+        if (codeFenceMatch) {
+          if (!inCode) {
+            flushParagraph()
+            closeLists()
+            inCode = true
+            codeLang = codeFenceMatch[1] || ''
+            codeLines = []
+          } else {
+            const langClass = codeLang ? ` class="language-${codeLang}"` : ''
+            html += `<pre><code${langClass}>${this.escapeHtml(codeLines.join('\n'))}</code></pre>`
+            inCode = false
+            codeLang = ''
+            codeLines = []
+          }
+          continue
+        }
+
+        if (inCode) {
+          codeLines.push(line)
+          continue
+        }
+
+        if (!line.trim()) {
+          flushParagraph()
+          closeLists()
+          continue
+        }
+
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
+        if (headingMatch) {
+          flushParagraph()
+          closeLists()
+          const level = headingMatch[1].length
+          html += `<h${level}>${this.renderInline(headingMatch[2], baseUrl)}</h${level}>`
+          continue
+        }
+
+        const unorderedMatch = line.match(/^[-*+]\s+(.+)$/)
+        if (unorderedMatch) {
+          flushParagraph()
+          if (inOrderedList) {
+            html += '</ol>'
+            inOrderedList = false
+          }
+          if (!inUnorderedList) {
+            html += '<ul>'
+            inUnorderedList = true
+          }
+          html += `<li>${this.renderInline(unorderedMatch[1], baseUrl)}</li>`
+          continue
+        }
+
+        const orderedMatch = line.match(/^\d+\.\s+(.+)$/)
+        if (orderedMatch) {
+          flushParagraph()
+          if (inUnorderedList) {
+            html += '</ul>'
+            inUnorderedList = false
+          }
+          if (!inOrderedList) {
+            html += '<ol>'
+            inOrderedList = true
+          }
+          html += `<li>${this.renderInline(orderedMatch[1], baseUrl)}</li>`
+          continue
+        }
+
+        const blockquoteMatch = line.match(/^>\s?(.+)$/)
+        if (blockquoteMatch) {
+          flushParagraph()
+          closeLists()
+          html += `<blockquote>${this.renderInline(blockquoteMatch[1], baseUrl)}</blockquote>`
+          continue
+        }
+
+        paragraph.push(line.trim())
+      }
+
+      if (inCode) {
+        const langClass = codeLang ? ` class="language-${codeLang}"` : ''
+        html += `<pre><code${langClass}>${this.escapeHtml(codeLines.join('\n'))}</code></pre>`
+      }
+
+      flushParagraph()
+      closeLists()
+      return html
+    },
+    async loadCurrentDocumentContent(document) {
+      if (!document) {
+        this.renderedMarkdown = ''
+        this.docsPreviewError = ''
+        this.docsPreviewLoading = false
+        return
+      }
+
+      const url = String(document.url || '').trim()
+      const mimeType = String(document.mimeType || '').toLowerCase()
+      const canRenderMarkdown = /\.md($|\?)/i.test(url) || mimeType.includes('markdown') || mimeType.startsWith('text/')
+
+      if (!url || !canRenderMarkdown) {
+        this.renderedMarkdown = ''
+        this.docsPreviewError = ''
+        this.docsPreviewLoading = false
+        return
+      }
+
+      this.docsPreviewLoading = true
+      this.docsPreviewError = ''
+      try {
+        const response = await fetch(url)
+        if (!response.ok) {
+          throw new Error('文档内容加载失败')
+        }
+
+        const markdown = await response.text()
+        this.renderedMarkdown = this.markdownToHtml(markdown, url)
+      } catch (error) {
+        this.renderedMarkdown = ''
+        this.docsPreviewError = error.message || '文档内容加载失败'
+      } finally {
+        this.docsPreviewLoading = false
+      }
+    },
     normalizeRoomDocument(document = {}) {
       const name = String(document.name || document.file_name || '').trim()
       if (!name) return null
@@ -290,6 +520,12 @@ export default {
       if (lockToLibrary) {
         this.setDocsPanelLocked(this.currentChat.id, true)
       }
+      if (source === 'official') {
+        this.pendingDocumentSource = 'official'
+        this.docsError = ''
+        this.showOfficialDocsPicker = true
+        return
+      }
       this.pendingDocumentSource = source
       this.docsError = ''
       this.$nextTick(() => {
@@ -335,6 +571,45 @@ export default {
         if (event?.target) event.target.value = ''
       }
     },
+    closeOfficialDocsPicker() {
+      this.showOfficialDocsPicker = false
+      this.pendingDocumentSource = 'local'
+    },
+    async selectOfficialDocument(doc) {
+      if (!doc?.file || !this.currentChat || this.uploadingDocument) return
+
+      this.uploadingDocument = true
+      this.docsError = ''
+      try {
+        const response = await fetch(doc.file)
+        if (!response.ok) {
+          throw new Error('官方文档读取失败')
+        }
+
+        const markdown = await response.text()
+        const fileName = String(doc.file.split('/').pop() || `${doc.id || 'official-doc'}.md`).trim() || 'official-doc.md'
+        const file = new File([markdown], fileName, { type: 'text/markdown' })
+        const data = await this.uploadRoomDocument(file, 'official')
+        const normalized = this.normalizeRoomDocument(data?.document || null)
+        if (!normalized) {
+          throw new Error('文档上传成功，但返回数据无效')
+        }
+
+        const nextDocuments = [
+          normalized,
+          ...this.currentRoomDocuments.filter((item) => String(item.id) !== String(normalized.id))
+        ]
+        this.setCurrentRoomDocuments(this.currentChat.id, nextDocuments)
+        this.setCurrentRoomSelectedDocument(this.currentChat.id, normalized.id)
+        this.setDocsPanelLocked(this.currentChat.id, true)
+        this.showOfficialDocsPicker = false
+      } catch (error) {
+        this.docsError = error.message || '官方文档上传失败'
+      } finally {
+        this.uploadingDocument = false
+        this.pendingDocumentSource = 'local'
+      }
+    },
     async uploadRoomDocument(file, source = 'local') {
       const roomId = Number(this.currentChat?.id || 0)
       if (!roomId) {
@@ -368,18 +643,21 @@ export default {
   background: #f1f2f4;
   min-height: 0;
   flex: 1;
-  padding: 20px;
+  padding: 16px;
 }
 
 .docs-fallback-shell h3 {
   margin: 0 0 8px;
   color: #111827;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .docs-fallback-shell p {
   margin: 0;
   color: #6b7280;
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .right-docs-shell {
@@ -417,8 +695,8 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px;
+  gap: 8px;
+  padding: 20px;
 }
 
 .docs-upload-landing-icon {
@@ -435,30 +713,31 @@ export default {
 
 .docs-upload-landing h3 {
   margin: 4px 0 0;
-  font-size: 40px;
+  font-size: 32px;
   line-height: 1.1;
-  font-weight: 800;
+  font-weight: 700;
   color: #111827;
 }
 
 .docs-upload-landing p {
   margin: 0 0 6px;
   color: #6b7280;
-  font-size: 17px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .docs-upload-primary,
 .docs-upload-secondary {
-  height: 44px;
+  height: 35px;
   width: min(360px, 88%);
   border-radius: 999px;
   border: 1px solid #111827;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
@@ -489,7 +768,8 @@ export default {
 
 .docs-upload-error {
   margin-top: 2px;
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 600;
   color: #7f1d1d;
 }
 
@@ -509,12 +789,8 @@ export default {
   transition: width 0.22s ease;
 }
 
-.docs-library-layout.collapsed .docs-sidebar {
-  width: 54px;
-}
-
 .docs-sidebar-head {
-  height: 44px;
+  height: 35px;
   border-bottom: 1px solid #d1d5db;
   padding: 0 10px;
   display: flex;
@@ -524,9 +800,14 @@ export default {
   flex-shrink: 0;
 }
 
+.docs-sidebar-head strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .docs-sidebar-toggle {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 6px;
   border: 1px solid #d1d5db;
   background: #ffffff;
@@ -545,13 +826,14 @@ export default {
 
 .docs-sidebar-section h4 {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 11px;
   color: #6b7280;
   font-weight: 700;
 }
 
 .docs-side-empty {
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 600;
   color: #6b7280;
   margin-bottom: 8px;
 }
@@ -560,14 +842,15 @@ export default {
   width: 100%;
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  min-height: 34px;
+  min-height: 28px;
   background: #ececec;
   color: #111827;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 8px;
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 700;
   margin-bottom: 6px;
   text-align: left;
   cursor: pointer;
@@ -597,9 +880,9 @@ export default {
 .docs-upload-primary.side,
 .docs-upload-secondary.side {
   width: 100%;
-  height: 34px;
-  font-size: 14px;
-  font-weight: 600;
+  height: 28px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .docs-preview-pane {
@@ -612,14 +895,22 @@ export default {
 }
 
 .docs-preview-head {
-  height: 44px;
+  height: 35px;
   border-bottom: 1px solid #d1d5db;
   padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.docs-preview-head-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .docs-preview-head strong {
@@ -631,27 +922,41 @@ export default {
 
 .docs-preview-head span {
   color: #6b7280;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.docs-sidebar-toggle.header {
   flex-shrink: 0;
 }
 
 .docs-preview-body {
-  padding: 18px 18px 20px;
+  padding: 14px 14px 16px;
   overflow: auto;
+}
+
+.docs-loading-state {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
 }
 
 .docs-preview-body h3 {
   margin: 0 0 10px;
-  font-size: 36px;
+  font-size: 29px;
   line-height: 1.18;
   color: #111827;
+  font-weight: 700;
 }
 
 .docs-preview-body p {
   margin: 0 0 10px;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.6;
   color: #1f2937;
+  font-weight: 600;
 }
 
 .docs-preview-body hr {
@@ -665,33 +970,217 @@ export default {
   border: 1px solid #d1d5db;
   border-radius: 10px;
   background: #ffffff;
-  padding: 10px 12px;
+  padding: 8px 10px;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 15px !important;
+  font-size: 12px !important;
+  font-weight: 600;
+}
+
+.docs-markdown-content :deep(h1),
+.docs-markdown-content :deep(h2),
+.docs-markdown-content :deep(h3),
+.docs-markdown-content :deep(h4),
+.docs-markdown-content :deep(h5),
+.docs-markdown-content :deep(h6) {
+  margin: 0 0 10px;
+  line-height: 1.25;
+  color: #111827;
+  font-weight: 700;
+}
+
+.docs-markdown-content :deep(h1) {
+  font-size: 28px;
+}
+
+.docs-markdown-content :deep(h2) {
+  font-size: 22px;
+}
+
+.docs-markdown-content :deep(h3) {
+  font-size: 18px;
+}
+
+.docs-markdown-content :deep(p),
+.docs-markdown-content :deep(li) {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.docs-markdown-content :deep(ul),
+.docs-markdown-content :deep(ol) {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.docs-markdown-content :deep(code) {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #e5e7eb;
+  font-size: 12px;
+}
+
+.docs-markdown-content :deep(pre) {
+  margin: 0 0 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #111827;
+  color: #f9fafb;
+  overflow: auto;
+}
+
+.docs-markdown-content :deep(pre code) {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.docs-markdown-content :deep(blockquote) {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid #9ca3af;
+  background: #f9fafb;
+  color: #374151;
+}
+
+.docs-markdown-content :deep(a) {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.docs-markdown-content :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 14px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
 }
 
 .docs-error-state {
   margin: 0;
   color: #7f1d1d;
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .attachment-input-hidden {
   display: none;
 }
 
+.docs-picker-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.docs-picker-panel {
+  width: min(520px, 92%);
+  max-height: min(78vh, 620px);
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+}
+
+.docs-picker-head {
+  height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.docs-picker-head strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.docs-picker-close {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4b5563;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.docs-picker-body {
+  padding: 10px;
+  overflow: auto;
+}
+
+.docs-picker-item {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.docs-picker-item:hover {
+  transform: translateY(-1px);
+  border-color: #c4cad4;
+  background: #ffffff;
+}
+
+.docs-picker-item-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.docs-picker-item-main strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.docs-picker-item-main span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
 @media (max-width: 1400px) {
   .docs-upload-landing h3 {
-    font-size: 32px;
+    font-size: 26px;
   }
 
   .docs-preview-body h3 {
-    font-size: 28px;
+    font-size: 22px;
   }
 
   .docs-preview-body p {
-    font-size: 17px;
+    font-size: 14px;
   }
 }
 
@@ -701,18 +1190,18 @@ export default {
   }
 
   .docs-upload-landing h3 {
-    font-size: 28px;
+    font-size: 22px;
   }
 
   .docs-upload-landing p {
-    font-size: 15px;
+    font-size: 12px;
   }
 
   .docs-upload-primary,
   .docs-upload-secondary {
     width: 100%;
-    font-size: 15px;
-    height: 40px;
+    font-size: 12px;
+    height: 32px;
   }
 
   .docs-library-layout {
@@ -739,15 +1228,32 @@ export default {
   }
 
   .docs-preview-body h3 {
-    font-size: 23px;
+    font-size: 18px;
   }
 
   .docs-preview-body p {
-    font-size: 14px;
+    font-size: 11px;
   }
 
   .docs-preview-excerpt {
-    font-size: 13px !important;
+    font-size: 11px !important;
+  }
+
+  .docs-markdown-content :deep(h1) {
+    font-size: 22px;
+  }
+
+  .docs-markdown-content :deep(h2) {
+    font-size: 18px;
+  }
+
+  .docs-markdown-content :deep(h3) {
+    font-size: 16px;
+  }
+
+  .docs-markdown-content :deep(p),
+  .docs-markdown-content :deep(li) {
+    font-size: 12px;
   }
 }
 </style>

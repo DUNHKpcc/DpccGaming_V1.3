@@ -21,7 +21,7 @@
               v-model="username"
               type="text"
               class="login-input"
-              placeholder="login@gmail.com"
+              placeholder="输入你的用户名"
               required
             >
 
@@ -174,7 +174,7 @@ const togglePasswordVisibility = () => {
 .login-modal-shell {
   width: min(1050px, 94vw);
   height: min(650px, 86vh);
-  border-radius: 18px;
+  border-radius: 26px;
   overflow: hidden;
   background: #f1f1f1;
   display: flex;
@@ -184,7 +184,7 @@ const togglePasswordVisibility = () => {
 }
 
 .login-panel-left {
-  width: 55%;
+  width: 57%;
   min-width: 0;
   display: flex;
   justify-content: center;
@@ -198,7 +198,7 @@ const togglePasswordVisibility = () => {
   width: min(360px, calc(100% - 48px));
   padding-top: 20px;
   color: #111111;
-  transform: translateY(-18px);
+  transform: translate(-16px, 10px);
 }
 
 .login-brand-row {
@@ -404,18 +404,32 @@ const togglePasswordVisibility = () => {
 }
 
 .login-panel-right {
-  width: 45%;
+  width: 43%;
   min-width: 0;
   position: absolute;
   top: 0;
   right: 0;
   height: 100%;
   z-index: 3;
+  background-color: #12163d;
+  pointer-events: none;
+}
+
+.login-panel-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: calc(100% + clamp(120px, 10vw, 180px));
+  height: 100%;
+  z-index: 1;
   background-image: url('/Ai/LoginBackground.png');
   background-repeat: no-repeat;
-  background-position: 99% center;
+  background-position: 96% center;
+  transform: scale(1.05);
+  transform-origin: center right;
   background-size: cover;
-  background-color: #12163d;
+  pointer-events: none;
 }
 
 @media (max-width: 1200px) {
@@ -448,7 +462,7 @@ const togglePasswordVisibility = () => {
   .login-panel-inner {
     width: min(420px, 100%);
     padding: 24px 18px 20px;
-    transform: none;
+    transform: translate(-8px, 6px);
   }
 
   .login-brand-row h2 {

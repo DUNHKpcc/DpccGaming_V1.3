@@ -91,8 +91,8 @@
               <div v-if="commentsLoading" class="text-center py-4 text-white/80">加载评论...</div>
               <div v-else-if="comments.length === 0" class="text-center py-4 text-white/80">暂无评论，成为第一个评论者吧！</div>
               <div v-else v-for="comment in comments" :key="comment.id" :id="`comment-${comment.id}`" class="mb-4 pb-4 border-b border-white/20">
-                <div class="flex justify-between items-start mb-1 gap-2">
-                  <div class="comment-user">
+                <div class="comment-header">
+                  <div class="comment-user comment-user-main">
                     <AvatarFriendAction
                       :user-id="comment.user_id"
                       :username="comment.username"
@@ -106,11 +106,11 @@
                       />
                     </AvatarFriendAction>
                     <div class="comment-name-row">
-                      <div class="font-medium text-white">{{ comment.username }}</div>
+                      <div class="comment-username font-medium text-white">{{ comment.username }}</div>
                       <UserLevelBadge :user-id="comment.user_id" />
                     </div>
                   </div>
-                  <div class="text-yellow-400 text-sm">
+                  <div class="comment-rating text-yellow-400 text-sm">
                     <i v-for="star in comment.rating" :key="star" class="fa fa-star"></i>
                     <i v-for="star in (5 - comment.rating)" :key="star" class="fa fa-star-o"></i>
                   </div>
@@ -150,7 +150,7 @@
                 <!-- 回复列表 -->
                 <div v-if="comment.replies?.length && !collapsedReplies.has(comment.id)" class="mt-3 ml-4 space-y-2">
                   <div v-for="reply in comment.replies" :key="reply.id" :id="`reply-${reply.id}`" class="pb-2 border-l-2 border-white/20 pl-3">
-                    <div class="flex justify-between items-start mb-1 gap-2">
+                    <div class="comment-header">
                       <div class="comment-user">
                         <AvatarFriendAction
                           :user-id="reply.user_id"
@@ -165,7 +165,7 @@
                           />
                         </AvatarFriendAction>
                         <div class="comment-name-row">
-                          <div class="font-medium text-sm text-white">{{ reply.username }}</div>
+                          <div class="comment-username font-medium text-sm text-white">{{ reply.username }}</div>
                           <UserLevelBadge :user-id="reply.user_id" />
                         </div>
                       </div>
@@ -742,6 +742,13 @@ html[data-theme="dark"] .game-modal-surface {
   box-shadow: 0 0 0 2px var(--gm-focus) !important;
 }
 
+.comment-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .comment-user {
   display: flex;
   align-items: center;
@@ -749,11 +756,28 @@ html[data-theme="dark"] .game-modal-surface {
   min-width: 0;
 }
 
+.comment-user-main {
+  flex: 1;
+}
+
 .comment-name-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.4rem;
   min-width: 0;
+}
+
+.comment-username {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-rating {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .comment-avatar,

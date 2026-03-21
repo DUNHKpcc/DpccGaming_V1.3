@@ -98,6 +98,13 @@
                     >
                        <img src="/Ai/Google.png" alt="Google" class="wechat-bind-logo" />
                     </button>
+                    <button
+                      type="button"
+                      title="绑定 GitHub"
+                      class="google-bind-btn"
+                    >
+                      <i class="fa-brands fa-github oauth-font-icon"></i>
+                    </button>
                   </div>
                   <p v-if="wechatBoundLabel" class="wechat-bind-hint mb-3">{{ wechatBoundLabel }}</p>
                   <p v-if="googleBoundLabel" class="wechat-bind-hint mb-3">{{ googleBoundLabel }}</p>
