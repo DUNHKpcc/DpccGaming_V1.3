@@ -107,15 +107,20 @@ export default {
 <style scoped>
 .discussion-code-panel {
   flex: 1;
+  width: 100%;
+  height: 100%;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .right-path-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
   padding: 6px 12px 4px;
   border-top: 1px solid #d6d9dd;
   border-bottom: 1px solid #d6d9dd;
@@ -198,7 +203,9 @@ export default {
   border: none;
   border-radius: 14px;
   background: #ffffff;
+  width: calc(100% - 24px);
   min-height: 0;
+  min-width: 0;
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -206,9 +213,12 @@ export default {
 
 .code-panel {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 14px;
   overflow: auto;
+  scrollbar-gutter: stable both-edges;
   font-size: 13px;
   line-height: 1.5;
   font-family: Consolas, Monaco, monospace;
@@ -221,6 +231,8 @@ export default {
 
 .code-empty-state {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 14px;
   border: none;

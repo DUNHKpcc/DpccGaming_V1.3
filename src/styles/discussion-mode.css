@@ -1585,6 +1585,7 @@ body {
 .right-panel-stage {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1594,8 +1595,11 @@ body {
 .right-panel-view {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .right-panel-switch-enter-active,

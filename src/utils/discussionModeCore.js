@@ -8,6 +8,7 @@ import python from 'highlight.js/lib/languages/python'
 import cpp from 'highlight.js/lib/languages/cpp'
 import csharp from 'highlight.js/lib/languages/csharp'
 import { getAvatarUrl } from './avatar'
+import { getBuiltinModelAvatarUrl } from './discussionChatMore'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -39,7 +40,6 @@ const AVATAR_COLORS = [
   'linear-gradient(135deg, #f6d365, #fda085)'
 ]
 
-const AI_AVATAR_URL = '/Ai/DouBaoSeed1.6.png'
 const MESSAGE_TIME_DIVIDER_MS = 45 * 60 * 1000
 
 export const toDiscussionInt = (value) => {
@@ -325,6 +325,7 @@ export const mapDiscussionMessage = (item, context = {}) => {
   const documentPreview = normalizeDiscussionDocumentPreview(metadata?.document_preview || null)
   const localAiName = String(metadata?.local_ai_name || '').trim()
   const localAiAvatarUrl = String(metadata?.local_ai_avatar_url || '').trim()
+  const aiModelName = String(metadata?.ai_model || '').trim()
   let text = (item.content || '').toString()
 
   if (codePreview && /^代码预览[:：]/.test(text)) {
@@ -342,7 +343,7 @@ export const mapDiscussionMessage = (item, context = {}) => {
     : localAiName || item.username || (senderType === 'ai' ? 'AI 助手' : senderType === 'system' ? '系统' : '成员')
 
   const avatarUrl = senderType === 'ai'
-    ? (localAiAvatarUrl || AI_AVATAR_URL)
+    ? (localAiAvatarUrl || getBuiltinModelAvatarUrl(aiModelName))
     : isMine
       ? context.currentUserAvatarUrl
       : getAvatarUrl(item.avatar_url || '')
