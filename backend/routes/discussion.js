@@ -164,10 +164,15 @@ router.post('/rooms/:roomId/leave', authenticateToken, discussionController.leav
 // 房间消息
 router.get('/rooms/:roomId/messages', authenticateToken, discussionController.listRoomMessages);
 router.post('/rooms/:roomId/messages', authenticateToken, discussionController.sendRoomMessage);
+router.get('/rooms/:roomId/settings', authenticateToken, discussionController.getRoomSettings);
+router.patch('/rooms/:roomId/settings', authenticateToken, discussionController.updateRoomSettings);
+router.post('/rooms/:roomId/ai-loop/turn', authenticateToken, discussionController.triggerRoomAiLoopTurn);
 router.post('/rooms/:roomId/attachments/:kind', authenticateToken, uploadDiscussionAttachment, discussionController.uploadRoomAttachment);
 router.post('/rooms/:roomId/ai-message', authenticateToken, discussionController.sendAiRoomMessage);
 router.get('/rooms/:roomId/documents', authenticateToken, discussionController.listRoomDocuments);
 router.post('/rooms/:roomId/documents', authenticateToken, uploadDiscussionDocument, discussionController.uploadRoomDocument);
+router.delete('/rooms/:roomId/documents/:documentId', authenticateToken, discussionController.deleteRoomDocument);
+router.patch('/rooms/:roomId/documents/current', authenticateToken, discussionController.setCurrentRoomDocument);
 router.get('/rooms/:roomId/tasks', authenticateToken, discussionController.listRoomTasks);
 router.post('/rooms/:roomId/tasks', authenticateToken, discussionController.createRoomTask);
 router.patch('/rooms/:roomId/tasks/:taskId', authenticateToken, discussionController.updateRoomTask);
@@ -180,6 +185,7 @@ router.delete('/match/queue', authenticateToken, discussionController.cancelMatc
 
 // 好友系统
 router.get('/friends', authenticateToken, discussionController.getFriends);
+router.delete('/friends/:friendUserId', authenticateToken, discussionController.deleteFriend);
 router.post('/friends/:friendUserId/direct-room', authenticateToken, discussionController.getOrCreateFriendDirectRoom);
 router.get('/friends/requests', authenticateToken, discussionController.getFriendRequests);
 router.get('/friends/search', authenticateToken, discussionController.searchUsersForFriend);

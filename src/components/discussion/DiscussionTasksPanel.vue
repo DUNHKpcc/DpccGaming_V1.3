@@ -239,16 +239,25 @@ export default {
   watch: {
     isActive(nextActive) {
       if (!nextActive) return
-      this.ensureCurrentRoomTasks()
+      this.ensureCurrentRoomTasks(true)
     },
     currentRoomKey(nextKey, previousKey) {
       if (nextKey === previousKey) return
       this.showEditor = false
       this.submitError = ''
       if (this.isActive && nextKey) {
-        this.ensureCurrentRoomTasks()
+        this.ensureCurrentRoomTasks(true)
       }
     }
+  },
+  mounted() {
+    window.addEventListener('discussion-tasks-sync', this.handleTasksSyncEvent)
+    if (this.isActive && this.currentRoomKey) {
+      this.ensureCurrentRoomTasks(true)
+    }
+  },
+  beforeUnmount() {
+    window.removeEventListener('discussion-tasks-sync', this.handleTasksSyncEvent)
   },
   methods: {
     normalizeTask(task = {}) {
@@ -299,6 +308,28 @@ export default {
       this.tasksByRoom = {
         ...this.tasksByRoom,
         [this.currentRoomKey]: this.currentRoomTasks.filter((item) => item.id !== Number(taskId))
+      }
+    },
+    removeTaskByRoom(roomId, taskId) {
+      const roomKey = String(Number(roomId) || '')
+      if (!roomKey) return
+      const existing = Array.isArray(this.tasksByRoom[roomKey]) ? this.tasksByRoom[roomKey] : []
+      this.tasksByRoom = {
+        ...this.tasksByRoom,
+        [roomKey]: existing.filter((item) => item.id !== Number(taskId))
+      }
+    },
+    upsertTaskByRoom(roomId, task) {
+      const roomKey = String(Number(roomId) || '')
+      if (!roomKey || !task) return
+      const normalized = this.normalizeTask(task)
+      const existing = Array.isArray(this.tasksByRoom[roomKey]) ? this.tasksByRoom[roomKey] : []
+      this.tasksByRoom = {
+        ...this.tasksByRoom,
+        [roomKey]: this.sortTasks([
+          normalized,
+          ...existing.filter((item) => item.id !== normalized.id)
+        ])
       }
     },
     async ensureCurrentRoomTasks(force = false) {
@@ -446,10 +477,30 @@ export default {
         this.togglingTaskIds = next
       }
     },
+    handleTasksSyncEvent(event) {
+      const detail = event?.detail || {}
+      const roomId = Number(detail.roomId || 0)
+      if (!roomId) return
+
+      const action = String(detail.action || '').trim()
+      const roomKey = String(roomId)
+      if (!this.loadedByRoom[roomKey] && this.currentRoomKey === roomKey) {
+        this.ensureCurrentRoomTasks(true)
+      }
+
+      if ((action === 'created' || action === 'updated') && detail.task) {
+        this.upsertTaskByRoom(roomId, detail.task)
+        return
+      }
+
+      if (action === 'deleted') {
+        this.removeTaskByRoom(roomId, detail.taskId)
+      }
+    },
     taskBadgeLabel(task) {
       if (this.togglingTaskIds[task.id]) return '...'
       if (task.status === 'completed') return '已完成'
-      if (task.priority === 'urgent') return '特办'
+      if (task.priority === 'urgent') return '待办'
       if (task.status === 'in_progress') return '进行中'
       return '待办'
     },
@@ -672,12 +723,12 @@ export default {
   gap: 12px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.18s ease, transform 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .task-item:hover {
-  border-color: #c1c9d6;
-  transform: translateY(-1px);
+  border-color: #111827;
+  box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.08);
 }
 
 .task-item-main {

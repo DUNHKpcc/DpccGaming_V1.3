@@ -112,8 +112,52 @@ const emitRoomMessage = (roomId, message) => {
   });
 };
 
+const emitRoomDocumentsEvent = (roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextRoomId) return;
+  ioInstance.to(roomChannel(nextRoomId)).emit('discussion:documents', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
+const emitRoomTasksEvent = (roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextRoomId) return;
+  ioInstance.to(roomChannel(nextRoomId)).emit('discussion:tasks', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
+const emitRoomSettingsEvent = (roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextRoomId) return;
+  ioInstance.to(roomChannel(nextRoomId)).emit('discussion:room-settings', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
+const emitRoomRemovedEvent = (roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextRoomId) return;
+  ioInstance.to(roomChannel(nextRoomId)).emit('discussion:room-removed', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
 module.exports = {
   initDiscussionRealtime,
   emitRoomMessage,
+  emitRoomDocumentsEvent,
+  emitRoomTasksEvent,
+  emitRoomSettingsEvent,
+  emitRoomRemovedEvent,
   roomChannel
 };

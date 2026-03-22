@@ -6,7 +6,8 @@ const {
   mapRoomTaskRow,
   normalizeOptionalTaskText,
   parseTaskPriority,
-  parseTaskStatus
+  parseTaskStatus,
+  emitRoomTasksEvent
 } = require('./shared');
 
 const listRoomTasks = async (req, res) => {
@@ -92,7 +93,16 @@ const createRoomTask = async (req, res) => {
       [insertResult.insertId]
     );
 
-    res.status(201).json({ task: rows[0] ? mapRoomTaskRow(rows[0]) : null });
+    const task = rows[0] ? mapRoomTaskRow(rows[0]) : null;
+    if (task) {
+      emitRoomTasksEvent(roomId, {
+        action: 'created',
+        task,
+        updatedByUserId: userId
+      });
+    }
+
+    res.status(201).json({ task });
   } catch (error) {
     console.error('创建房间任务失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
@@ -165,7 +175,16 @@ const updateRoomTask = async (req, res) => {
       [taskId]
     );
 
-    res.json({ task: rows[0] ? mapRoomTaskRow(rows[0]) : null });
+    const task = rows[0] ? mapRoomTaskRow(rows[0]) : null;
+    if (task) {
+      emitRoomTasksEvent(roomId, {
+        action: 'updated',
+        task,
+        updatedByUserId: userId
+      });
+    }
+
+    res.json({ task });
   } catch (error) {
     console.error('更新房间任务失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
@@ -196,6 +215,12 @@ const deleteRoomTask = async (req, res) => {
     if (!result.affectedRows) {
       return res.status(404).json({ error: '任务不存在' });
     }
+
+    emitRoomTasksEvent(roomId, {
+      action: 'deleted',
+      taskId,
+      updatedByUserId: userId
+    });
 
     res.json({ removed: true });
   } catch (error) {

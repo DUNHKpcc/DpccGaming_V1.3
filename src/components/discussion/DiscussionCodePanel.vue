@@ -6,6 +6,9 @@
         :src="getCodeTypeIconByPath(currentFileName)"
         alt="code type"
       />
+      <span class="right-source-pill">
+        {{ currentCodeSourceGameTitle || '房间默认源码' }}
+      </span>
       <select
         v-if="currentRoomCodeFiles.length"
         :value="currentCodePath"
@@ -30,7 +33,7 @@
       <button
         type="button"
         class="right-plus-btn"
-        :disabled="codePanelLoading || !currentChat?.gameId"
+        :disabled="codePanelLoading || !currentCodeSourceGameId"
         title="刷新当前房间源码"
         @click="$emit('refresh')"
       >
@@ -65,6 +68,14 @@ export default {
       default: ''
     },
     currentFileName: {
+      type: String,
+      default: ''
+    },
+    currentCodeSourceGameId: {
+      type: String,
+      default: ''
+    },
+    currentCodeSourceGameTitle: {
       type: String,
       default: ''
     },
@@ -132,6 +143,24 @@ export default {
   font-size: 14px;
   padding: 0 12px;
   outline: none;
+}
+
+.right-source-pill {
+  flex-shrink: 0;
+  max-width: 160px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #cfd5db;
+  background: #ffffff;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .right-path-select {

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { emitRoomRemovedEvent } = require('../../utils/discussionRealtime');
 const {
   getPool,
   beginTransaction,
@@ -6,6 +7,12 @@ const {
   rollbackTransaction,
   createNotification,
   toInt,
+  resolveUploadedFilePath,
+  removeUploadedFile,
+  ensureRoomDocumentsTable,
+  ensureRoomDocumentStateTable,
+  ensureRoomTasksTable,
+  ensureRoomSettingsTable,
   ensureFriendInviteLinksTable,
   generateFriendInviteCode,
   parseInviteCode,
@@ -121,6 +128,253 @@ const getFriends = async (req, res) => {
     res.json({ friends: rows });
   } catch (error) {
     console.error('获取好友列表失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const parseMessageMetadata = (rawValue) => {
+  if (!rawValue) return null;
+  if (typeof rawValue === 'object') return rawValue;
+  if (typeof rawValue !== 'string') return null;
+  try {
+    return JSON.parse(rawValue);
+  } catch {
+    return null;
+  }
+};
+
+const buildSqlInClause = (items = []) => items.map(() => '?').join(', ');
+
+const collectRoomUploadedFiles = async (connection, roomIds = []) => {
+  if (!roomIds.length) return [];
+
+  const placeholders = buildSqlInClause(roomIds);
+  const uploadedPaths = [];
+
+  const [messageRows] = await connection.execute(
+    `SELECT metadata_json
+     FROM discussion_messages
+     WHERE room_id IN (${placeholders})
+       AND metadata_json IS NOT NULL`,
+    roomIds
+  );
+
+  messageRows.forEach((row) => {
+    const metadata = parseMessageMetadata(row.metadata_json);
+    const fileUrl = String(metadata?.attachment?.url || '').trim();
+    const filePath = resolveUploadedFilePath(fileUrl);
+    if (filePath) uploadedPaths.push(filePath);
+  });
+
+  const [documentRows] = await connection.execute(
+    `SELECT file_url
+     FROM discussion_room_documents
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+
+  documentRows.forEach((row) => {
+    const filePath = resolveUploadedFilePath(row.file_url);
+    if (filePath) uploadedPaths.push(filePath);
+  });
+
+  return [...new Set(uploadedPaths)];
+};
+
+const deleteRoomNotifications = async (connection, roomIds = [], friendRequestIds = [], relatedUserIds = []) => {
+  if (!relatedUserIds.length) return;
+  const userPlaceholders = buildSqlInClause(relatedUserIds);
+
+  if (roomIds.length) {
+    const roomConditions = roomIds
+      .map(() => 'content LIKE ?')
+      .join(' OR ');
+    const roomParams = roomIds.map((roomId) => `%[discussion-room:${roomId}]%`);
+    await connection.execute(
+      `DELETE FROM notifications
+       WHERE user_id IN (${userPlaceholders})
+         AND (${roomConditions})`,
+      [...relatedUserIds, ...roomParams]
+    );
+  }
+
+  if (friendRequestIds.length) {
+    const friendConditions = friendRequestIds
+      .map(() => 'content LIKE ?')
+      .join(' OR ');
+    const friendParams = friendRequestIds.map((friendshipId) => `%[friend-request:${friendshipId}]%`);
+    await connection.execute(
+      `DELETE FROM notifications
+       WHERE user_id IN (${userPlaceholders})
+         AND (${friendConditions})`,
+      [...relatedUserIds, ...friendParams]
+    );
+  }
+};
+
+const deleteFriendRoomData = async (connection, roomIds = []) => {
+  if (!roomIds.length) return;
+  const placeholders = buildSqlInClause(roomIds);
+
+  await connection.execute(
+    `DELETE FROM discussion_room_document_state
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_room_documents
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_room_tasks
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_room_settings
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_messages
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_room_members
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_rooms
+     WHERE id IN (${placeholders})`,
+    roomIds
+  );
+};
+
+const deleteFriend = async (req, res) => {
+  let connection = null;
+  try {
+    const userId = req.user.userId;
+    const friendUserId = toInt(req.params.friendUserId);
+    if (!friendUserId) return res.status(400).json({ error: 'friendUserId 无效' });
+    if (friendUserId === userId) return res.status(400).json({ error: '不能删除自己' });
+
+    const pool = getPool();
+    await Promise.all([
+      ensureRoomDocumentsTable(pool),
+      ensureRoomDocumentStateTable(pool),
+      ensureRoomTasksTable(pool),
+      ensureRoomSettingsTable(pool)
+    ]);
+
+    connection = await beginTransaction();
+
+    const [friendUsers] = await connection.execute(
+      `SELECT id, username
+       FROM users
+       WHERE id IN (?, ?)`,
+      [userId, friendUserId]
+    );
+    const currentUser = friendUsers.find((item) => Number(item.id) === Number(userId));
+    const friendUser = friendUsers.find((item) => Number(item.id) === Number(friendUserId));
+    if (!friendUser) {
+      await rollbackTransaction(connection);
+      connection = null;
+      return res.status(404).json({ error: '目标好友不存在' });
+    }
+
+    const [friendshipRows] = await connection.execute(
+      `SELECT id
+       FROM friendships
+       WHERE status = 'accepted'
+         AND (
+           (requester_id = ? AND addressee_id = ?)
+           OR
+           (requester_id = ? AND addressee_id = ?)
+         )
+       ORDER BY id DESC`,
+      [userId, friendUserId, friendUserId, userId]
+    );
+
+    if (!friendshipRows.length) {
+      await rollbackTransaction(connection);
+      connection = null;
+      return res.status(404).json({ error: '未找到可删除的好友关系' });
+    }
+
+    const friendshipIds = friendshipRows.map((row) => Number(row.id)).filter(Boolean);
+    const [friendRooms] = await connection.execute(
+      `SELECT r.id
+       FROM discussion_rooms r
+       WHERE r.mode = 'friend'
+         AND EXISTS (
+           SELECT 1
+           FROM discussion_room_members me
+           WHERE me.room_id = r.id
+             AND me.user_id = ?
+         )
+         AND EXISTS (
+           SELECT 1
+           FROM discussion_room_members peer
+           WHERE peer.room_id = r.id
+             AND peer.user_id = ?
+         )
+         AND (
+           SELECT COUNT(DISTINCT rm.user_id)
+           FROM discussion_room_members rm
+           WHERE rm.room_id = r.id
+         ) = 2`,
+      [userId, friendUserId]
+    );
+    const roomIds = friendRooms.map((row) => Number(row.id)).filter(Boolean);
+    const uploadedPaths = await collectRoomUploadedFiles(connection, roomIds);
+
+    await deleteRoomNotifications(connection, roomIds, friendshipIds, [userId, friendUserId]);
+    if (roomIds.length) {
+      await deleteFriendRoomData(connection, roomIds);
+    }
+
+    await connection.execute(
+      `DELETE FROM friendships
+       WHERE id IN (${buildSqlInClause(friendshipIds)})`,
+      friendshipIds
+    );
+
+    const currentUserName = currentUser?.username || '你';
+    const friendName = friendUser?.username || '好友';
+    const selfNotificationText = `你与 ${friendName} 的好友关系已解除，相关私聊房间、历史消息、文档、任务与 AI 设置已删除。`;
+    const peerNotificationText = `${currentUserName} 已解除与你的好友关系，相关私聊房间、历史消息、文档、任务与 AI 设置已删除。`;
+
+    await connection.execute(
+      `INSERT INTO notifications (user_id, type, title, content, related_game_id, related_comment_id)
+       VALUES (?, 'warning', '好友关系已解除', ?, NULL, NULL),
+              (?, 'warning', '好友关系已解除', ?, NULL, NULL)`,
+      [userId, selfNotificationText, friendUserId, peerNotificationText]
+    );
+
+    await commitTransaction(connection);
+    connection = null;
+
+    await Promise.all(uploadedPaths.map((filePath) => removeUploadedFile(filePath)));
+    roomIds.forEach((roomId) => {
+      emitRoomRemovedEvent(roomId, {
+        removedByUserId: userId,
+        reason: 'friend_deleted'
+      });
+    });
+
+    res.json({
+      success: true,
+      deletedRoomCount: roomIds.length,
+      deletedFriendshipCount: friendshipIds.length
+    });
+  } catch (error) {
+    if (connection) {
+      await rollbackTransaction(connection);
+    }
+    console.error('删除好友失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 };
@@ -621,6 +875,7 @@ const redeemFriendInviteLink = async (req, res) => {
 module.exports = {
   sendFriendRequest,
   getFriends,
+  deleteFriend,
   getOrCreateFriendDirectRoom,
   getFriendRequests,
   respondFriendRequest,

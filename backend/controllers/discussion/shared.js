@@ -7,7 +7,12 @@ const {
   commitTransaction,
   rollbackTransaction
 } = require('../../config/database');
-const { emitRoomMessage } = require('../../utils/discussionRealtime');
+const {
+  emitRoomMessage,
+  emitRoomDocumentsEvent,
+  emitRoomTasksEvent,
+  emitRoomSettingsEvent
+} = require('../../utils/discussionRealtime');
 const { createNotification } = require('../../utils/notification');
 
 const MAX_ROOM_MEMBERS = 4;
@@ -22,8 +27,12 @@ let friendInviteLinksTableReady = false;
 let friendInviteLinksTableInitPromise = null;
 let roomDocumentsTableReady = false;
 let roomDocumentsTableInitPromise = null;
+let roomDocumentStateTableReady = false;
+let roomDocumentStateTableInitPromise = null;
 let roomTasksTableReady = false;
 let roomTasksTableInitPromise = null;
+let roomSettingsTableReady = false;
+let roomSettingsTableInitPromise = null;
 
 const toInt = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -61,6 +70,13 @@ const buildUploadedFileUrl = (uploadedPath, fallbackPath = '') => {
     return `/uploads/${relativePath}`;
   }
   return fallbackPath ? `/uploads/${fallbackPath}` : '';
+};
+
+const resolveUploadedFilePath = (fileUrl = '') => {
+  const normalized = String(fileUrl || '').trim();
+  if (!normalized.startsWith('/uploads/')) return '';
+  const relativePath = normalized.replace(/^\/uploads\//, '');
+  return path.join(UPLOADS_ROOT, ...relativePath.split('/'));
 };
 
 const inferDocumentPageCount = (fileName = '') => {
@@ -116,6 +132,33 @@ const sanitizeMessageMetadata = (rawMetadata) => {
       if (totalLines && totalLines > 0) codePreview.total_lines = totalLines;
 
       next.code_preview = codePreview;
+    }
+  }
+
+  const rawDocumentPreview = rawMetadata.document_preview;
+  if (rawDocumentPreview && typeof rawDocumentPreview === 'object' && !Array.isArray(rawDocumentPreview)) {
+    const documentId = toInt(rawDocumentPreview.document_id);
+    const nameValue = String(rawDocumentPreview.name || '').trim().slice(0, 255);
+    const previewTextValue = String(rawDocumentPreview.preview_text || '')
+      .replace(/\r/g, '')
+      .trim()
+      .slice(0, 600);
+
+    if (documentId && nameValue) {
+      const documentPreview = {
+        document_id: documentId,
+        name: nameValue
+      };
+
+      if (previewTextValue) documentPreview.preview_text = previewTextValue;
+
+      const pageCount = toInt(rawDocumentPreview.page_count);
+      if (pageCount && pageCount > 0) documentPreview.page_count = pageCount;
+
+      const mimeType = String(rawDocumentPreview.mime_type || '').trim().slice(0, 120);
+      if (mimeType) documentPreview.mime_type = mimeType;
+
+      next.document_preview = documentPreview;
     }
   }
 
@@ -189,12 +232,17 @@ const getJoinedMember = async (connection, roomId, userId, forUpdate = false) =>
 };
 
 const getRoomPayload = async (connection, roomId, currentUserId = null) => {
+  await ensureRoomSettingsTable(connection);
   const [rooms] = await connection.execute(
     `SELECT r.*,
             g.title AS game_title,
-            g.thumbnail_url AS game_thumbnail
+            g.thumbnail_url AS game_thumbnail,
+            rs.settings_json AS room_settings_json,
+            rs.updated_by_user_id AS room_settings_updated_by_user_id,
+            rs.updated_at AS room_settings_updated_at
      FROM discussion_rooms r
      JOIN games g ON g.game_id = r.game_id
+     LEFT JOIN discussion_room_settings rs ON rs.room_id = r.id
      WHERE r.id = ?
      LIMIT 1`,
     [roomId]
@@ -417,6 +465,33 @@ const ensureRoomDocumentsTable = async (pool) => {
   }
 };
 
+const ensureRoomDocumentStateTable = async (pool) => {
+  if (roomDocumentStateTableReady) return;
+
+  if (roomDocumentStateTableInitPromise) {
+    await roomDocumentStateTableInitPromise;
+    return;
+  }
+
+  roomDocumentStateTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS discussion_room_document_state (
+      room_id BIGINT NOT NULL PRIMARY KEY,
+      selected_document_id BIGINT NULL,
+      updated_by_user_id INT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_discussion_room_document_state_selected (selected_document_id),
+      KEY idx_discussion_room_document_state_updated_by (updated_by_user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await roomDocumentStateTableInitPromise;
+    roomDocumentStateTableReady = true;
+  } finally {
+    roomDocumentStateTableInitPromise = null;
+  }
+};
+
 const ensureRoomTasksTable = async (pool) => {
   if (roomTasksTableReady) return;
 
@@ -451,6 +526,34 @@ const ensureRoomTasksTable = async (pool) => {
     roomTasksTableInitPromise = null;
   }
 };
+
+async function ensureRoomSettingsTable(pool) {
+  if (roomSettingsTableReady) return;
+
+  if (roomSettingsTableInitPromise) {
+    await roomSettingsTableInitPromise;
+    return;
+  }
+
+  roomSettingsTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS discussion_room_settings (
+      room_id BIGINT NOT NULL PRIMARY KEY,
+      settings_json LONGTEXT NOT NULL,
+      updated_by_user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_discussion_room_settings_updated_by (updated_by_user_id),
+      KEY idx_discussion_room_settings_updated_at (updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await roomSettingsTableInitPromise;
+    roomSettingsTableReady = true;
+  } finally {
+    roomSettingsTableInitPromise = null;
+  }
+}
 
 const mapRoomTaskRow = (row = {}) => ({
   id: row.id,
@@ -514,6 +617,9 @@ module.exports = {
   commitTransaction,
   rollbackTransaction,
   emitRoomMessage,
+  emitRoomDocumentsEvent,
+  emitRoomTasksEvent,
+  emitRoomSettingsEvent,
   createNotification,
   toInt,
   parseDocumentSource,
@@ -521,6 +627,7 @@ module.exports = {
   parseTaskPriority,
   normalizeOptionalTaskText,
   buildUploadedFileUrl,
+  resolveUploadedFilePath,
   inferDocumentPageCount,
   loadDocumentPreviewText,
   sanitizeMessageMetadata,
@@ -535,7 +642,9 @@ module.exports = {
   removeUploadedFile,
   ensureFriendInviteLinksTable,
   ensureRoomDocumentsTable,
+  ensureRoomDocumentStateTable,
   ensureRoomTasksTable,
+  ensureRoomSettingsTable,
   mapRoomTaskRow,
   generateFriendInviteCode,
   parseInviteCode,

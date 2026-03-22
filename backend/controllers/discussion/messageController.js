@@ -69,6 +69,8 @@ const sendRoomMessage = async (req, res) => {
     const metadata = sanitizeMessageMetadata(req.body?.metadata);
     const fallbackContent = metadata?.code_preview?.path
       ? `代码预览：${metadata.code_preview.path}`
+      : metadata?.document_preview?.name
+        ? `文档预览：${metadata.document_preview.name}`
       : '';
     const content = rawContent || fallbackContent;
     if (!roomId) return res.status(400).json({ error: '无效的 roomId' });

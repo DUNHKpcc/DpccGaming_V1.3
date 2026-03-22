@@ -11,7 +11,8 @@ const {
   getRoomByIdForUpdate,
   getJoinedMemberCount,
   getJoinedMember,
-  getRoomPayload
+  getRoomPayload,
+  ensureRoomSettingsTable
 } = require('./shared');
 
 const listPublicRoomsByGame = async (req, res) => {
@@ -42,9 +43,13 @@ const listMyRooms = async (req, res) => {
   try {
     const userId = req.user.userId;
     const pool = getPool();
+    await ensureRoomSettingsTable(pool);
     const [rooms] = await pool.execute(
       `SELECT r.id, r.room_uuid, r.room_code, r.game_id, r.mode, r.visibility, r.status, r.max_members,
               r.title, r.host_user_id, r.created_at, r.updated_at, g.title AS game_title, g.thumbnail_url AS game_thumbnail,
+              rs.settings_json AS room_settings_json,
+              rs.updated_by_user_id AS room_settings_updated_by_user_id,
+              rs.updated_at AS room_settings_updated_at,
               (
                 SELECT rm.user_id
                 FROM discussion_room_members rm
@@ -96,6 +101,7 @@ const listMyRooms = async (req, res) => {
        FROM discussion_room_members me
        JOIN discussion_rooms r ON r.id = me.room_id
        JOIN games g ON g.game_id = r.game_id
+       LEFT JOIN discussion_room_settings rs ON rs.room_id = r.id
        WHERE me.user_id = ?
          AND me.status = 'joined'
          AND r.status IN ('waiting', 'active')

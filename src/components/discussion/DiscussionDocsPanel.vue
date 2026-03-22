@@ -30,6 +30,10 @@
           <div v-if="docsError" class="docs-upload-error">{{ docsError }}</div>
         </div>
 
+        <div v-else-if="showDocsLoadingShell" key="docs-loading-shell" class="docs-loading-shell">
+          <div class="docs-loading-state">文档加载中...</div>
+        </div>
+
         <div v-else key="docs-library" class="docs-library-layout" :class="{ collapsed: docsSidebarCollapsed }">
           <aside v-if="!docsSidebarCollapsed" class="docs-sidebar">
             <div class="docs-sidebar-head">
@@ -40,17 +44,30 @@
               <h4>已上传文档（{{ currentRoomDocuments.length }}）</h4>
               <div v-if="docsLoading && !currentRoomDocuments.length" class="docs-side-empty">文档加载中...</div>
               <div v-else-if="!currentRoomDocuments.length" class="docs-side-empty">还没有上传文档</div>
-              <button
+              <div
                 v-for="doc in currentRoomDocuments"
                 :key="doc.id"
-                type="button"
-                class="docs-item"
+                class="docs-item-row"
                 :class="{ active: currentRoomDocument?.id === doc.id }"
-                @click="selectRoomDocument(doc.id)"
               >
-                <i class="fa fa-file-text-o"></i>
-                <span>{{ doc.name }}</span>
-              </button>
+                <button
+                  type="button"
+                  class="docs-item"
+                  @click="selectRoomDocument(doc.id)"
+                >
+                  <i class="fa fa-file-text-o"></i>
+                  <span>{{ doc.name }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="docs-item-delete"
+                  :disabled="uploadingDocument || deletingDocumentId === doc.id"
+                  title="删除文档"
+                  @click.stop="requestDeleteDocument(doc)"
+                >
+                  <i :class="deletingDocumentId === doc.id ? 'fa fa-spinner fa-spin' : 'fa fa-trash'"></i>
+                </button>
+              </div>
             </div>
 
             <div class="docs-sidebar-actions">
@@ -146,6 +163,9 @@
 <script>
 import { apiCall } from '../../utils/api'
 import { docsList } from '../../data/docsList'
+import { useNotificationStore } from '../../stores/notification'
+
+const DOC_DELETE_CONFIRM_WINDOW_MS = 5000
 
 export default {
   name: 'DiscussionDocsPanel',
@@ -157,6 +177,10 @@ export default {
     isActive: {
       type: Boolean,
       default: false
+    },
+    documentPreviewRequest: {
+      type: Object,
+      default: null
     }
   },
   data() {
@@ -171,10 +195,15 @@ export default {
       docsPreviewLoading: false,
       docsPreviewError: '',
       renderedMarkdown: '',
+      docsResolvedByRoom: {},
       uploadingDocument: false,
+      deletingDocumentId: null,
+      pendingDeleteDocumentId: null,
+      deleteConfirmTimer: null,
       pendingDocumentSource: 'local',
       showOfficialDocsPicker: false,
-      officialDocs: docsList
+      officialDocs: docsList,
+      notificationStore: useNotificationStore()
     }
   },
   computed: {
@@ -203,14 +232,22 @@ export default {
       if (!this.currentRoomKey) return false
       return this.docsPanelLockedByRoom[this.currentRoomKey] === true
     },
+    hasResolvedCurrentRoomDocuments() {
+      if (!this.currentRoomKey) return false
+      return this.docsResolvedByRoom[this.currentRoomKey] === true
+    },
     showDocsUploadLanding() {
-      return !this.docsPanelLocked && !this.currentRoomDocuments.length
+      return this.hasResolvedCurrentRoomDocuments && !this.docsLoading && !this.docsPanelLocked && !this.currentRoomDocuments.length
+    },
+    showDocsLoadingShell() {
+      if (!this.currentRoomKey) return false
+      return !this.hasResolvedCurrentRoomDocuments
     }
   },
   watch: {
     isActive(nextActive) {
       if (!nextActive) return
-      this.ensureCurrentRoomDocuments()
+      this.ensureCurrentRoomDocuments({ force: true })
     },
     currentRoomKey(nextKey, previousKey) {
       if (nextKey === previousKey) return
@@ -219,7 +256,7 @@ export default {
       this.docsPreviewError = ''
       this.renderedMarkdown = ''
       if (this.isActive && nextKey) {
-        this.ensureCurrentRoomDocuments()
+        this.ensureCurrentRoomDocuments({ force: true })
       }
     },
     currentRoomDocument: {
@@ -228,9 +265,40 @@ export default {
         if (!this.isActive) return
         this.loadCurrentDocumentContent(nextDocument)
       }
+    },
+    documentPreviewRequest: {
+      deep: true,
+      handler(nextRequest) {
+        this.openDocumentFromPreviewRequest(nextRequest)
+      }
     }
   },
+  mounted() {
+    window.addEventListener('discussion-documents-sync', this.handleDocumentsSyncEvent)
+    if (this.isActive && this.currentRoomKey) {
+      this.ensureCurrentRoomDocuments({ force: true })
+    }
+  },
+  beforeUnmount() {
+    window.removeEventListener('discussion-documents-sync', this.handleDocumentsSyncEvent)
+    this.clearDeleteConfirmState()
+  },
   methods: {
+    markRoomDocumentsResolved(roomId, resolved = true) {
+      const roomKey = String(Number(roomId) || '')
+      if (!roomKey) return
+      this.docsResolvedByRoom = {
+        ...this.docsResolvedByRoom,
+        [roomKey]: resolved === true
+      }
+    },
+    clearDeleteConfirmState() {
+      if (this.deleteConfirmTimer) {
+        window.clearTimeout(this.deleteConfirmTimer)
+        this.deleteConfirmTimer = null
+      }
+      this.pendingDeleteDocumentId = null
+    },
     escapeHtml(text = '') {
       return String(text)
         .replace(/&/g, '&amp;')
@@ -492,6 +560,9 @@ export default {
           ? data.documents.map((doc) => this.normalizeRoomDocument(doc)).filter(Boolean)
           : []
         this.setCurrentRoomDocuments(roomId, documents)
+        if (data?.selectedDocumentId) {
+          this.setCurrentRoomSelectedDocument(roomId, data.selectedDocumentId)
+        }
         if (documents.length) {
           this.setDocsPanelLocked(roomId, true)
         }
@@ -503,12 +574,26 @@ export default {
         this.docsError = error.message || '加载文档失败'
         return []
       } finally {
+        this.markRoomDocumentsResolved(roomId, true)
         this.docsLoading = false
       }
     },
-    selectRoomDocument(documentId) {
+    async selectRoomDocument(documentId) {
       if (!this.currentChat || !documentId) return
+      const roomId = Number(this.currentChat.id || 0)
+      if (!roomId) return
+      const previousId = this.selectedDocumentIdByRoom[String(roomId)] || ''
       this.setCurrentRoomSelectedDocument(this.currentChat.id, documentId)
+      this.docsError = ''
+      try {
+        await apiCall(`/discussion/rooms/${roomId}/documents/current`, {
+          method: 'PATCH',
+          body: JSON.stringify({ documentId })
+        })
+      } catch (error) {
+        this.setCurrentRoomSelectedDocument(roomId, previousId)
+        this.docsError = error.message || '切换文档失败'
+      }
     },
     openDocumentUploader(options = {}) {
       if (!this.currentChat || this.uploadingDocument) return
@@ -558,7 +643,7 @@ export default {
           ...this.currentRoomDocuments.filter((doc) => String(doc.id) !== String(normalized.id))
         ]
         this.setCurrentRoomDocuments(this.currentChat.id, nextDocuments)
-        this.setCurrentRoomSelectedDocument(this.currentChat.id, normalized.id)
+        this.setCurrentRoomSelectedDocument(this.currentChat.id, data?.selectedDocumentId || normalized.id)
         this.setDocsPanelLocked(this.currentChat.id, true)
       } catch (error) {
         this.docsError = error.message || '文档上传失败'
@@ -597,7 +682,7 @@ export default {
           ...this.currentRoomDocuments.filter((item) => String(item.id) !== String(normalized.id))
         ]
         this.setCurrentRoomDocuments(this.currentChat.id, nextDocuments)
-        this.setCurrentRoomSelectedDocument(this.currentChat.id, normalized.id)
+        this.setCurrentRoomSelectedDocument(this.currentChat.id, data?.selectedDocumentId || normalized.id)
         this.setDocsPanelLocked(this.currentChat.id, true)
         this.showOfficialDocsPicker = false
       } catch (error) {
@@ -620,6 +705,112 @@ export default {
         method: 'POST',
         body: formData
       })
+    },
+    async openDocumentFromPreviewRequest(request) {
+      const roomId = Number(request?.roomId || 0)
+      const documentId = Number(request?.documentId || 0)
+      if (!roomId || !documentId) return
+      if (String(roomId) !== this.currentRoomKey) return
+
+      await this.ensureCurrentRoomDocuments({ force: true })
+      const exists = this.currentRoomDocuments.some((item) => String(item.id) === String(documentId))
+      if (!exists) {
+        this.docsError = '未找到对应文档，可能已被删除'
+        return
+      }
+
+      this.docsError = ''
+      this.setDocsPanelLocked(roomId, true)
+      this.setCurrentRoomSelectedDocument(roomId, documentId)
+      this.docsSidebarCollapsed = false
+    },
+    requestDeleteDocument(doc) {
+      if (!doc?.id || this.uploadingDocument || this.deletingDocumentId) return
+      if (this.pendingDeleteDocumentId !== doc.id) {
+        this.pendingDeleteDocumentId = doc.id
+        if (this.deleteConfirmTimer) {
+          window.clearTimeout(this.deleteConfirmTimer)
+        }
+        this.deleteConfirmTimer = window.setTimeout(() => {
+          this.clearDeleteConfirmState()
+        }, DOC_DELETE_CONFIRM_WINDOW_MS)
+        this.notificationStore.warning('确认删除文档', `再次点击删除“${doc.name}”以继续`)
+        return
+      }
+      this.clearDeleteConfirmState()
+      this.deleteDocument(doc)
+    },
+    async deleteDocument(doc) {
+      const roomId = Number(this.currentChat?.id || 0)
+      if (!roomId || !doc?.id) return
+
+      this.deletingDocumentId = doc.id
+      this.docsError = ''
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomId}/documents/${doc.id}`, {
+          method: 'DELETE'
+        })
+        const roomKey = String(roomId)
+        const nextDocuments = this.currentRoomDocuments.filter((item) => String(item.id) !== String(doc.id))
+        this.roomDocumentsByRoom = {
+          ...this.roomDocumentsByRoom,
+          [roomKey]: nextDocuments
+        }
+        this.setCurrentRoomSelectedDocument(roomId, data?.selectedDocumentId || '')
+        this.notificationStore.success('文档已删除', `已移除“${doc.name}”`)
+      } catch (error) {
+        this.docsError = error.message || '删除文档失败'
+        this.notificationStore.error('删除失败', this.docsError)
+      } finally {
+        this.deletingDocumentId = null
+      }
+    },
+    handleDocumentsSyncEvent(event) {
+      const detail = event?.detail || {}
+      const roomId = Number(detail.roomId || 0)
+      if (!roomId) return
+
+      const action = String(detail.action || '').trim()
+      const selectedDocumentId = detail.selectedDocumentId
+      const roomKey = String(roomId)
+      const hasLoadedDocuments = Array.isArray(this.roomDocumentsByRoom[roomKey])
+      const shouldHydrateDocuments = hasLoadedDocuments || this.currentRoomKey === roomKey
+
+      if (!hasLoadedDocuments && this.currentRoomKey === roomKey) {
+        this.ensureCurrentRoomDocuments({ force: true })
+      }
+
+      if (detail.document && shouldHydrateDocuments) {
+        const normalized = this.normalizeRoomDocument(detail.document)
+        if (normalized) {
+          const existing = Array.isArray(this.roomDocumentsByRoom[roomKey]) ? this.roomDocumentsByRoom[roomKey] : []
+          const nextDocuments = [
+            normalized,
+            ...existing.filter((item) => String(item.id) !== String(normalized.id))
+          ]
+          this.setCurrentRoomDocuments(roomId, nextDocuments)
+          this.setDocsPanelLocked(roomId, true)
+        }
+      }
+
+      if (action === 'deleted') {
+        const documentId = String(detail.documentId || '')
+        if (documentId) {
+          const existing = Array.isArray(this.roomDocumentsByRoom[roomKey]) ? this.roomDocumentsByRoom[roomKey] : []
+          this.roomDocumentsByRoom = {
+            ...this.roomDocumentsByRoom,
+            [roomKey]: existing.filter((item) => String(item.id) !== documentId)
+          }
+        }
+      }
+
+      if ((selectedDocumentId !== null && selectedDocumentId !== undefined && selectedDocumentId !== '')
+        && (shouldHydrateDocuments || action === 'select')) {
+        this.setCurrentRoomSelectedDocument(roomId, selectedDocumentId)
+        this.setDocsPanelLocked(roomId, true)
+      } else if ((action === 'select' || action === 'deleted') && this.currentRoomKey === roomKey) {
+        this.setCurrentRoomSelectedDocument(roomId, '')
+      }
     }
   }
 }
@@ -643,7 +834,7 @@ export default {
   padding: 16px;
 }
 
-.docs-fallback-shell h3 {
+.docs-fallback-shell h3 { 
   margin: 0 0 8px;
   color: #111827;
   font-size: 18px;
@@ -683,6 +874,16 @@ export default {
 .docs-view-switch-leave-from {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+
+.docs-loading-shell {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
 
 .docs-upload-landing {
@@ -839,8 +1040,15 @@ export default {
   margin-bottom: 8px;
 }
 
+.docs-item-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
 .docs-item {
-  width: 100%;
+  flex: 1;
   border: 1px solid #d1d5db;
   border-radius: 10px;
   min-height: 28px;
@@ -852,21 +1060,47 @@ export default {
   padding: 0 8px;
   font-size: 11px;
   font-weight: 700;
-  margin-bottom: 6px;
   text-align: left;
   cursor: pointer;
+  min-width: 0;
+}
+
+.docs-item-row.active .docs-item {
+  background: #07090d;
+  color: #ffffff;
+  border-color: #07090d;
 }
 
 .docs-item span {
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.docs-item.active {
-  background: #07090d;
-  color: #ffffff;
-  border-color: #07090d;
+.docs-item-delete {
+  width: 28px;
+  min-width: 28px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #6b7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
+}
+
+.docs-item-delete:hover:not(:disabled) {
+  border-color: #d14343;
+  color: #d14343;
+  background: #fff5f5;
+}
+
+.docs-item-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .docs-sidebar-actions {
