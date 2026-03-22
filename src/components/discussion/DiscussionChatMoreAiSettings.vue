@@ -34,14 +34,23 @@
 
         <label v-if="slot.provider === 'builtin'" class="chat-more-field">
           <span>模型</span>
-          <select
-            :value="slot.builtinModel"
-            @change="$emit('update-slot-field', slot.id, 'builtinModel', $event.target.value)"
-          >
-            <option v-for="model in builtinModels" :key="model" :value="model">
-              {{ model }}
-            </option>
-          </select>
+          <div class="chat-more-model-picker">
+            <button
+              v-for="model in builtinModels"
+              :key="model"
+              type="button"
+              class="chat-more-model-option"
+              :class="{ active: slot.builtinModel === model }"
+              @click="$emit('update-slot-field', slot.id, 'builtinModel', model)"
+            >
+              <img
+                class="chat-more-model-option-logo"
+                :src="resolveBuiltinModelLogo(model)"
+                :alt="model"
+              />
+              <span>{{ model }}</span>
+            </button>
+          </div>
         </label>
 
         <template v-else>
@@ -75,7 +84,15 @@
         </template>
 
         <div class="chat-more-ai-card-meta">
-          <span>{{ slot.name || `协作 AI ${slotIndex + 1}` }}</span>
+          <span class="chat-more-ai-card-meta-title">
+            <img
+              v-if="slot.provider === 'builtin'"
+              class="chat-more-ai-card-meta-logo"
+              :src="resolveBuiltinModelLogo(slot.builtinModel)"
+              :alt="resolveAiSlotModelLabel(slot)"
+            />
+            <span>{{ slot.name || `协作 AI ${slotIndex + 1}` }}</span>
+          </span>
           <small>{{ resolveAiSlotModelLabel(slot) }}</small>
         </div>
       </template>
@@ -104,8 +121,8 @@
         <div class="chat-more-avatar-row">
           <div class="chat-more-ai-avatar-preview">
             <img
-              v-if="slot.avatarUrl"
-              :src="slot.avatarUrl"
+              v-if="resolveAiAvatarPreview(slot)"
+              :src="resolveAiAvatarPreview(slot)"
               :alt="slot.name || `AI ${slotIndex + 1}`"
             />
             <span v-else>{{ (slot.name || `A${slotIndex + 1}`).slice(0, 2) }}</span>
@@ -125,6 +142,8 @@
 </template>
 
 <script>
+import { getBuiltinModelAvatarUrl, getBuiltinModelMeta } from '../../utils/discussionChatMore'
+
 export default {
   name: 'DiscussionChatMoreAiSettings',
   props: {
@@ -148,6 +167,17 @@ export default {
         return slot.customModel || '自定义 API'
       }
       return slot.builtinModel || this.builtinModels[0] || '内置模型'
+    },
+    resolveBuiltinModelLogo(modelName = '') {
+      return getBuiltinModelMeta(modelName).logo
+    },
+    resolveAiAvatarPreview(slot = {}) {
+      const customAvatar = String(slot.avatarUrl || '').trim()
+      if (customAvatar) return customAvatar
+      if (slot.provider === 'builtin') {
+        return getBuiltinModelAvatarUrl(slot.builtinModel || this.builtinModels[0] || '')
+      }
+      return ''
     }
   }
 }

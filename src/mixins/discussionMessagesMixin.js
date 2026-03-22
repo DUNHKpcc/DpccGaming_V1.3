@@ -62,7 +62,6 @@ export default {
       this.attachmentAccept = this.getAttachmentAccept(kind)
       this.showAttachmentMenu = false
       this.showDocumentPicker = false
-      this.showGameLibraryPicker = false
       this.$nextTick(() => {
         const input = this.$refs.attachmentInputRef
         if (!input) return

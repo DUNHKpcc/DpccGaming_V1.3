@@ -27,12 +27,40 @@ export const CHAT_MORE_ROLE_PRESET_OPTIONS = [
 ]
 
 export const CHAT_MORE_BUILTIN_MODELS = [
-  'GPT-4o Mini',
-  'GPT-4.1',
-  'Claude 3.5 Sonnet',
-  'Gemini 2.0 Flash',
-  'DeepSeek-V3'
+  'DouBaoSeed1.6',
+  'GPT-5.4',
+  'Claude 4.6 opus',
+  'Gemini 3.0 Pro',
+  'DeepSeek-R1',
+  'Qwen'
 ]
+
+export const CHAT_MORE_BUILTIN_MODEL_META = {
+  'DouBaoSeed1.6': {
+    label: 'DouBaoSeed1.6',
+    logo: '/Ai/DouBaoSeed1.6.png'
+  },
+  'GPT-5.4': {
+    label: 'GPT-5.4',
+    logo: '/Ai/ChatGPT.svg'
+  },
+  'Claude 4.6 opus': {
+    label: 'Claude 4.6 opus',
+    logo: '/Ai/Claude.png'
+  },
+  'Gemini 3.0 Pro': {
+    label: 'Gemini 3.0 Pro',
+    logo: '/Ai/Gemini.svg'
+  },
+  'DeepSeek-R1': {
+    label: 'DeepSeek-R1',
+    logo: '/Ai/DeepSeekR1.png'
+  },
+  'Qwen': {
+    label: 'Qwen',
+    logo: '/Ai/Qwen.png'
+  }
+}
 
 export const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
   id,
@@ -116,6 +144,19 @@ export const getCollaborationStatusLabel = (statusValue = '') => {
 export const getCollaborationStatusMeta = (statusValue = '') => {
   return CHAT_MORE_COLLAB_STATUS_OPTIONS.find((item) => item.value === statusValue)
     || CHAT_MORE_COLLAB_STATUS_OPTIONS[0]
+}
+
+export const getBuiltinModelMeta = (modelName = '') => {
+  const normalized = String(modelName || '').trim()
+  return CHAT_MORE_BUILTIN_MODEL_META[normalized]
+    || {
+    label: normalized || CHAT_MORE_BUILTIN_MODELS[0],
+    logo: '/Ai/DouBaoSeed1.6.png'
+  }
+}
+
+export const getBuiltinModelAvatarUrl = (modelName = '') => {
+  return getBuiltinModelMeta(modelName).logo
 }
 
 export const compressImageToWebpDataUrl = (file) => new Promise((resolve, reject) => {

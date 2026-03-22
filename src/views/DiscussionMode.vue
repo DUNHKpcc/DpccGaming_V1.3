@@ -296,15 +296,12 @@
             :builtin-models="chatMoreBuiltinModels"
             :collab-status-options="chatMoreCollabStatusOptions"
             :role-preset-options="chatMoreRolePresetOptions"
-            :show-game-library-picker="showGameLibraryPicker"
             :game-library-loading="gameLibraryLoading"
             :game-library-error="gameLibraryError"
             :game-library-games="gameLibraryGames"
             :show-delete-friend-confirm="showDeleteFriendConfirm"
             :delete-friend-warning-text="getDeleteFriendWarningText()"
             @item-click="handleChatMoreItemClick"
-            @open-game-picker="openGameLibraryPicker"
-            @close-game-picker="closeGameLibraryPicker"
             @open-delete-friend-confirm="openDeleteFriendConfirm"
             @close-delete-friend-confirm="closeDeleteFriendConfirm"
             @confirm-delete-friend="handleDeleteFriendClick"
@@ -858,7 +855,6 @@ export default {
       this.showChatMorePanel = false
       this.showCodePicker = false
       this.showDocumentPicker = false
-      this.showGameLibraryPicker = false
       this.showAttachmentMenu = !this.showAttachmentMenu
     },
     async initializeDiscussion() {
@@ -867,7 +863,6 @@ export default {
       this.chats = []
       this.currentChatId = null
       this.showChatMorePanel = false
-      this.showGameLibraryPicker = false
       this.activeChatMoreSection = ''
       this.currentCodePath = ''
       this.codePanelError = ''
@@ -909,7 +904,6 @@ export default {
       }
       this.showAttachmentMenu = false
       this.showChatMorePanel = false
-      this.showGameLibraryPicker = false
       this.activeChatMoreSection = ''
       this.closeCodePicker()
       this.currentChatId = chatId

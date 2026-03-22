@@ -20,6 +20,14 @@ const COLLAB_STATUS_OPTIONS = new Set([
 ]);
 
 const DEFAULT_BUILTIN_MODEL = 'GPT-4o Mini';
+const BUILTIN_MODEL_AVATAR_MAP = {
+  'GPT-4o Mini': '/Ai/ChatGPT.svg',
+  'GPT-4.1': '/Ai/ChatGPT.svg',
+  'Claude 3.5 Sonnet': '/Ai/Claude.png',
+  'Gemini 2.0 Flash': '/Ai/Gemini.svg',
+  'DeepSeek-V3': '/Ai/DeepSeekR1.png',
+  Qwen: '/Ai/Qwen.png'
+};
 
 const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
   id,
@@ -56,6 +64,7 @@ const createDefaultRoomSettings = () => ({
 const safeText = (value, maxLength = 255) => String(value || '').trim().slice(0, maxLength);
 
 const safeLongText = (value, maxLength = 4000) => String(value || '').replace(/\r/g, '').trim().slice(0, maxLength);
+const getBuiltinModelAvatarUrl = (modelName = '') => BUILTIN_MODEL_AVATAR_MAP[String(modelName || '').trim()] || '/Ai/DouBaoSeed1.6.png';
 
 const parseSettingsJson = (rawValue) => {
   if (!rawValue) return null;
@@ -285,7 +294,7 @@ const insertAiLoopMessage = async (pool, roomId, triggerUserId, slot, content) =
   const metadata = {
     ai_slot_id: slot.id,
     local_ai_name: slot.name || 'AI 助手',
-    local_ai_avatar_url: slot.avatarUrl || '',
+    local_ai_avatar_url: slot.avatarUrl || getBuiltinModelAvatarUrl(slot.builtinModel || ''),
     ai_provider: slot.provider || 'builtin',
     ai_model: slot.provider === 'custom' ? (slot.customModel || '') : (slot.builtinModel || ''),
     trigger_user_id: triggerUserId || null

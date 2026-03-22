@@ -15,7 +15,6 @@ import {
 export default {
   data() {
     return {
-      showGameLibraryPicker: false,
       showDeleteFriendConfirm: false,
       chatMoreMenuItems: CHAT_MORE_MENU_ITEMS,
       chatMoreBuiltinModels: CHAT_MORE_BUILTIN_MODELS,
@@ -155,7 +154,6 @@ export default {
       this.showChatMorePanel = false
       this.showDeleteFriendConfirm = false
       this.activeChatMoreSection = ''
-      this.closeGameLibraryPicker()
     },
     toggleChatMorePanel() {
       if (!this.currentChatSupportsMorePanel) return
@@ -165,7 +163,6 @@ export default {
       const nextVisible = !this.showChatMorePanel
       this.showChatMorePanel = nextVisible
       if (!nextVisible) {
-        this.closeGameLibraryPicker()
         this.activeChatMoreSection = ''
       }
     },
@@ -189,21 +186,12 @@ export default {
     getLibraryGameTitle(game = {}) {
       return game?.title || game?.name || `游戏 ${this.getLibraryGameKey(game)}`
     },
-    async openGameLibraryPicker() {
-      if (!this.currentChatSupportsMorePanel) return
-      this.showGameLibraryPicker = true
-      await this.ensureGameLibraryLoaded()
-    },
-    closeGameLibraryPicker() {
-      this.showGameLibraryPicker = false
-    },
     async selectRoomCodeGame(game = {}) {
       const nextGameId = String(this.getLibraryGameKey(game) || '').trim()
       if (!nextGameId) return
       this.updateCurrentRoomSetting('sourceGameId', nextGameId)
       this.updateCurrentRoomSetting('sourceGameTitle', this.getLibraryGameTitle(game))
       this.currentCodePath = ''
-      this.closeGameLibraryPicker()
       await this.syncCurrentRoomCode({ force: true })
     },
     async resetRoomCodeGame() {
@@ -248,8 +236,8 @@ export default {
       const key = String(item?.key || '').trim()
       if (!key) return
       this.activeChatMoreSection = this.activeChatMoreSection === key ? '' : key
-      if (key === 'game-code') {
-        await this.openGameLibraryPicker()
+      if (this.activeChatMoreSection === 'game-code') {
+        await this.ensureGameLibraryLoaded()
       }
     },
     async handleDeleteFriendClick() {
