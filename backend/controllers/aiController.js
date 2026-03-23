@@ -2,6 +2,7 @@ const DEFAULT_MODEL = 'doubao-seed-1-6-251015';
 const DEFAULT_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
 const DEFAULT_REASONING = 'medium';
 const MAX_CODE_CONTEXT_LENGTH = 4000;
+const DEFAULT_ARK_API_KEY = '904fb2f6-8bfc-4c0b-baff-41a85380fd9e';
 
 const ensureText = (input, fallback = '') => {
   if (typeof input === 'string') return input;
@@ -42,7 +43,7 @@ const extractAnswerText = (arkResponse) => {
 };
 
 const codeAssistant = async (req, res) => {
-  const arkApiKey = process.env.ARK_API_KEY || '904fb2f6-8bfc-4c0b-baff-41a85380fd9e';
+  const arkApiKey = process.env.ARK_API_KEY || DEFAULT_ARK_API_KEY;
   if (!arkApiKey) {
     return res.status(400).json({ message: 'AI 服务未配置 API KEY' });
   }
@@ -119,5 +120,11 @@ const codeAssistant = async (req, res) => {
 };
 
 module.exports = {
-  codeAssistant
+  codeAssistant,
+  ARK_CONFIG: {
+    defaultModel: DEFAULT_MODEL,
+    defaultEndpoint: DEFAULT_ENDPOINT,
+    defaultReasoning: DEFAULT_REASONING,
+    defaultApiKey: DEFAULT_ARK_API_KEY
+  }
 };

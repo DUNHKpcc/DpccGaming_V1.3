@@ -5,7 +5,9 @@ const {
   ensureRoomSettingsTable,
   emitRoomMessage,
   emitRoomSettingsEvent,
-  generateAiReply
+  emitRoomMemoryEvent,
+  refreshRoomMemoryArtifacts,
+  requestRoomAiReplyBySlot
 } = require('./shared');
 
 const AI_LOOP_DELAY_MS = 8000;
@@ -19,14 +21,14 @@ const COLLAB_STATUS_OPTIONS = new Set([
   'client-sync'
 ]);
 
-const DEFAULT_BUILTIN_MODEL = 'GPT-4o Mini';
+const DEFAULT_BUILTIN_MODEL = 'DouBaoSeed1.6';
 const BUILTIN_MODEL_AVATAR_MAP = {
-  'GPT-4o Mini': '/Ai/ChatGPT.svg',
-  'GPT-4.1': '/Ai/ChatGPT.svg',
-  'Claude 3.5 Sonnet': '/Ai/Claude.png',
-  'Gemini 2.0 Flash': '/Ai/Gemini.svg',
-  'DeepSeek-V3': '/Ai/DeepSeekR1.png',
-  Qwen: '/Ai/Qwen.png'
+  'DouBaoSeed1.6': '/Ai/DouBaoSeed1.6.png',
+  'GPT-5.4': '/Ai/ChatGPT.svg',
+  'Claude 4.6 opus': '/Ai/Claude.png',
+  'Gemini 3.0 Pro': '/Ai/Gemini.svg',
+  'DeepSeek-R1': '/Ai/DeepSeekR1.png',
+  'Qwen3-CodeMax': '/Ai/Qwen.png'
 };
 
 const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
@@ -41,6 +43,7 @@ const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
   name: fallbackName,
   context: '',
   intensity: 60,
+  memoryEnabled: true,
   avatarUrl: '',
   avatarUpdatedAt: 0
 });
@@ -105,6 +108,7 @@ const normalizeAiSlot = (rawSlot = {}, existingSlot = {}, index = 0, userId = nu
     name: safeText(merged.name || fallback.name, 40) || fallback.name,
     context: safeLongText(merged.context || '', 2000),
     intensity: Math.max(0, Math.min(100, Number(merged.intensity || fallback.intensity) || fallback.intensity)),
+    memoryEnabled: merged.memoryEnabled !== false,
     avatarUrl: safeText(merged.avatarUrl || '', 200000),
     avatarUpdatedAt: Number(merged.avatarUpdatedAt || existingSlot?.avatarUpdatedAt || 0) || 0
   };
@@ -208,88 +212,6 @@ const ensureDirectRoomMember = async (pool, roomId, userId) => {
   return { ok: true, room };
 };
 
-const buildSlotPrompt = ({ slot, room, recentMessages, loopPrompt }) => {
-  const recentText = recentMessages
-    .map((item) => `[${item.sender_type}] ${String(item.content || '').trim()}`)
-    .join('\n')
-    .slice(-4000);
-  const intensityHint = slot.intensity >= 75
-    ? '请更主动、更直接地给出下一步。'
-    : slot.intensity >= 45
-      ? '请平衡分析与行动建议。'
-      : '请先用温和方式澄清风险与上下文。';
-
-  return [
-    `当前房间游戏：${room.game_title || '未命名游戏'}`,
-    `当前 AI 名称：${slot.name || 'AI 助手'}`,
-    slot.context ? `AI 上下文：${slot.context}` : '',
-    `轮询目标：${loopPrompt || '继续推进当前讨论'}`,
-    intensityHint,
-    recentText ? `最近消息：\n${recentText}` : '',
-    '请输出一条适合作为房间新消息发送的简洁回复，避免使用列表编号。'
-  ].filter(Boolean).join('\n\n');
-};
-
-const requestCustomAiReply = async ({ slot, prompt }) => {
-  const endpoint = safeText(slot.customEndpoint || '', 500);
-  const apiKey = safeText(slot.apiKey || '', 400);
-  const model = safeText(slot.customModel || '', 120);
-  if (!endpoint || !apiKey || !model) {
-    throw new Error('自定义 AI 缺少 endpoint / model / apiKey');
-  }
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: '你是多人协作聊天中的 AI 成员，请自然接续上下文发言。'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: Math.max(0.2, Math.min(1.1, 0.2 + ((Number(slot.intensity || 60) || 60) / 100) * 0.9))
-    })
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `自定义 AI 请求失败（${response.status}）`);
-  }
-
-  const data = await response.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('自定义 AI 未返回有效内容');
-  }
-
-  if (Array.isArray(content)) {
-    return content.map((item) => item?.text || '').join('\n').trim();
-  }
-  return String(content).trim();
-};
-
-const requestAiReplyBySlot = async ({ slot, room, recentMessages, loopPrompt }) => {
-  const prompt = buildSlotPrompt({ slot, room, recentMessages, loopPrompt });
-  if (slot.provider === 'custom' && slot.customEndpoint && slot.customModel && slot.apiKey) {
-    return requestCustomAiReply({ slot, prompt });
-  }
-
-  return generateAiReply({
-    prompt,
-    gameTitle: room.game_title,
-    roomMessages: recentMessages
-  });
-};
-
 const insertAiLoopMessage = async (pool, roomId, triggerUserId, slot, content) => {
   const metadata = {
     ai_slot_id: slot.id,
@@ -362,17 +284,21 @@ async function runRoomAiLoopTurn(roomId, options = {}) {
   const turnIndex = Number(settings.dualAiLoopTurnCount || 0);
   const slot = enabledSlots[turnIndex % enabledSlots.length];
   const [recentMessages] = await pool.execute(
-    `SELECT sender_type, content
-     FROM discussion_messages
-     WHERE room_id = ?
-     ORDER BY id DESC
+    `SELECT m.id, m.sender_type, m.sender_user_id, m.content, m.metadata_json, m.created_at, u.username
+     FROM discussion_messages m
+     LEFT JOIN users u ON u.id = m.sender_user_id
+     WHERE m.room_id = ?
+     ORDER BY m.id DESC
      LIMIT 20`,
     [parsedRoomId]
   );
 
-  const content = await requestAiReplyBySlot({
+  const content = await requestRoomAiReplyBySlot({
+    pool,
+    roomId: parsedRoomId,
     slot,
     room,
+    prompt: '',
     recentMessages: recentMessages.reverse(),
     loopPrompt: settings.dualAiLoopPrompt
   });
@@ -385,10 +311,16 @@ async function runRoomAiLoopTurn(roomId, options = {}) {
 
   settings.dualAiLoopTurnCount = turnIndex + 1;
   await saveRoomSettings(pool, parsedRoomId, settings, options.triggerUserId || 0);
+  const memoryPayload = await refreshRoomMemoryArtifacts(pool, parsedRoomId, { updatedByUserId: options.triggerUserId || 0 });
 
   emitRoomMessage(parsedRoomId, message);
   emitRoomSettingsEvent(parsedRoomId, {
     settings: serializeRoomSettingsForClient(settings)
+  });
+  emitRoomMemoryEvent(parsedRoomId, {
+    summary: memoryPayload.summary,
+    memory: memoryPayload.memory,
+    updatedByUserId: options.triggerUserId || null
   });
 
   if (!options.manual && settings.dualAiLoopEnabled) {
@@ -455,8 +387,17 @@ const updateRoomSettings = async (req, res) => {
     await saveRoomSettings(pool, roomId, nextSettings, userId);
 
     await syncRoomAiLoop(roomId);
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, {
+      updatedByUserId: userId,
+      settings: nextSettings
+    });
     emitRoomSettingsEvent(roomId, {
       settings: serializeRoomSettingsForClient(nextSettings),
+      updatedByUserId: userId
+    });
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
       updatedByUserId: userId
     });
 

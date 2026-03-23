@@ -11,6 +11,10 @@ import {
   getCollaborationStatusMeta,
   compressImageToWebpDataUrl
 } from '../utils/discussionChatMore'
+import {
+  normalizeDiscussionRoomSummary,
+  normalizeDiscussionRoomMemoryItem
+} from '../utils/discussionModeCore'
 
 export default {
   data() {
@@ -22,10 +26,14 @@ export default {
       chatMoreRolePresetOptions: CHAT_MORE_ROLE_PRESET_OPTIONS,
       activeChatMoreSection: '',
       chatMoreSettingsByRoom: {},
+      roomSummaryByRoom: {},
+      roomMemoryByRoom: {},
       roomSettingsSaveTimers: {},
       gameLibraryLoading: false,
       gameLibraryError: '',
-      gameLibraryGames: []
+      gameLibraryGames: [],
+      roomMemoryLoading: false,
+      roomMemoryError: ''
     }
   },
   methods: {
@@ -59,6 +67,36 @@ export default {
         [roomKey]: normalizeChatMoreSettings(nextSettings)
       }
     },
+    getRoomSummary(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return null
+      return this.roomSummaryByRoom[roomKey] || null
+    },
+    getRoomMemory(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return []
+      return Array.isArray(this.roomMemoryByRoom[roomKey]) ? this.roomMemoryByRoom[roomKey] : []
+    },
+    setRoomMemoryPayload(roomId, payload = {}) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return
+      const summary = payload?.summary ? normalizeDiscussionRoomSummary(payload.summary) : null
+      const memory = Array.isArray(payload?.memory)
+        ? payload.memory.map((item) => normalizeDiscussionRoomMemoryItem(item)).filter(Boolean)
+        : []
+      this.roomSummaryByRoom = {
+        ...this.roomSummaryByRoom,
+        [roomKey]: summary
+      }
+      this.roomMemoryByRoom = {
+        ...this.roomMemoryByRoom,
+        [roomKey]: memory
+      }
+      if (String(this.memoryPreviewItem?.roomId || '') === roomKey && this.memoryPreviewItem?.sourceKey) {
+        const nextPreview = memory.find((item) => item.sourceKey === this.memoryPreviewItem.sourceKey) || null
+        this.memoryPreviewItem = nextPreview
+      }
+    },
     async fetchRoomSettings(roomId) {
       const roomKey = String(roomId || '').trim()
       if (!roomKey) return createDefaultChatMoreSettings()
@@ -67,6 +105,42 @@ export default {
       this.setRoomSettings(roomKey, settings)
       this.applyRoomSettingsToLoadedChats()
       return settings
+    },
+    async fetchRoomMemory(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return { summary: null, memory: [] }
+      this.roomMemoryLoading = true
+      this.roomMemoryError = ''
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomKey}/memory`)
+        this.setRoomMemoryPayload(roomKey, data)
+        return {
+          summary: this.getRoomSummary(roomKey),
+          memory: this.getRoomMemory(roomKey)
+        }
+      } catch (error) {
+        this.roomMemoryError = error.message || '加载房间记忆失败'
+        return { summary: null, memory: [] }
+      } finally {
+        this.roomMemoryLoading = false
+      }
+    },
+    async refreshCurrentRoomMemory() {
+      const roomId = this.currentChat?.id
+      if (!roomId) return
+      this.roomMemoryLoading = true
+      this.roomMemoryError = ''
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomId}/memory/refresh`, {
+          method: 'POST'
+        })
+        this.setRoomMemoryPayload(roomId, data)
+      } catch (error) {
+        this.roomMemoryError = error.message || '刷新房间记忆失败'
+        this.errorText = error.message || '刷新房间记忆失败'
+      } finally {
+        this.roomMemoryLoading = false
+      }
     },
     queueRoomSettingsSave(roomId, delay = 320) {
       const roomKey = String(roomId || '').trim()
@@ -232,12 +306,21 @@ export default {
         if (event?.target) event.target.value = ''
       }
     },
+    openMemoryFileInCodePanel(memoryItem = null) {
+      if (!memoryItem) return
+      this.memoryPreviewItem = memoryItem
+      this.codePanelError = ''
+      this.switchRightTab('code', { prefetchCode: false })
+    },
     async handleChatMoreItemClick(item) {
       const key = String(item?.key || '').trim()
       if (!key) return
       this.activeChatMoreSection = this.activeChatMoreSection === key ? '' : key
       if (this.activeChatMoreSection === 'game-code') {
         await this.ensureGameLibraryLoaded()
+      }
+      if (this.activeChatMoreSection === 'personal-ai') {
+        await this.fetchRoomMemory(this.currentChat?.id)
       }
     },
     async handleDeleteFriendClick() {

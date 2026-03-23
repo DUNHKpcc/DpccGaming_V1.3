@@ -5,6 +5,7 @@ const { extractToken, verifyToken } = require('../middleware/auth');
 let ioInstance = null;
 
 const roomChannel = (roomId) => `discussion:room:${roomId}`;
+const userChannel = (userId) => `user:${userId}`;
 
 const parseRoomId = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -63,6 +64,11 @@ const initDiscussionRealtime = ({ server, corsOrigins = [] }) => {
   });
 
   ioInstance.on('connection', (socket) => {
+    const userId = parseRoomId(socket.data.user?.userId);
+    if (userId) {
+      socket.join(userChannel(userId));
+    }
+
     socket.on('discussion:join', async (payload = {}, ack) => {
       const callback = typeof ack === 'function' ? ack : () => { };
       try {
@@ -100,6 +106,16 @@ const initDiscussionRealtime = ({ server, corsOrigins = [] }) => {
   });
 
   return ioInstance;
+};
+
+const emitUserNotificationEvent = (userId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextUserId = parseRoomId(userId);
+  if (!nextUserId) return;
+  ioInstance.to(userChannel(nextUserId)).emit('notification:new', {
+    userId: nextUserId,
+    ...payload
+  });
 };
 
 const emitRoomMessage = (roomId, message) => {
@@ -142,6 +158,16 @@ const emitRoomSettingsEvent = (roomId, payload = {}) => {
   });
 };
 
+const emitRoomMemoryEvent = (roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextRoomId) return;
+  ioInstance.to(roomChannel(nextRoomId)).emit('discussion:room-memory', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
 const emitRoomRemovedEvent = (roomId, payload = {}) => {
   if (!ioInstance) return;
   const nextRoomId = parseRoomId(roomId);
@@ -158,6 +184,8 @@ module.exports = {
   emitRoomDocumentsEvent,
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
+  emitRoomMemoryEvent,
   emitRoomRemovedEvent,
+  emitUserNotificationEvent,
   roomChannel
 };

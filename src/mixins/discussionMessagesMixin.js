@@ -237,7 +237,10 @@ export default {
           body: JSON.stringify({
             content: `代码预览：${codePreview.path}`,
             metadata: {
-              code_preview: codePreview
+              code_preview: {
+                ...codePreview,
+                game_id: this.effectiveCodeGameId || this.currentChat?.gameId || ''
+              }
             }
           })
         })

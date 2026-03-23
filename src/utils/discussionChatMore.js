@@ -32,7 +32,7 @@ export const CHAT_MORE_BUILTIN_MODELS = [
   'Claude 4.6 opus',
   'Gemini 3.0 Pro',
   'DeepSeek-R1',
-  'Qwen'
+  'Qwen3-CodeMax'
 ]
 
 export const CHAT_MORE_BUILTIN_MODEL_META = {
@@ -56,8 +56,8 @@ export const CHAT_MORE_BUILTIN_MODEL_META = {
     label: 'DeepSeek-R1',
     logo: '/Ai/DeepSeekR1.png'
   },
-  'Qwen': {
-    label: 'Qwen',
+  'Qwen3-CodeMax': {
+    label: 'Qwen-CodeMax',
     logo: '/Ai/Qwen.png'
   }
 }
@@ -75,6 +75,7 @@ export const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
   name: fallbackName,
   context: '',
   intensity: 60,
+  memoryEnabled: true,
   avatarUrl: '',
   avatarUpdatedAt: 0
 })
@@ -112,6 +113,7 @@ export const normalizeAiSlot = (rawSlot = {}, index = 0) => {
     name: String(rawSlot?.name || fallback.name).trim() || fallback.name,
     context: String(rawSlot?.context || '').trim(),
     intensity: Math.max(0, Math.min(100, Number(rawSlot?.intensity || fallback.intensity) || fallback.intensity)),
+    memoryEnabled: rawSlot?.memoryEnabled !== false,
     avatarUrl: String(rawSlot?.avatarUrl || '').trim(),
     avatarUpdatedAt: Number(rawSlot?.avatarUpdatedAt || 0) || 0
   }

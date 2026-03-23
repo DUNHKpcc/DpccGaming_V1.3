@@ -166,6 +166,8 @@ router.get('/rooms/:roomId/messages', authenticateToken, discussionController.li
 router.post('/rooms/:roomId/messages', authenticateToken, discussionController.sendRoomMessage);
 router.get('/rooms/:roomId/settings', authenticateToken, discussionController.getRoomSettings);
 router.patch('/rooms/:roomId/settings', authenticateToken, discussionController.updateRoomSettings);
+router.get('/rooms/:roomId/memory', authenticateToken, discussionController.getRoomMemory);
+router.post('/rooms/:roomId/memory/refresh', authenticateToken, discussionController.refreshRoomMemory);
 router.post('/rooms/:roomId/ai-loop/turn', authenticateToken, discussionController.triggerRoomAiLoopTurn);
 router.post('/rooms/:roomId/attachments/:kind', authenticateToken, uploadDiscussionAttachment, discussionController.uploadRoomAttachment);
 router.post('/rooms/:roomId/ai-message', authenticateToken, discussionController.sendAiRoomMessage);

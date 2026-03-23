@@ -131,6 +131,10 @@ export default {
         this.handleSocketRoomSettings(payload)
       })
 
+      this.socket.on('discussion:room-memory', (payload) => {
+        this.handleSocketRoomMemory(payload)
+      })
+
       this.socket.on('discussion:room-removed', (payload) => {
         this.handleSocketRoomRemoved(payload)
       })
@@ -263,6 +267,11 @@ export default {
         this.currentCodePath = ''
         this.syncCurrentRoomCode({ force: true })
       }
+    },
+    handleSocketRoomMemory(payload) {
+      const roomId = Number(payload?.roomId)
+      if (!roomId) return
+      this.setRoomMemoryPayload(roomId, payload || {})
     },
     async handleSocketRoomRemoved(payload) {
       const roomId = Number(payload?.roomId)

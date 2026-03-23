@@ -9,7 +9,9 @@ const {
   buildUploadedFileUrl,
   inferDocumentPageCount,
   loadDocumentPreviewText,
-  emitRoomDocumentsEvent
+  emitRoomDocumentsEvent,
+  emitRoomMemoryEvent,
+  refreshRoomMemoryArtifacts
 } = require('./shared');
 
 const setSelectedDocumentForRoom = async (pool, roomId, selectedDocumentId, userId = null) => {
@@ -139,6 +141,12 @@ const uploadRoomDocument = async (req, res) => {
       selectedDocumentId: insertResult.insertId,
       updatedByUserId: userId
     });
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
+      updatedByUserId: userId
+    });
 
     res.status(201).json({
       document: rows[0] || null,
@@ -204,6 +212,12 @@ const deleteRoomDocument = async (req, res) => {
       selectedDocumentId: nextSelectedDocumentId,
       updatedByUserId: userId
     });
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
+      updatedByUserId: userId
+    });
 
     res.json({
       removed: true,
@@ -249,6 +263,12 @@ const setCurrentRoomDocument = async (req, res) => {
     emitRoomDocumentsEvent(roomId, {
       action: 'select',
       selectedDocumentId: documentId,
+      updatedByUserId: userId
+    });
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
       updatedByUserId: userId
     });
 

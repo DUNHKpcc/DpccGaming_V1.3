@@ -3,14 +3,14 @@
     <div class="right-path-row">
       <img
         class="right-filetype-icon"
-        :src="getCodeTypeIconByPath(currentFileName)"
+        :src="getCodeTypeIconByPath(displayFileName)"
         alt="code type"
       />
       <span class="right-source-pill">
-        {{ currentCodeSourceGameTitle || '房间默认源码' }}
+        {{ displaySourceTitle }}
       </span>
       <select
-        v-if="currentRoomCodeFiles.length"
+        v-if="!memoryPreviewItem && currentRoomCodeFiles.length"
         :value="currentCodePath"
         class="right-path-input right-path-select"
         @change="$emit('update:currentCodePath', $event.target.value)"
@@ -27,14 +27,14 @@
         v-else
         class="right-path-input"
         type="text"
-        :value="currentFileName"
+        :value="displayFileName"
         readonly
       />
       <button
         type="button"
         class="right-plus-btn"
-        :disabled="codePanelLoading || !currentCodeSourceGameId"
-        title="刷新当前房间源码"
+        :disabled="codePanelLoading || !currentCodeSourceGameId || Boolean(memoryPreviewItem)"
+        :title="memoryPreviewItem ? '当前正在查看记忆文件' : '刷新当前房间源码'"
         @click="$emit('refresh')"
       >
         <i :class="codePanelLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
@@ -44,6 +44,7 @@
     <div class="right-code-shell">
       <div v-if="codePanelLoading" class="code-empty-state">源码加载中...</div>
       <div v-else-if="codePanelError" class="code-empty-state error">{{ codePanelError }}</div>
+      <pre v-else-if="memoryPreviewItem" class="code-panel"><code class="hljs" v-html="highlightedMemoryText"></code></pre>
       <div v-else-if="!currentChat" class="code-empty-state">请先选择一个讨论房间</div>
       <div v-else-if="!currentRoomCodeFiles.length" class="code-empty-state">当前房间游戏暂无可浏览源码</div>
       <pre v-else class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
@@ -90,14 +91,35 @@ export default {
     highlightedCodeText: {
       type: String,
       default: ''
+    },
+    memoryPreviewItem: {
+      type: Object,
+      default: null
+    },
+    highlightedMemoryText: {
+      type: String,
+      default: ''
     }
   },
   emits: ['refresh', 'update:currentCodePath'],
+  computed: {
+    displaySourceTitle() {
+      if (this.memoryPreviewItem) return 'AI 记忆'
+      return this.currentCodeSourceGameTitle || '房间默认源码'
+    },
+    displayFileName() {
+      if (this.memoryPreviewItem) {
+        return this.memoryPreviewItem.title || this.memoryPreviewItem.filePath || '房间记忆'
+      }
+      return this.currentFileName
+    }
+  },
   methods: {
     getCodeTypeIconByPath(filePath = '') {
       const normalized = String(filePath || '').toLowerCase()
       if (normalized.endsWith('.ts') || normalized.endsWith('.tsx')) return '/codeType/typescript.jpg'
       if (normalized.endsWith('.cs')) return '/codeType/csharp.webp'
+      if (normalized.endsWith('.md') || normalized.endsWith('.txt') || normalized.includes('记忆')) return '/codeType/js.webp'
       return '/codeType/js.webp'
     }
   }

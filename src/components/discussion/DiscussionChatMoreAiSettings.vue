@@ -118,6 +118,18 @@
           ></textarea>
         </label>
 
+        <div class="chat-more-field">
+          <span>房间记忆</span>
+          <label class="chat-more-switch chat-more-switch-inline">
+            <input
+              type="checkbox"
+              :checked="slot.memoryEnabled !== false"
+              @change="$emit('update-slot-field', slot.id, 'memoryEnabled', $event.target.checked)"
+            />
+            <span>{{ slot.memoryEnabled !== false ? '已启用共享记忆' : '不使用共享记忆' }}</span>
+          </label>
+        </div>
+
         <div class="chat-more-avatar-row">
           <div class="chat-more-ai-avatar-preview">
             <img
@@ -135,6 +147,49 @@
             />
             上传头像
           </label>
+        </div>
+
+        <div v-if="slotIndex === 0" class="chat-more-memory-manager">
+          <div class="chat-more-editor-head">
+            <strong>记忆管理</strong>
+            <button
+              type="button"
+              class="chat-more-secondary-btn"
+              :disabled="memoryLoading"
+              @click="$emit('refresh-room-memory')"
+            >
+              {{ memoryLoading ? '刷新中...' : '刷新记忆' }}
+            </button>
+          </div>
+          <p v-if="roomSummary?.updatedAt" class="chat-more-editor-note">
+            最近更新：{{ formatMemoryTime(roomSummary.updatedAt) }}
+          </p>
+          <div v-if="memoryError" class="chat-error">{{ memoryError }}</div>
+          <div v-else-if="!roomMemoryItems.length" class="chat-empty">当前房间还没有可用记忆文件</div>
+          <div v-else class="chat-more-memory-list">
+            <button
+              v-for="memoryItem in topRoomMemoryItems"
+              :key="memoryItem.sourceKey || memoryItem.id"
+              type="button"
+              class="chat-more-memory-item"
+              @click="$emit('open-memory-file', memoryItem)"
+            >
+              <span class="chat-more-memory-item-title">{{ memoryItem.title }}</span>
+              <span class="chat-more-memory-item-meta">{{ formatMemoryMeta(memoryItem) }}</span>
+            </button>
+            <div v-if="overflowRoomMemoryItems.length" class="chat-more-memory-scroll-shell">
+              <button
+                v-for="memoryItem in overflowRoomMemoryItems"
+                :key="memoryItem.sourceKey || memoryItem.id"
+                type="button"
+                class="chat-more-memory-item"
+                @click="$emit('open-memory-file', memoryItem)"
+              >
+                <span class="chat-more-memory-item-title">{{ memoryItem.title }}</span>
+                <span class="chat-more-memory-item-meta">{{ formatMemoryMeta(memoryItem) }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </template>
     </div>
@@ -158,9 +213,33 @@ export default {
     builtinModels: {
       type: Array,
       default: () => []
+    },
+    roomSummary: {
+      type: Object,
+      default: null
+    },
+    roomMemoryItems: {
+      type: Array,
+      default: () => []
+    },
+    memoryLoading: {
+      type: Boolean,
+      default: false
+    },
+    memoryError: {
+      type: String,
+      default: ''
     }
   },
-  emits: ['update-slot-field', 'avatar-file-change'],
+  emits: ['update-slot-field', 'avatar-file-change', 'refresh-room-memory', 'open-memory-file'],
+  computed: {
+    topRoomMemoryItems() {
+      return this.roomMemoryItems.slice(0, 3)
+    },
+    overflowRoomMemoryItems() {
+      return this.roomMemoryItems.slice(3)
+    }
+  },
   methods: {
     resolveAiSlotModelLabel(slot = {}) {
       if (slot.provider === 'custom') {
@@ -178,6 +257,30 @@ export default {
         return getBuiltinModelAvatarUrl(slot.builtinModel || this.builtinModels[0] || '')
       }
       return ''
+    },
+    formatMemoryTime(value) {
+      if (!value) return ''
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return ''
+      return date.toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(',', '')
+    },
+    formatMemoryMeta(memoryItem = {}) {
+      const typeLabelMap = {
+        summary: '摘要',
+        profile: '配置',
+        document: '文档',
+        code: '源码',
+        message: '消息'
+      }
+      const typeLabel = typeLabelMap[memoryItem.memoryType] || '记忆'
+      const updatedAt = this.formatMemoryTime(memoryItem.updatedAt)
+      return updatedAt ? `${typeLabel} · ${updatedAt}` : typeLabel
     }
   }
 }

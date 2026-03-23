@@ -7,8 +7,27 @@ const {
   notifyRoomMembers,
   removeUploadedFile,
   buildUploadedFileUrl,
-  generateAiReply
+  getRuntimeRoomSettings,
+  refreshRoomMemoryArtifacts,
+  emitRoomMemoryEvent,
+  requestRoomAiReplyBySlot
 } = require('./shared');
+
+const resolveSingleAiSlot = (settings = {}) => {
+  const slots = Array.isArray(settings.aiSlots) ? settings.aiSlots : [];
+  return slots.find((slot) => slot?.enabled) || slots[0] || {
+    id: 'slot-1',
+    enabled: true,
+    provider: 'builtin',
+    builtinModel: 'DouBaoSeed1.6',
+    customModel: '',
+    customEndpoint: '',
+    apiKey: '',
+    name: 'AI 助手',
+    context: '',
+    memoryEnabled: true
+  };
+};
 
 const listRoomMessages = async (req, res) => {
   try {
@@ -106,7 +125,13 @@ const sendRoomMessage = async (req, res) => {
       messageContent: rows[0]?.content || content
     });
 
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
     emitRoomMessage(roomId, rows[0]);
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
+      updatedByUserId: userId
+    });
     res.status(201).json({ message: rows[0] });
   } catch (error) {
     console.error('发送房间消息失败:', error);
@@ -191,7 +216,13 @@ const uploadRoomAttachment = async (req, res) => {
       messageContent: rows[0]?.content || content
     });
 
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
     emitRoomMessage(roomId, rows[0]);
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
+      updatedByUserId: userId
+    });
     res.status(201).json({ message: rows[0] });
   } catch (error) {
     await removeUploadedFile(uploadedPath);
@@ -225,25 +256,40 @@ const sendAiRoomMessage = async (req, res) => {
     if (!roomRows.length) return res.status(404).json({ error: '房间不存在' });
 
     const [recentMessages] = await pool.execute(
-      `SELECT sender_type, content
-       FROM discussion_messages
-       WHERE room_id = ?
-       ORDER BY id DESC
+      `SELECT m.id, m.sender_type, m.sender_user_id, m.content, m.metadata_json, m.created_at, u.username
+       FROM discussion_messages m
+       LEFT JOIN users u ON u.id = m.sender_user_id
+       WHERE m.room_id = ?
+       ORDER BY m.id DESC
        LIMIT 20`,
       [roomId]
     );
 
-    const aiText = await generateAiReply({
+    const roomSettings = await getRuntimeRoomSettings(pool, roomId);
+    const slot = resolveSingleAiSlot(roomSettings);
+    const aiText = await requestRoomAiReplyBySlot({
+      pool,
+      roomId,
+      room: roomRows[0],
+      slot,
       prompt,
-      gameTitle: roomRows[0].game_title,
-      roomMessages: recentMessages.reverse()
+      recentMessages: recentMessages.reverse()
     });
 
     const [insertResult] = await pool.execute(
       `INSERT INTO discussion_messages
        (room_id, sender_type, sender_user_id, message_type, content, metadata_json)
-       VALUES (?, 'ai', NULL, 'text', ?, JSON_OBJECT('trigger_user_id', ?, 'game_id', ?))`,
-      [roomId, aiText, userId, roomRows[0].game_id]
+       VALUES (?, 'ai', NULL, 'text', ?, JSON_OBJECT('trigger_user_id', ?, 'game_id', ?, 'local_ai_name', ?, 'local_ai_avatar_url', ?, 'ai_provider', ?, 'ai_model', ?))`,
+      [
+        roomId,
+        aiText,
+        userId,
+        roomRows[0].game_id,
+        slot.name || 'AI 助手',
+        slot.avatarUrl || '',
+        slot.provider || 'builtin',
+        slot.provider === 'custom' ? (slot.customModel || '') : (slot.builtinModel || '')
+      ]
     );
 
     const [rows] = await pool.execute(
@@ -262,7 +308,13 @@ const sendAiRoomMessage = async (req, res) => {
       messageContent: rows[0]?.content || aiText
     });
 
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
     emitRoomMessage(roomId, rows[0]);
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
+      updatedByUserId: userId
+    });
     res.status(201).json({ message: rows[0] });
   } catch (error) {
     console.error('发送 AI 消息失败:', error);

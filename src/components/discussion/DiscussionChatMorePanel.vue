@@ -128,8 +128,14 @@
                 mode="personal-ai"
                 :ai-slots="settings.aiSlots"
                 :builtin-models="builtinModels"
+                :room-summary="roomSummary"
+                :room-memory-items="roomMemoryItems"
+                :memory-loading="roomMemoryLoading"
+                :memory-error="roomMemoryError"
                 @update-slot-field="handleUpdateAiSlotField"
                 @avatar-file-change="handleAvatarFileChange"
+                @refresh-room-memory="$emit('refresh-room-memory')"
+                @open-memory-file="$emit('open-memory-file', $event)"
               />
             </div>
 
@@ -315,6 +321,22 @@ export default {
       type: Array,
       default: () => []
     },
+    roomSummary: {
+      type: Object,
+      default: null
+    },
+    roomMemoryItems: {
+      type: Array,
+      default: () => []
+    },
+    roomMemoryLoading: {
+      type: Boolean,
+      default: false
+    },
+    roomMemoryError: {
+      type: String,
+      default: ''
+    },
     gameLibraryLoading: {
       type: Boolean,
       default: false
@@ -347,6 +369,8 @@ export default {
     'reset-nickname',
     'update-ai-slot-field',
     'avatar-file-change',
+    'refresh-room-memory',
+    'open-memory-file',
     'toggle-dual-ai-loop',
     'generate-dual-ai-loop-round'
   ],

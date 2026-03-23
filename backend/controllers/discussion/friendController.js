@@ -13,6 +13,8 @@ const {
   ensureRoomDocumentStateTable,
   ensureRoomTasksTable,
   ensureRoomSettingsTable,
+  ensureRoomSummaryTable,
+  ensureRoomMemoryTable,
   ensureFriendInviteLinksTable,
   generateFriendInviteCode,
   parseInviteCode,
@@ -215,6 +217,8 @@ const deleteRoomNotifications = async (connection, roomIds = [], friendRequestId
 const deleteFriendRoomData = async (connection, roomIds = []) => {
   if (!roomIds.length) return;
   const placeholders = buildSqlInClause(roomIds);
+  await ensureRoomSummaryTable(connection);
+  await ensureRoomMemoryTable(connection);
 
   await connection.execute(
     `DELETE FROM discussion_room_document_state
@@ -233,6 +237,16 @@ const deleteFriendRoomData = async (connection, roomIds = []) => {
   );
   await connection.execute(
     `DELETE FROM discussion_room_settings
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_room_summary
+     WHERE room_id IN (${placeholders})`,
+    roomIds
+  );
+  await connection.execute(
+    `DELETE FROM discussion_room_memory
      WHERE room_id IN (${placeholders})`,
     roomIds
   );

@@ -258,6 +258,50 @@ export const normalizeDiscussionCodeFile = (file = {}) => {
   }
 }
 
+export const normalizeDiscussionRoomSummary = (summary = {}) => {
+  const roomId = Number.parseInt(summary.roomId || summary.room_id, 10)
+  const summaryText = String(summary.summaryText || summary.summary_text || '').replace(/\r/g, '').trim()
+  return {
+    roomId: Number.isInteger(roomId) && roomId > 0 ? roomId : null,
+    summaryText,
+    summaryMeta: parseDiscussionMetadata(summary.summaryMeta || summary.summary_json) || null,
+    lastMessageId: Number.parseInt(summary.lastMessageId || summary.last_message_id, 10) || null,
+    updatedByUserId: Number.parseInt(summary.updatedByUserId || summary.updated_by_user_id, 10) || null,
+    updatedAt: summary.updatedAt || summary.updated_at || null,
+    createdAt: summary.createdAt || summary.created_at || null
+  }
+}
+
+export const normalizeDiscussionRoomMemoryItem = (item = {}) => {
+  const id = Number.parseInt(item.id, 10)
+  const roomId = Number.parseInt(item.roomId || item.room_id, 10)
+  const title = String(item.title || '').trim()
+  const content = String(item.content || '').replace(/\r/g, '')
+  if (!title) return null
+
+  const sourcePath = String(item.sourcePath || item.source_path || '').trim()
+  const metadata = parseDiscussionMetadata(item.metadata || item.metadata_json) || null
+  const filePath = sourcePath || `${String(item.memoryType || item.memory_type || 'memory').trim()}/${title}`
+
+  return {
+    id: Number.isInteger(id) && id > 0 ? id : null,
+    roomId: Number.isInteger(roomId) && roomId > 0 ? roomId : null,
+    memoryType: String(item.memoryType || item.memory_type || '').trim(),
+    sourceKey: String(item.sourceKey || item.source_key || '').trim(),
+    title,
+    content,
+    metadata,
+    sourceUserId: Number.parseInt(item.sourceUserId || item.source_user_id, 10) || null,
+    sourceMessageId: Number.parseInt(item.sourceMessageId || item.source_message_id, 10) || null,
+    sourceDocumentId: Number.parseInt(item.sourceDocumentId || item.source_document_id, 10) || null,
+    sourceGameId: String(item.sourceGameId || item.source_game_id || '').trim(),
+    sourcePath,
+    filePath,
+    updatedAt: item.updatedAt || item.updated_at || null,
+    createdAt: item.createdAt || item.created_at || null
+  }
+}
+
 export const buildDiscussionCodePreview = (file = {}) => {
   const lines = String(file.content || '').replace(/\r/g, '').split('\n')
   const snippet = lines.slice(0, 14).join('\n').slice(0, 1500)

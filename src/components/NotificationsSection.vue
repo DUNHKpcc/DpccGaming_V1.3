@@ -98,13 +98,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { io } from 'socket.io-client'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 import { useNotificationStore } from '../stores/notification'
-import { apiCall } from '../utils/api'
+import { apiCall, API_BASE_URL } from '../utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -128,6 +129,7 @@ const DEFAULT_VISIBLE_NOTIFICATION_COUNT = 3
 const showAllNotifications = ref(false)
 const friendRequestActionLoading = reactive({})
 const handledFriendRequestStatus = reactive({})
+const socket = ref(null)
 
 const displayedNotifications = computed(() => {
   if (props.compact) return notifications.value
@@ -151,6 +153,62 @@ const unreadCount = computed(() => {
 
 const emitNotificationsUpdated = () => {
   window.dispatchEvent(new CustomEvent('notifications:updated'))
+}
+
+const getSocketBaseUrl = () => {
+  const customSocketBase = import.meta.env.VITE_WS_BASE_URL
+  if (customSocketBase) return customSocketBase
+  if (/^https?:\/\//.test(API_BASE_URL)) return API_BASE_URL.replace(/\/api\/?$/, '')
+  return window.location.origin
+}
+
+const getAuthToken = () => {
+  return localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+}
+
+const mergeNotification = (incoming) => {
+  if (!incoming?.id) return
+  const index = notifications.value.findIndex((item) => Number(item.id) === Number(incoming.id))
+  if (index >= 0) {
+    notifications.value.splice(index, 1, {
+      ...notifications.value[index],
+      ...incoming
+    })
+  } else {
+    notifications.value.unshift(incoming)
+  }
+  emitNotificationsUpdated()
+}
+
+const setupNotificationSocket = () => {
+  if (socket.value || !authStore.isLoggedIn) return
+  const token = getAuthToken()
+  if (!token) return
+
+  socket.value = io(getSocketBaseUrl(), {
+    withCredentials: true,
+    transports: ['websocket', 'polling'],
+    auth: {
+      token: `Bearer ${token}`
+    }
+  })
+
+  socket.value.on('notification:new', (payload) => {
+    const notification = payload?.notification
+    if (!notification) return
+    mergeNotification(notification)
+  })
+
+  socket.value.on('connect_error', () => {
+    // 静默回退到普通拉取
+  })
+}
+
+const teardownNotificationSocket = () => {
+  if (!socket.value) return
+  socket.value.removeAllListeners()
+  socket.value.disconnect()
+  socket.value = null
 }
 
 const fetchNotifications = async (page = 1, reset = false) => {
@@ -455,6 +513,11 @@ const formatTime = (dateString) => {
 
 onMounted(() => {
   fetchNotifications(1, true)
+  setupNotificationSocket()
+})
+
+onBeforeUnmount(() => {
+  teardownNotificationSocket()
 })
 </script>
 

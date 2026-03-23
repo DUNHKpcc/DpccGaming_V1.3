@@ -296,6 +296,10 @@
             :builtin-models="chatMoreBuiltinModels"
             :collab-status-options="chatMoreCollabStatusOptions"
             :role-preset-options="chatMoreRolePresetOptions"
+            :room-summary="currentRoomSummary"
+            :room-memory-items="currentRoomMemoryItems"
+            :room-memory-loading="roomMemoryLoading"
+            :room-memory-error="roomMemoryError"
             :game-library-loading="gameLibraryLoading"
             :game-library-error="gameLibraryError"
             :game-library-games="gameLibraryGames"
@@ -311,6 +315,8 @@
             @reset-nickname="resetCurrentRoomNickname"
             @update-ai-slot-field="updateAiSlotField"
             @avatar-file-change="onAiAvatarFileChange"
+            @refresh-room-memory="refreshCurrentRoomMemory"
+            @open-memory-file="openMemoryFileInCodePanel"
             @toggle-dual-ai-loop="toggleDualAiLoop"
             @generate-dual-ai-loop-round="generateDualAiLoopRound"
           />
@@ -475,6 +481,7 @@ export default {
       documentPickerDocuments: [],
       documentPreviewRequest: null,
       codeFilesByGame: {},
+      memoryPreviewItem: null,
       codePanelLoading: false,
       codePanelError: '',
       currentCodePath: '',
@@ -523,6 +530,12 @@ export default {
       if (settingsTitle) return settingsTitle
       return String(this.currentChat?.gameTitle || '').trim()
     },
+    currentRoomSummary() {
+      return this.getRoomSummary(this.currentChat?.id)
+    },
+    currentRoomMemoryItems() {
+      return this.getRoomMemory(this.currentChat?.id)
+    },
     enabledAiSlots() {
       const slots = Array.isArray(this.currentChatMoreSettings?.aiSlots) ? this.currentChatMoreSettings.aiSlots : []
       return slots.filter((slot) => slot && slot.enabled)
@@ -550,6 +563,10 @@ export default {
       }
       if (this.codePanelError) return this.codePanelError
       return '// 当前房间暂无可展示源码'
+    },
+    highlightedMemoryText() {
+      const memoryPath = this.memoryPreviewItem?.filePath || this.memoryPreviewItem?.title || 'memory.md'
+      return this.highlightCode(String(this.memoryPreviewItem?.content || ''), memoryPath)
     },
     highlightedCodeText() {
       return this.highlightCode(String(this.codeText || ''), this.currentCodeFile?.path || '')
@@ -601,7 +618,9 @@ export default {
           currentCodeSourceGameTitle: this.effectiveCodeGameTitle,
           codePanelLoading: this.codePanelLoading,
           codePanelError: this.codePanelError,
-          highlightedCodeText: this.highlightedCodeText
+          highlightedCodeText: this.highlightedCodeText,
+          memoryPreviewItem: this.memoryPreviewItem,
+          highlightedMemoryText: this.highlightedMemoryText
         }
       }
       if (this.activeRightTab === 'task') {
@@ -697,6 +716,7 @@ export default {
       }
     },
     handleCodePathUpdate(nextPath) {
+      this.memoryPreviewItem = null
       this.currentCodePath = String(nextPath || '')
     },
     async openCodePreviewInRightPanel(codePreview) {
@@ -704,6 +724,7 @@ export default {
       if (!previewPath || !this.currentChat) return
 
       this.switchRightTab('code', { prefetchCode: false })
+      this.memoryPreviewItem = null
       this.codePanelError = ''
       this.errorText = ''
 
@@ -777,6 +798,9 @@ export default {
       return files
     },
     async syncCurrentRoomCode(options = {}) {
+      if (options?.keepMemoryPreview !== true) {
+        this.memoryPreviewItem = null
+      }
       const gameId = this.effectiveCodeGameId
       this.codePanelError = ''
 
@@ -808,6 +832,7 @@ export default {
     },
     async openCodePreviewPicker() {
       if (!this.currentChat || this.uploadingAttachment) return
+      this.memoryPreviewItem = null
       const gameId = this.effectiveCodeGameId
       if (!gameId) {
         this.errorText = '当前房间没有可用的游戏源码'
@@ -865,6 +890,7 @@ export default {
       this.showChatMorePanel = false
       this.activeChatMoreSection = ''
       this.currentCodePath = ''
+      this.memoryPreviewItem = null
       this.codePanelError = ''
       this.codePanelLoading = false
 
@@ -905,6 +931,7 @@ export default {
       this.showAttachmentMenu = false
       this.showChatMorePanel = false
       this.activeChatMoreSection = ''
+      this.memoryPreviewItem = null
       this.closeCodePicker()
       this.currentChatId = chatId
       this.markChatAsRead(chatId)
@@ -923,6 +950,7 @@ export default {
       const loadingTasks = [this.fetchMessages(chatId)]
       if (this.currentChatSupportsMorePanel) {
         loadingTasks.push(this.fetchRoomSettings(chatId))
+        loadingTasks.push(this.fetchRoomMemory(chatId))
       }
       if (this.activeRightTab === 'code') {
         loadingTasks.push(this.syncCurrentRoomCode())
