@@ -135,6 +135,10 @@ export default {
         this.handleSocketRoomMemory(payload)
       })
 
+      this.socket.on('discussion:ai-progress', (payload) => {
+        this.handleSocketAiProgress(payload)
+      })
+
       this.socket.on('discussion:room-removed', (payload) => {
         this.handleSocketRoomRemoved(payload)
       })
@@ -225,6 +229,25 @@ export default {
         this.$nextTick(() => this.scrollMessagesToBottom())
       } else if (this.shouldCountAsUnread(rawMessage)) {
         chat.unread = Number(chat.unread || 0) + 1
+      }
+    },
+    handleSocketAiProgress(payload) {
+      const roomId = Number(payload?.roomId)
+      const requestId = this.normalizeAiRequestId(payload?.requestId)
+      if (!roomId || !requestId) return
+
+      const stage = String(payload?.stage || '').trim()
+      if (stage === 'error') {
+        this.removePendingAiMessage(roomId, requestId)
+        if (Number(this.currentChatId) === roomId) {
+          this.errorText = payload?.message || 'AI 回复失败'
+        }
+        return
+      }
+
+      this.upsertPendingAiMessage(roomId, payload)
+      if (Number(this.currentChatId) === roomId) {
+        this.$nextTick(() => this.scrollMessagesToBottom())
       }
     },
     dispatchRoomPanelEvent(name, detail = {}) {

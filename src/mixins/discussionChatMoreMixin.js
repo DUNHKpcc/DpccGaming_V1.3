@@ -274,24 +274,37 @@ export default {
       this.currentCodePath = ''
       await this.syncCurrentRoomCode({ force: true })
     },
-    updateCurrentRoomSetting(field, value) {
+    updateCurrentRoomSetting(field, value, options = {}) {
       const roomId = this.currentChat?.id
       const settings = this.getRoomSettings(roomId)
       settings[field] = typeof value === 'string' ? value.trimStart() : value
       if (field === 'peerRolePreset' || field === 'customNickname' || field === 'collaborationStatus') {
         this.applyRoomSettingsToLoadedChats()
       }
-      this.queueRoomSettingsSave(roomId)
+      if (options.immediate) {
+        this.flushRoomSettingsSave(roomId)
+        return
+      }
+      this.queueRoomSettingsSave(roomId, options.delay ?? 320)
     },
     resetCurrentRoomNickname() {
       this.updateCurrentRoomSetting('customNickname', '')
     },
     updateAiSlotField(slotId, field, value) {
-      const settings = this.getRoomSettings(this.currentChat?.id)
+      const roomId = this.currentChat?.id
+      const settings = this.getRoomSettings(roomId)
       const slot = settings.aiSlots.find((item) => item.id === slotId)
       if (!slot) return
       slot[field] = value
-      this.queueRoomSettingsSave(this.currentChat?.id, field === 'apiKey' ? 0 : 280)
+      if (field === 'enabled') {
+        const enabledCount = settings.aiSlots.filter((item) => item?.enabled).length
+        if (enabledCount < 2 && settings.dualAiLoopEnabled) {
+          settings.dualAiLoopEnabled = false
+        }
+        this.flushRoomSettingsSave(roomId)
+        return
+      }
+      this.queueRoomSettingsSave(roomId, field === 'apiKey' ? 0 : 280)
     },
     async onAiAvatarFileChange(slotId, event) {
       const file = event?.target?.files?.[0]
@@ -348,13 +361,13 @@ export default {
       }
     },
     toggleDualAiLoop(nextValue) {
-      this.updateCurrentRoomSetting('dualAiLoopEnabled', Boolean(nextValue))
+      this.updateCurrentRoomSetting('dualAiLoopEnabled', Boolean(nextValue), { delay: 0, immediate: true })
       if (nextValue && !this.dualAiLoopReady) {
         this.errorText = '需要先加入两个 AI，双 AI 轮询才会真正开始。'
       }
     },
     async generateDualAiLoopRound() {
-      if (!this.currentChat?.id || !this.dualAiLoopReady) return
+      if (!this.currentChat?.id || !this.dualAiLoopReady || this.isRoomAiBusy(this.currentChat.id)) return
       try {
         await apiCall(`/discussion/rooms/${this.currentChat.id}/ai-loop/turn`, {
           method: 'POST'

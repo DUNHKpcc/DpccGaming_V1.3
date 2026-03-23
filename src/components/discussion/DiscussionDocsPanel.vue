@@ -4,123 +4,125 @@
       <h3>文档区</h3>
       <p>请先在左侧选择一个讨论房间。</p>
     </div>
-    <div v-else class="right-docs-shell">
-      <transition name="docs-view-switch" mode="out-in">
-        <div v-if="showDocsUploadLanding" key="docs-upload-landing" class="docs-upload-landing">
-          <h3>上传文档</h3>
-          <p>选择上传方式</p>
-          <button
-            type="button"
-            class="docs-upload-primary"
-            :disabled="uploadingDocument || !currentChat"
-            @click="openDocumentUploader({ lockToLibrary: true, source: 'local' })"
-          >
-            <i class="fa fa-upload"></i>
-            <span>{{ uploadingDocument ? '上传中...' : '上传本地文档' }}</span>
-          </button>
-          <button
-            type="button"
-            class="docs-upload-secondary"
-            :disabled="uploadingDocument || !currentChat"
-            @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
-          >
-            <i class="fa fa-book"></i>
-            <span>选择官方文档上传</span>
-          </button>
-          <div v-if="docsError" class="docs-upload-error">{{ docsError }}</div>
-        </div>
+    <div v-else class="docs-shell-card">
+      <div class="right-docs-shell">
+        <transition name="docs-view-switch" mode="out-in">
+          <div v-if="showDocsUploadLanding" key="docs-upload-landing" class="docs-upload-landing">
+            <h3>上传文档</h3>
+            <p>选择上传方式</p>
+            <button
+              type="button"
+              class="docs-upload-primary"
+              :disabled="uploadingDocument || !currentChat"
+              @click="openDocumentUploader({ lockToLibrary: true, source: 'local' })"
+            >
+              <i class="fa fa-upload"></i>
+              <span>{{ uploadingDocument ? '上传中...' : '上传本地文档' }}</span>
+            </button>
+            <button
+              type="button"
+              class="docs-upload-secondary"
+              :disabled="uploadingDocument || !currentChat"
+              @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
+            >
+              <i class="fa fa-book"></i>
+              <span>选择官方文档上传</span>
+            </button>
+            <div v-if="docsError" class="docs-upload-error">{{ docsError }}</div>
+          </div>
 
-        <div v-else-if="showDocsLoadingShell" key="docs-loading-shell" class="docs-loading-shell">
-          <div class="docs-loading-state">文档加载中...</div>
-        </div>
+          <div v-else-if="showDocsLoadingShell" key="docs-loading-shell" class="docs-loading-shell">
+            <div class="docs-loading-state">文档加载中...</div>
+          </div>
 
-        <div v-else key="docs-library" class="docs-library-layout" :class="{ collapsed: docsSidebarCollapsed }">
-          <aside v-if="!docsSidebarCollapsed" class="docs-sidebar">
-            <div class="docs-sidebar-head">
-              <strong>文档</strong>
-            </div>
+          <div v-else key="docs-library" class="docs-library-layout" :class="{ collapsed: docsSidebarCollapsed }">
+            <aside v-if="!docsSidebarCollapsed" class="docs-sidebar">
+              <div class="docs-sidebar-head">
+                <strong>文档</strong>
+              </div>
 
-            <div class="docs-sidebar-section">
-              <h4>已上传文档（{{ currentRoomDocuments.length }}）</h4>
-              <div v-if="docsLoading && !currentRoomDocuments.length" class="docs-side-empty">文档加载中...</div>
-              <div v-else-if="!currentRoomDocuments.length" class="docs-side-empty">还没有上传文档</div>
-              <div
-                v-for="doc in currentRoomDocuments"
-                :key="doc.id"
-                class="docs-item-row"
-                :class="{ active: currentRoomDocument?.id === doc.id }"
-              >
+              <div class="docs-sidebar-section">
+                <h4>已上传文档（{{ currentRoomDocuments.length }}）</h4>
+                <div v-if="docsLoading && !currentRoomDocuments.length" class="docs-side-empty">文档加载中...</div>
+                <div v-else-if="!currentRoomDocuments.length" class="docs-side-empty">还没有上传文档</div>
+                <div
+                  v-for="doc in currentRoomDocuments"
+                  :key="doc.id"
+                  class="docs-item-row"
+                  :class="{ active: currentRoomDocument?.id === doc.id }"
+                >
+                  <button
+                    type="button"
+                    class="docs-item"
+                    @click="selectRoomDocument(doc.id)"
+                  >
+                    <i class="fa fa-file-text-o"></i>
+                    <span>{{ doc.name }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="docs-item-delete"
+                    :disabled="uploadingDocument || deletingDocumentId === doc.id"
+                    title="删除文档"
+                    @click.stop="requestDeleteDocument(doc)"
+                  >
+                    <i :class="deletingDocumentId === doc.id ? 'fa fa-spinner fa-spin' : 'fa fa-trash'"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="docs-sidebar-actions">
                 <button
                   type="button"
-                  class="docs-item"
-                  @click="selectRoomDocument(doc.id)"
+                  class="docs-upload-primary side"
+                  :disabled="uploadingDocument || !currentChat"
+                  @click="openDocumentUploader({ lockToLibrary: true, source: 'local' })"
                 >
-                  <i class="fa fa-file-text-o"></i>
-                  <span>{{ doc.name }}</span>
+                  <i class="fa fa-upload"></i>
+                  <span>{{ uploadingDocument ? '上传中...' : '上传文档' }}</span>
                 </button>
                 <button
                   type="button"
-                  class="docs-item-delete"
-                  :disabled="uploadingDocument || deletingDocumentId === doc.id"
-                  title="删除文档"
-                  @click.stop="requestDeleteDocument(doc)"
+                  class="docs-upload-secondary side"
+                  :disabled="uploadingDocument || !currentChat"
+                  @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
                 >
-                  <i :class="deletingDocumentId === doc.id ? 'fa fa-spinner fa-spin' : 'fa fa-trash'"></i>
+                  <i class="fa fa-book"></i>
+                  <span>官方文档</span>
                 </button>
               </div>
-            </div>
+            </aside>
 
-            <div class="docs-sidebar-actions">
-              <button
-                type="button"
-                class="docs-upload-primary side"
-                :disabled="uploadingDocument || !currentChat"
-                @click="openDocumentUploader({ lockToLibrary: true, source: 'local' })"
-              >
-                <i class="fa fa-upload"></i>
-                <span>{{ uploadingDocument ? '上传中...' : '上传文档' }}</span>
-              </button>
-              <button
-                type="button"
-                class="docs-upload-secondary side"
-                :disabled="uploadingDocument || !currentChat"
-                @click="openDocumentUploader({ lockToLibrary: true, source: 'official' })"
-              >
-                <i class="fa fa-book"></i>
-                <span>官方文档</span>
-              </button>
-            </div>
-          </aside>
-
-          <section class="docs-preview-pane">
-            <header class="docs-preview-head">
-              <div class="docs-preview-head-main">
-                <button type="button" class="docs-sidebar-toggle header" @click="docsSidebarCollapsed = !docsSidebarCollapsed">
-                  <i :class="docsSidebarCollapsed ? 'fa fa-angle-right' : 'fa fa-angle-left'"></i>
-                </button>
-                <strong>{{ currentRoomDocument?.name || '未选择文档' }}</strong>
+            <section class="docs-preview-pane">
+              <header class="docs-preview-head">
+                <div class="docs-preview-head-main">
+                  <button type="button" class="docs-sidebar-toggle header" @click="docsSidebarCollapsed = !docsSidebarCollapsed">
+                    <i :class="docsSidebarCollapsed ? 'fa fa-angle-right' : 'fa fa-angle-left'"></i>
+                  </button>
+                  <strong>{{ currentRoomDocument?.name || '未选择文档' }}</strong>
+                </div>
+                <span>{{ currentRoomDocumentPageLabel }}</span>
+              </header>
+              <div class="docs-preview-body">
+                <div v-if="docsPreviewLoading" class="docs-loading-state">文档加载中...</div>
+                <div v-else-if="docsPreviewError" class="docs-error-state">{{ docsPreviewError }}</div>
+                <div
+                  v-else-if="renderedMarkdown"
+                  class="docs-markdown-content"
+                  v-html="renderedMarkdown"
+                ></div>
+                <template v-else>
+                  <h3>Discussion Mode 文档展示</h3>
+                  <p>该区域为文档直接展示区。点击左侧文档列表可快速切换当前阅读内容，侧边栏支持收起。</p>
+                  <hr />
+                  <p>当前文档：{{ currentRoomDocument?.name || '尚未上传文档' }}</p>
+                  <p>状态：{{ currentRoomDocument ? '已上传，可用于会话上下文。' : '暂未上传，点击左下角上传文档继续。' }}</p>
+                </template>
               </div>
-              <span>{{ currentRoomDocumentPageLabel }}</span>
-            </header>
-            <div class="docs-preview-body">
-              <div v-if="docsPreviewLoading" class="docs-loading-state">文档加载中...</div>
-              <div v-else-if="docsPreviewError" class="docs-error-state">{{ docsPreviewError }}</div>
-              <div
-                v-else-if="renderedMarkdown"
-                class="docs-markdown-content"
-                v-html="renderedMarkdown"
-              ></div>
-              <template v-else>
-                <h3>Discussion Mode 文档展示</h3>
-                <p>该区域为文档直接展示区。点击左侧文档列表可快速切换当前阅读内容，侧边栏支持收起。</p>
-                <hr />
-                <p>当前文档：{{ currentRoomDocument?.name || '尚未上传文档' }}</p>
-                <p>状态：{{ currentRoomDocument ? '已上传，可用于会话上下文。' : '暂未上传，点击左下角上传文档继续。' }}</p>
-              </template>
-            </div>
-          </section>
-        </div>
-      </transition>
+            </section>
+          </div>
+        </transition>
+      </div>
     </div>
 
     <input
@@ -819,18 +821,33 @@ export default {
 <style scoped>
 .discussion-docs-panel {
   flex: 1;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  padding: 10px 12px 12px;
+  background: transparent;
+}
+
+.docs-shell-card,
+.docs-fallback-shell {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe4eb;
+  border-radius: 18px;
+  background: #ffffff;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .docs-fallback-shell {
-  margin: 10px 12px 12px;
-  border: none;
-  border-radius: 14px;
-  background: #ffffff;
-  min-height: 0;
-  flex: 1;
+  width: 100%;
   padding: 16px;
 }
 
@@ -849,11 +866,11 @@ export default {
 }
 
 .right-docs-shell {
-  margin: 10px 12px 12px;
-  border: none;
-  border-radius: 14px;
   background: #ffffff;
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
+  min-width: 0;
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -973,12 +990,16 @@ export default {
 
 .docs-library-layout {
   width: 100%;
+  max-width: 100%;
   min-height: 0;
+  min-width: 0;
   display: flex;
+  overflow: hidden;
 }
 
 .docs-sidebar {
   width: 240px;
+  min-width: 240px;
   border-right: 1px solid #d1d5db;
   background: #ffffff;
   display: flex;
@@ -1024,6 +1045,7 @@ export default {
 .docs-sidebar-section {
   padding: 10px 10px 4px;
   overflow: auto;
+  min-width: 0;
 }
 
 .docs-sidebar-section h4 {
@@ -1157,6 +1179,7 @@ export default {
 .docs-preview-body {
   padding: 14px 14px 16px;
   overflow: auto;
+  min-width: 0;
 }
 
 .docs-loading-state {

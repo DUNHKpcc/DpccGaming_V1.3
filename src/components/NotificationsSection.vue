@@ -20,7 +20,7 @@
         <p>暂无通知</p>
       </div>
 
-      <div v-else class="space-y-3">
+      <div v-else class="notifications-stack">
         <div
           v-for="notification in displayedNotifications"
           :key="notification.id"
@@ -130,6 +130,7 @@ const showAllNotifications = ref(false)
 const friendRequestActionLoading = reactive({})
 const handledFriendRequestStatus = reactive({})
 const socket = ref(null)
+const refreshTimer = ref(null)
 
 const displayedNotifications = computed(() => {
   if (props.compact) return notifications.value
@@ -180,6 +181,16 @@ const mergeNotification = (incoming) => {
   emitNotificationsUpdated()
 }
 
+const scheduleNotificationsRefresh = () => {
+  if (refreshTimer.value) {
+    window.clearTimeout(refreshTimer.value)
+  }
+  refreshTimer.value = window.setTimeout(() => {
+    refreshTimer.value = null
+    fetchNotifications(1, true)
+  }, 180)
+}
+
 const setupNotificationSocket = () => {
   if (socket.value || !authStore.isLoggedIn) return
   const token = getAuthToken()
@@ -197,6 +208,7 @@ const setupNotificationSocket = () => {
     const notification = payload?.notification
     if (!notification) return
     mergeNotification(notification)
+    scheduleNotificationsRefresh()
   })
 
   socket.value.on('connect_error', () => {
@@ -205,6 +217,10 @@ const setupNotificationSocket = () => {
 }
 
 const teardownNotificationSocket = () => {
+  if (refreshTimer.value) {
+    window.clearTimeout(refreshTimer.value)
+    refreshTimer.value = null
+  }
   if (!socket.value) return
   socket.value.removeAllListeners()
   socket.value.disconnect()
@@ -580,6 +596,12 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+.notifications-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .notifications-section.compact .notifications-content {
   overflow-y: auto;
   padding-right: 0.2rem;
@@ -622,15 +644,17 @@ onBeforeUnmount(() => {
 }
 
 .notification-item {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
   gap: 1rem;
   padding: 1rem;
   background: var(--notify-item-bg);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
-  position: relative;
+  min-height: 88px;
+  box-sizing: border-box;
 }
 
 .notification-item:hover {
@@ -731,13 +755,13 @@ onBeforeUnmount(() => {
 }
 
 .unread-indicator {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
+  align-self: start;
+  margin-top: 0.25rem;
   width: 0.5rem;
   height: 0.5rem;
   background: var(--notify-unread-accent);
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .notification-ghost-btn {
@@ -779,6 +803,7 @@ onBeforeUnmount(() => {
   .notification-item {
     padding: 0.75rem;
     gap: 0.75rem;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .notification-icon {
@@ -798,6 +823,10 @@ onBeforeUnmount(() => {
   .notification-time {
     margin-left: 0;
     margin-top: 0.25rem;
+  }
+
+  .unread-indicator {
+    display: none;
   }
 }
 </style>

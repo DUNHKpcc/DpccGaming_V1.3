@@ -107,7 +107,8 @@ export default {
 }
 
 .chat-list {
-  width: 33.3333%;
+  width: 100%;
+  max-width: 100%;
   min-width: 270px;
   border-right: 1px solid #d1d5db;
   overflow-y: auto;

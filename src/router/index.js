@@ -1,16 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
-import Games from '../views/Games.vue'
-import Blog from '../views/Blog.vue'
-import Account from '../views/Account.vue'
-import AdminPanel from '../components/AdminPanel.vue'
-import UserManagement from '../components/UserManagement.vue'
-import GameManagement from '../components/GameManagement.vue'
-import CodingMode from '../views/CodingMode.vue'
-import DocsPlaceholder from '../views/DocsPlaceholder.vue'
-import DiscussionMode from '../views/DiscussionMode.vue'
-import BlueprintMode from '../views/BlueprintMode.vue'
-import CookiePolicy from '../views/CookiePolicy.vue'
+
+const Games = () => import('../views/Games.vue')
+const Blog = () => import('../views/Blog.vue')
+const Account = () => import('../views/Account.vue')
+const AdminPanel = () => import('../components/AdminPanel.vue')
+const UserManagement = () => import('../components/UserManagement.vue')
+const GameManagement = () => import('../components/GameManagement.vue')
+const CodingMode = () => import('../views/CodingMode.vue')
+const DocsPlaceholder = () => import('../views/DocsPlaceholder.vue')
+const DiscussionMode = () => import('../views/DiscussionMode.vue')
+const BlueprintMode = () => import('../views/BlueprintMode.vue')
+const CookiePolicy = () => import('../views/CookiePolicy.vue')
 
 const routes = [
   {

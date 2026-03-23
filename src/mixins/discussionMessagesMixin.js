@@ -1,11 +1,41 @@
 import { apiCall } from '../utils/api'
 import {
+  parseDiscussionMetadata,
   normalizeDiscussionDocumentPickerItem,
   buildDiscussionCodePreview,
   mapDiscussionMessage,
   buildDiscussionChatSummary,
   shouldCountDiscussionMessageAsUnread
 } from '../utils/discussionModeCore'
+
+const AI_PROGRESS_STAGE_META = {
+  queued: {
+    label: '接收请求',
+    percent: 18
+  },
+  memory: {
+    label: '读取记忆',
+    percent: 58
+  },
+  generating: {
+    label: '生成回复',
+    percent: 78
+  },
+  finalizing: {
+    label: '整理发送',
+    percent: 92
+  },
+  error: {
+    label: '处理失败',
+    percent: 100
+  }
+}
+
+const AI_PROGRESS_MODE_LABELS = {
+  single: '单 AI 回复',
+  mention: '@AI 回复',
+  'dual-loop': '双 AI 轮询'
+}
 
 export default {
   data() {
@@ -15,10 +45,89 @@ export default {
       sendingAi: false,
       uploadingAttachment: false,
       attachmentKind: '',
-      attachmentAccept: ''
+      attachmentAccept: '',
+      pendingAiByRoom: {}
     }
   },
   methods: {
+    normalizeAiRequestId(rawId) {
+      return String(rawId || '').trim()
+    },
+    getPendingAiMessages(roomId) {
+      const roomKey = String(Number(roomId) || '').trim()
+      if (!roomKey) return []
+      return Array.isArray(this.pendingAiByRoom[roomKey]) ? this.pendingAiByRoom[roomKey] : []
+    },
+    isRoomAiBusy(roomId) {
+      return this.getPendingAiMessages(roomId).length > 0
+    },
+    upsertPendingAiMessage(roomId, payload = {}) {
+      const roomKey = String(Number(roomId) || '').trim()
+      const requestId = this.normalizeAiRequestId(payload.requestId)
+      if (!roomKey || !requestId) return
+      const currentList = this.getPendingAiMessages(roomKey)
+      const stage = String(payload.stage || 'queued').trim() || 'queued'
+      const stageMeta = AI_PROGRESS_STAGE_META[stage] || AI_PROGRESS_STAGE_META.queued
+      const mode = String(payload.mode || 'single').trim() || 'single'
+      const nextMessage = {
+        id: `pending-ai-${requestId}`,
+        requestId,
+        from: 'theirs',
+        senderType: 'ai',
+        senderUserId: null,
+        senderName: String(payload.slotName || 'AI 助手').trim() || 'AI 助手',
+        avatarUrl: String(payload.slotAvatarUrl || '').trim(),
+        attachment: null,
+        codePreview: null,
+        documentPreview: null,
+        text: String(payload.message || 'AI 正在思考…').trim() || 'AI 正在思考…',
+        time: '思考中',
+        rawTime: new Date().toISOString(),
+        aiTargetLabel: String(payload.targetUsername || '').trim(),
+        aiReplyTokenCount: 0,
+        aiReplyCharLimit: 80,
+        aiProgressStage: stage,
+        aiProgressStageLabel: stageMeta.label,
+        aiProgressPercent: stageMeta.percent,
+        aiProgressMode: mode,
+        aiProgressModeLabel: AI_PROGRESS_MODE_LABELS[mode] || AI_PROGRESS_MODE_LABELS.single,
+        isPendingAi: true
+      }
+      const index = currentList.findIndex((item) => item.requestId === requestId)
+      const nextList = [...currentList]
+      if (index >= 0) {
+        nextList.splice(index, 1, {
+          ...nextList[index],
+          ...nextMessage
+        })
+      } else {
+        nextList.push(nextMessage)
+      }
+      this.pendingAiByRoom = {
+        ...this.pendingAiByRoom,
+        [roomKey]: nextList
+      }
+    },
+    removePendingAiMessage(roomId, requestId = '') {
+      const roomKey = String(Number(roomId) || '').trim()
+      const normalizedRequestId = this.normalizeAiRequestId(requestId)
+      if (!roomKey) return
+      const currentList = this.getPendingAiMessages(roomKey)
+      if (!currentList.length) return
+      const nextList = normalizedRequestId
+        ? currentList.filter((item) => item.requestId !== normalizedRequestId)
+        : []
+      this.pendingAiByRoom = {
+        ...this.pendingAiByRoom,
+        [roomKey]: nextList
+      }
+    },
+    clearPendingAiForRawMessage(roomId, rawMessage = null) {
+      const metadata = parseDiscussionMetadata(rawMessage?.metadata_json) || null
+      const requestId = this.normalizeAiRequestId(metadata?.ai_request_id)
+      if (!requestId && rawMessage?.sender_type !== 'ai') return
+      this.removePendingAiMessage(roomId, requestId)
+    },
     mapMessage(item) {
       return mapDiscussionMessage(item, {
         currentUserId: this.currentUserId,
@@ -43,6 +152,7 @@ export default {
       if (!chat || !rawMessage) return false
       const nextMessage = this.mapMessage(rawMessage)
       const index = this.findMessageIndexById(chat, rawMessage.id)
+      this.clearPendingAiForRawMessage(chat.id, rawMessage)
       if (index >= 0) {
         chat.messages.splice(index, 1, nextMessage)
         return false
@@ -152,6 +262,10 @@ export default {
     async sendMessage() {
       const value = this.draft.trim()
       if (!value || !this.currentChat || this.sendingMessage) return
+      if (this.currentRoomAiBusy && this.isDraftMentioningAi) {
+        this.errorText = '当前房间已有 AI 正在回复，请等待本轮完成后再 @AI'
+        return
+      }
 
       this.sendingMessage = true
       this.errorText = ''
@@ -176,7 +290,7 @@ export default {
       }
     },
     async sendAiMessage() {
-      if (!this.currentChat || this.sendingAi) return
+      if (!this.currentChat || this.sendingAi || this.isRoomAiBusy(this.currentChat.id)) return
 
       const prompt = this.draft.trim() || '请结合当前讨论内容，给出下一步可执行建议。'
       this.sendingAi = true

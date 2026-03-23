@@ -276,27 +276,12 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import hljs from 'highlight.js/lib/core'
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import xml from 'highlight.js/lib/languages/xml'
-import css from 'highlight.js/lib/languages/css'
-import json from 'highlight.js/lib/languages/json'
 import { useGameStore } from '../stores/game'
 import { useNotificationStore } from '../stores/notification'
 import { resolveMediaUrl } from '../utils/media'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import { escapeCodeHtml, highlightCodeAsync, warmupCodeHighlighter } from '../utils/asyncCodeHighlighter'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
-
-// 注册常用语言，覆盖当前页面需求
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('css', css)
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('html', xml)
-hljs.registerLanguage('xml', xml)
-hljs.registerLanguage('vue', xml)
-
 
 const route = useRoute()
 const router = useRouter()
@@ -308,6 +293,8 @@ const codingGame = ref(null)
 const gameLoading = ref(true)
 const codeFiles = ref([])
 const codeLoading = ref(false)
+const highlightedCode = ref('')
+const highlightTaskId = ref(0)
 const codeSearch = ref('')
 const selectedFilePath = ref('')
 const userInput = ref('')
@@ -442,16 +429,24 @@ const selectedFile = computed(() =>
   codeFiles.value.find(file => file.path === selectedFilePath.value) || null
 )
 
-const highlightedCode = computed(() => {
-  if (!selectedFile.value) return ''
-  const lang = selectedFile.value.language || detectLanguage(selectedFile.value.path)
-  const content = selectedFile.value.content || ''
+const refreshHighlightedCode = async () => {
+  const taskId = ++highlightTaskId.value
+  const content = selectedFile.value?.content || ''
+  const filePath = selectedFile.value?.path || ''
+  const language = selectedFile.value?.language || detectLanguage(filePath)
+
+  highlightedCode.value = escapeCodeHtml(content)
+  if (!content) return
+
   try {
-    return hljs.highlight(content, { language: lang }).value
-  } catch (error) {
-    return hljs.highlightAuto(content).value
+    const html = await highlightCodeAsync(content, { filePath, language })
+    if (taskId !== highlightTaskId.value) return
+    highlightedCode.value = html
+  } catch {
+    if (taskId !== highlightTaskId.value) return
+    highlightedCode.value = escapeCodeHtml(content)
   }
-})
+}
 
 const applyGameFrameScale = (nativeWidth, nativeHeight) => {
   const iframe = gameFrameRef.value
@@ -756,6 +751,11 @@ const sendMessage = async () => {
 watch(gameId, async () => {
   await loadGame()
   await fetchCodeBundle()
+}, { immediate: true })
+
+watch(selectedFile, () => {
+  warmupCodeHighlighter()
+  refreshHighlightedCode()
 }, { immediate: true })
 
 onMounted(() => {

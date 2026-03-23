@@ -17,24 +17,22 @@
             v-if="activeSection === item.key"
             class="chat-more-inline-panel"
           >
-            <div v-if="item.key === 'game-code'" class="chat-more-editor">
+            <div v-if="item.key === 'game-code'" class="chat-more-editor chat-more-editor-compact chat-more-editor-game-code">
               <div class="chat-more-editor-head">
                 <strong>固定右侧代码区的源码游戏</strong>
+                <button type="button" class="chat-more-secondary-btn chat-more-secondary-btn-compact" @click="$emit('reset-room-code-game')">
+                  恢复默认
+                </button>
               </div>
               <p class="chat-more-editor-note">
                 直接在这里选择你游戏库中的源码游戏，右侧代码区会固定显示它的源码。
               </p>
-              <div class="chat-more-selection-card">
+              <div class="chat-more-selection-card chat-more-selection-card-compact">
                 <span>当前选择</span>
                 <strong>{{ effectiveCodeGameTitle || '使用当前房间默认游戏' }}</strong>
                 <small>{{ effectiveCodeGameId || (currentChat?.gameId ? `room:${currentChat.gameId}` : '暂无可用源码') }}</small>
               </div>
-              <div class="chat-more-action-row">
-                <button type="button" class="chat-more-secondary-btn" @click="$emit('reset-room-code-game')">
-                  恢复房间默认
-                </button>
-              </div>
-              <div class="chat-more-inline-library">
+              <div class="chat-more-inline-library chat-more-inline-library-compact">
                 <div v-if="gameLibraryLoading" class="chat-empty">游戏库加载中...</div>
                 <div v-else-if="gameLibraryError" class="chat-error">{{ gameLibraryError }}</div>
                 <div v-else-if="!gameLibraryGames.length" class="chat-empty">你的游戏库里还没有可选游戏</div>
@@ -60,12 +58,14 @@
               <p class="chat-more-editor-note">
                 这里保存的是房间 AI 配置。内置模型和自定义 API 参数会走后端持久化，并同步到同房间成员。
               </p>
-              <DiscussionChatMoreAiSettings
-                mode="pull-ai"
-                :ai-slots="settings.aiSlots"
-                :builtin-models="builtinModels"
-                @update-slot-field="handleUpdateAiSlotField"
-              />
+              <div class="chat-more-section-scroll chat-more-section-scroll-ai">
+                <DiscussionChatMoreAiSettings
+                  mode="pull-ai"
+                  :ai-slots="settings.aiSlots"
+                  :builtin-models="builtinModels"
+                  @update-slot-field="handleUpdateAiSlotField"
+                />
+              </div>
             </div>
 
             <div v-else-if="item.key === 'custom-name'" class="chat-more-editor">
@@ -119,24 +119,26 @@
               </label>
             </div>
 
-            <div v-else-if="item.key === 'personal-ai'" class="chat-more-editor">
+            <div v-else-if="item.key === 'personal-ai'" class="chat-more-editor chat-more-editor-compact chat-more-editor-personal-ai">
               <div class="chat-more-editor-head">
                 <strong>个性化 AI</strong>
                 <span class="chat-more-inline-tip">名称 / 上下文 / 头像</span>
               </div>
-              <DiscussionChatMoreAiSettings
-                mode="personal-ai"
-                :ai-slots="settings.aiSlots"
-                :builtin-models="builtinModels"
-                :room-summary="roomSummary"
-                :room-memory-items="roomMemoryItems"
-                :memory-loading="roomMemoryLoading"
-                :memory-error="roomMemoryError"
-                @update-slot-field="handleUpdateAiSlotField"
-                @avatar-file-change="handleAvatarFileChange"
-                @refresh-room-memory="$emit('refresh-room-memory')"
-                @open-memory-file="$emit('open-memory-file', $event)"
-              />
+              <div class="chat-more-section-scroll chat-more-section-scroll-ai">
+                <DiscussionChatMoreAiSettings
+                  mode="personal-ai"
+                  :ai-slots="settings.aiSlots"
+                  :builtin-models="builtinModels"
+                  :room-summary="roomSummary"
+                  :room-memory-items="roomMemoryItems"
+                  :memory-loading="roomMemoryLoading"
+                  :memory-error="roomMemoryError"
+                  @update-slot-field="handleUpdateAiSlotField"
+                  @avatar-file-change="handleAvatarFileChange"
+                  @refresh-room-memory="$emit('refresh-room-memory')"
+                  @open-memory-file="$emit('open-memory-file', $event)"
+                />
+              </div>
             </div>
 
             <div v-else-if="item.key === 'role-preset'" class="chat-more-editor">
@@ -182,7 +184,7 @@
                 </label>
               </div>
               <p class="chat-more-editor-note">
-                双 AI 轮询会由后端持续生成房间 AI 消息，同房间成员和你的其他设备都能实时看到。
+                开启后，系统会围绕最近一条用户消息安排两个 AI 各回复一轮，然后停下来等待你的下一次输入。
               </p>
               <label class="chat-more-field">
                 <span>轮询引导词</span>
@@ -195,32 +197,31 @@
               </label>
               <div class="chat-more-selection-card chat-more-selection-card-danger">
                 <span>当前状态</span>
-                <strong>{{ dualAiLoopReady ? '可运行' : '需要先加入两个 AI' }}</strong>
-                <small>已生成 {{ settings.dualAiLoopTurnCount || 0 }} 轮消息</small>
+                <strong>{{ dualAiLoopReady ? '用户主导协作中' : '需要先加入两个 AI' }}</strong>
+                <small>累计生成 {{ settings.dualAiLoopTurnCount || 0 }} 条 AI 协作消息</small>
               </div>
               <div class="chat-more-action-row">
                 <button
                   type="button"
                   class="chat-more-primary-btn chat-more-primary-btn-danger"
-                  :disabled="!dualAiLoopReady"
+                  :disabled="!dualAiLoopReady || roomAiBusy"
                   @click="$emit('generate-dual-ai-loop-round')"
                 >
-                  立即生成一轮
+                  {{ roomAiBusy ? 'AI 正在回复中' : '手动推进一次' }}
                 </button>
               </div>
             </div>
           </div>
         </transition>
       </template>
+      <button
+        type="button"
+        class="chat-more-danger"
+        @click="$emit('open-delete-friend-confirm')"
+      >
+        删除好友
+      </button>
     </div>
-
-    <button
-      type="button"
-      class="chat-more-danger"
-      @click="$emit('open-delete-friend-confirm')"
-    >
-      删除好友
-    </button>
 
     <div
       v-if="showDeleteFriendConfirm"
@@ -294,6 +295,10 @@ export default {
       default: () => []
     },
     dualAiLoopReady: {
+      type: Boolean,
+      default: false
+    },
+    roomAiBusy: {
       type: Boolean,
       default: false
     },

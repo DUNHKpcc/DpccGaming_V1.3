@@ -65,9 +65,9 @@
             <div v-if="loadingMessages" class="chat-empty">正在加载消息...</div>
             <div v-else-if="!currentChat.messages.length" class="chat-empty">暂无消息，发送第一条开始讨论</div>
 
-            <template v-for="(message, index) in currentChat.messages" :key="message.id">
+            <template v-for="(message, index) in currentChatRenderedMessages" :key="message.id">
               <div
-                v-if="shouldShowMessageTimeDivider(currentChat.messages, index)"
+                v-if="shouldShowMessageTimeDivider(currentChatRenderedMessages, index)"
                 class="message-time-divider"
               >
                 {{ formatMessageTimeDivider(message.rawTime) }}
@@ -106,24 +106,54 @@
                     <div
                       class="message-bubble"
                       :class="{
+                        'is-pending-ai': message.isPendingAi,
                         'code-preview-standalone': message.codePreview && !message.text && !message.attachment && !message.documentPreview,
                         'document-preview-standalone': message.documentPreview && !message.text && !message.attachment && !message.codePreview,
                         'image-attachment-standalone': message.attachment?.type === 'image' && !message.text && !message.codePreview
                       }"
                     >
-                      <div v-if="message.text" class="message-text">{{ message.text }}</div>
+                      <div v-if="message.aiTargetLabel || message.aiReplyTokenCount || message.isPendingAi" class="message-ai-meta">
+                        <span v-if="message.isPendingAi && message.aiProgressModeLabel" class="message-ai-meta-pill subtle">
+                          {{ message.aiProgressModeLabel }}
+                        </span>
+                        <span v-if="message.isPendingAi && message.aiProgressStageLabel" class="message-ai-meta-pill thinking">
+                          {{ message.aiProgressStageLabel }}
+                        </span>
+                        <span v-if="message.aiTargetLabel" class="message-ai-meta-pill">
+                          回复给 {{ message.aiTargetLabel }}
+                        </span>
+                        <span v-if="message.aiReplyTokenCount" class="message-ai-meta-pill subtle">
+                          {{ message.aiReplyTokenCount }} tokens
+                        </span>
+                      </div>
+                      <div v-if="message.isPendingAi" class="message-ai-progress-card">
+                        <div class="message-ai-progress-head">
+                          <strong>{{ message.senderName || 'AI 助手' }}</strong>
+                          <span>{{ message.aiProgressPercent || 0 }}%</span>
+                        </div>
+                        <div v-if="message.aiTargetLabel" class="message-ai-progress-target">
+                          正在回复给 {{ message.aiTargetLabel }}
+                        </div>
+                        <div class="message-ai-progress-desc">{{ message.text }}</div>
+                        <div class="message-ai-progress-track" aria-hidden="true">
+                          <span :style="{ width: `${message.aiProgressPercent || 0}%` }"></span>
+                        </div>
+                      </div>
+                      <div v-else-if="message.text" class="message-text">{{ message.text }}</div>
                       <div v-if="message.attachment" class="message-attachment">
                         <img
                           v-if="message.attachment.type === 'image'"
                           :src="message.attachment.url"
                           :alt="message.attachment.name || '图片附件'"
                           class="message-attachment-image"
+                          @load="scrollMessagesToBottom"
                         />
                         <video
                           v-else-if="message.attachment.type === 'video'"
                           class="message-attachment-video"
                           controls
                           preload="metadata"
+                          @loadedmetadata="scrollMessagesToBottom"
                         >
                           <source :src="message.attachment.url" />
                         </video>
@@ -199,6 +229,7 @@
             </template>
 
             <div v-if="errorText" class="chat-error">{{ errorText }}</div>
+            <div ref="messagesBottomRef" class="messages-bottom-anchor" aria-hidden="true"></div>
           </section>
 
           <footer v-if="!showChatMorePanel || !currentChatSupportsMorePanel" class="chat-input-bar">
@@ -223,11 +254,11 @@
                 ref="draftInputRef"
                 v-model="draft"
                 type="text"
-                :placeholder="sendingMessage ? '发送中...' : (uploadingAttachment ? '上传中...' : 'Message')"
+                :placeholder="chatInputPlaceholder"
                 :disabled="sendingMessage || uploadingAttachment"
                 @keyup.enter="sendMessage"
               />
-              <button class="send-btn" :disabled="sendingMessage || uploadingAttachment" @click="sendMessage" aria-label="发送">
+              <button class="send-btn" :disabled="sendingMessage || uploadingAttachment || (isDraftMentioningAi && currentRoomAiBusy)" @click="sendMessage" aria-label="发送">
                 <svg
                   class="send-icon-lucide"
                   xmlns="http://www.w3.org/2000/svg"
@@ -290,6 +321,7 @@
             :settings="currentChatMoreSettings"
             :enabled-ai-slots="enabledAiSlots"
             :dual-ai-loop-ready="dualAiLoopReady"
+            :room-ai-busy="currentRoomAiBusy"
             :effective-code-game-title="effectiveCodeGameTitle"
             :effective-code-game-id="effectiveCodeGameId"
             :current-chat="currentChat"
@@ -381,34 +413,32 @@
         </div>
       </div>
       <div class="right-panel-stage">
-        <transition name="right-panel-switch" mode="out-in">
-          <KeepAlive :include="['DiscussionDocsPanel', 'DiscussionCodePanel', 'DiscussionTasksPanel']">
-            <component
-              :is="activeRightPanelComponent"
-              :key="activeRightPanelKey"
-              class="right-panel-view"
-              v-bind="activeRightPanelProps"
-              v-on="activeRightPanelListeners"
-            />
-          </KeepAlive>
-        </transition>
+        <KeepAlive :include="['DiscussionDocsPanel', 'DiscussionCodePanel', 'DiscussionTasksPanel']">
+          <component
+            :is="activeRightPanelComponent"
+            :key="activeRightPanelKey"
+            class="right-panel-view"
+            v-bind="activeRightPanelProps"
+            v-on="activeRightPanelListeners"
+          />
+        </KeepAlive>
       </div>
     </section>
   </div>
 </template>
 
 <script>
-import { h } from 'vue'
+import { h, defineAsyncComponent } from 'vue'
 import { apiCall } from '../utils/api'
 import { getAvatarUrl, handleAvatarError as fallbackAvatar } from '../utils/avatar'
 import AvatarFriendAction from '../components/AvatarFriendAction.vue'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
 import DiscussionChatSidebar from '../components/discussion/DiscussionChatSidebar.vue'
-import DiscussionDocsPanel from '../components/discussion/DiscussionDocsPanel.vue'
-import DiscussionCodePanel from '../components/discussion/DiscussionCodePanel.vue'
-import DiscussionTasksPanel from '../components/discussion/DiscussionTasksPanel.vue'
-import DiscussionChatMorePanel from '../components/discussion/DiscussionChatMorePanel.vue'
-import DiscussionResourcePicker from '../components/discussion/DiscussionResourcePicker.vue'
+import {
+  escapeCodeHtml,
+  highlightCodeAsync,
+  warmupCodeHighlighter
+} from '../utils/asyncCodeHighlighter'
 import { normalizeChatMoreSettings } from '../utils/discussionChatMore'
 import {
   toDiscussionInt,
@@ -416,13 +446,41 @@ import {
   formatDiscussionMessageTimeDivider,
   shouldShowDiscussionMessageTimeDivider,
   getDiscussionCodeTypeIconByPath,
-  highlightDiscussionCode,
   normalizeDiscussionCodeFile,
   createDiscussionChatFromRoom
 } from '../utils/discussionModeCore'
 import discussionChatMoreMixin from '../mixins/discussionChatMoreMixin'
 import discussionMessagesMixin from '../mixins/discussionMessagesMixin'
 import discussionRealtimeMixin from '../mixins/discussionRealtimeMixin'
+
+const loadDiscussionDocsPanel = () => import('../components/discussion/DiscussionDocsPanel.vue')
+const loadDiscussionCodePanel = () => import('../components/discussion/DiscussionCodePanel.vue')
+const loadDiscussionTasksPanel = () => import('../components/discussion/DiscussionTasksPanel.vue')
+const loadDiscussionChatMorePanel = () => import('../components/discussion/DiscussionChatMorePanel.vue')
+const loadDiscussionResourcePicker = () => import('../components/discussion/DiscussionResourcePicker.vue')
+
+const DiscussionAsyncLoadingPanel = {
+  name: 'DiscussionAsyncLoadingPanel',
+  render() {
+    return h('div', { class: 'right-fallback-shell' }, [
+      h('h3', '面板加载中'),
+      h('p', '正在按需加载当前区域资源...')
+    ])
+  }
+}
+
+const createDiscussionAsyncComponent = (loader) => defineAsyncComponent({
+  loader,
+  delay: 120,
+  loadingComponent: DiscussionAsyncLoadingPanel
+})
+
+const AsyncDiscussionDocsPanel = createDiscussionAsyncComponent(loadDiscussionDocsPanel)
+const AsyncDiscussionCodePanel = createDiscussionAsyncComponent(loadDiscussionCodePanel)
+const AsyncDiscussionTasksPanel = createDiscussionAsyncComponent(loadDiscussionTasksPanel)
+const AsyncDiscussionChatMorePanel = createDiscussionAsyncComponent(loadDiscussionChatMorePanel)
+const AsyncDiscussionResourcePicker = createDiscussionAsyncComponent(loadDiscussionResourcePicker)
+
 const DiscussionPlaceholderPanel = {
   name: 'DiscussionPlaceholderPanel',
   props: {
@@ -447,11 +505,11 @@ export default {
     AvatarFriendAction,
     UserLevelBadge,
     DiscussionChatSidebar,
-    DiscussionDocsPanel,
-    DiscussionCodePanel,
-    DiscussionTasksPanel,
-    DiscussionChatMorePanel,
-    DiscussionResourcePicker,
+    DiscussionDocsPanel: AsyncDiscussionDocsPanel,
+    DiscussionCodePanel: AsyncDiscussionCodePanel,
+    DiscussionTasksPanel: AsyncDiscussionTasksPanel,
+    DiscussionChatMorePanel: AsyncDiscussionChatMorePanel,
+    DiscussionResourcePicker: AsyncDiscussionResourcePicker,
     DiscussionPlaceholderPanel
   },
   props: {
@@ -482,6 +540,12 @@ export default {
       documentPreviewRequest: null,
       codeFilesByGame: {},
       memoryPreviewItem: null,
+      highlightedCodeText: '',
+      highlightedMemoryText: '',
+      codePreviewSnippetHtmlByKey: {},
+      codeHighlightTaskId: 0,
+      memoryHighlightTaskId: 0,
+      messagePreviewHighlightTaskId: 0,
       codePanelLoading: false,
       codePanelError: '',
       currentCodePath: '',
@@ -540,8 +604,52 @@ export default {
       const slots = Array.isArray(this.currentChatMoreSettings?.aiSlots) ? this.currentChatMoreSettings.aiSlots : []
       return slots.filter((slot) => slot && slot.enabled)
     },
+    currentRoomPendingAiMessages() {
+      return this.getPendingAiMessages(this.currentChat?.id)
+    },
+    currentRoomAiBusy() {
+      return this.isRoomAiBusy(this.currentChat?.id)
+    },
+    currentChatRenderedMessages() {
+      const persisted = Array.isArray(this.currentChat?.messages) ? this.currentChat.messages : []
+      const pending = this.currentRoomPendingAiMessages
+      if (!pending.length) return persisted
+      return [...persisted, ...pending].sort((left, right) => {
+        const leftTime = new Date(left?.rawTime || 0).getTime()
+        const rightTime = new Date(right?.rawTime || 0).getTime()
+        return leftTime - rightTime
+      })
+    },
     dualAiLoopReady() {
       return this.currentChatSupportsMorePanel && this.enabledAiSlots.length >= 2
+    },
+    enabledAiMentionNames() {
+      return this.enabledAiSlots
+        .map((slot) => String(slot?.name || '').trim())
+        .filter(Boolean)
+    },
+    isDraftMentioningAi() {
+      const source = String(this.draft || '').trim()
+      if (!source) return false
+      return this.enabledAiMentionNames.some((name) => source.includes(`@${name}`))
+    },
+    chatInputPlaceholder() {
+      if (this.sendingMessage) return '发送中...'
+      if (this.uploadingAttachment) return '上传中...'
+      if (this.currentRoomAiBusy) return 'AI 正在思考，请等待本轮完成'
+      if (this.enabledAiMentionNames.length) {
+        return `Message · 使用 @${this.enabledAiMentionNames[0]} 提问 AI`
+      }
+      return 'Message'
+    },
+    currentChatScrollSignature() {
+      const lastMessage = this.currentChatRenderedMessages[this.currentChatRenderedMessages.length - 1]
+      return [
+        Number(this.currentChatId || 0) || 0,
+        this.currentChatRenderedMessages.length,
+        String(lastMessage?.id || ''),
+        String(lastMessage?.rawTime || '')
+      ].join(':')
     },
     currentRoomCodeFiles() {
       const gameKey = this.effectiveCodeGameId
@@ -563,13 +671,6 @@ export default {
       }
       if (this.codePanelError) return this.codePanelError
       return '// 当前房间暂无可展示源码'
-    },
-    highlightedMemoryText() {
-      const memoryPath = this.memoryPreviewItem?.filePath || this.memoryPreviewItem?.title || 'memory.md'
-      return this.highlightCode(String(this.memoryPreviewItem?.content || ''), memoryPath)
-    },
-    highlightedCodeText() {
-      return this.highlightCode(String(this.codeText || ''), this.currentCodeFile?.path || '')
     },
     filteredCodePickerFiles() {
       const keyword = String(this.codePickerKeyword || '').toLowerCase()
@@ -595,9 +696,9 @@ export default {
       return `right-panel-${this.activeRightTab}`
     },
     activeRightPanelComponent() {
-      if (this.activeRightTab === 'docs') return DiscussionDocsPanel
-      if (this.activeRightTab === 'code') return DiscussionCodePanel
-      if (this.activeRightTab === 'task') return DiscussionTasksPanel
+      if (this.activeRightTab === 'docs') return AsyncDiscussionDocsPanel
+      if (this.activeRightTab === 'code') return AsyncDiscussionCodePanel
+      if (this.activeRightTab === 'task') return AsyncDiscussionTasksPanel
       return DiscussionPlaceholderPanel
     },
     activeRightPanelProps() {
@@ -645,6 +746,17 @@ export default {
     id() {
       this.initializeDiscussion()
     },
+    activeRightTab(nextTab) {
+      this.preloadRightPanelChunk(nextTab)
+      if (nextTab === 'code') {
+        warmupCodeHighlighter()
+        this.refreshRightPanelCodeHighlight()
+        this.refreshMemoryHighlight()
+      }
+    },
+    currentCodeFile() {
+      this.refreshRightPanelCodeHighlight()
+    },
     currentChatSupportsMorePanel(nextValue) {
       if (!nextValue && this.showChatMorePanel) {
         this.closeChatMorePanel()
@@ -652,10 +764,44 @@ export default {
     },
     currentChatId() {
       this.activeChatMoreSection = ''
+      this.refreshCurrentChatPreviewHighlights()
+    },
+    codeText() {
+      this.refreshRightPanelCodeHighlight()
+    },
+    memoryPreviewItem: {
+      deep: true,
+      handler() {
+        this.refreshMemoryHighlight()
+      }
+    },
+    currentChatScrollSignature() {
+      this.refreshCurrentChatPreviewHighlights()
+      this.$nextTick(() => this.scrollMessagesToBottom())
+    },
+    showChatMorePanel(nextValue) {
+      if (nextValue) {
+        this.preloadChatMorePanel()
+      }
+    },
+    showCodePicker(nextValue) {
+      if (nextValue) {
+        this.preloadResourcePicker()
+      }
+    },
+    showDocumentPicker(nextValue) {
+      if (nextValue) {
+        this.preloadResourcePicker()
+      }
     }
   },
   mounted() {
     this.currentUserId = this.readCurrentUserId()
+    this.preloadRightPanelChunk(this.activeRightTab)
+    if (this.activeRightTab === 'code') {
+      warmupCodeHighlighter()
+      this.refreshRightPanelCodeHighlight()
+    }
     this.setupSocket()
     this.startMessagePolling()
     this.initializeDiscussion()
@@ -699,19 +845,113 @@ export default {
     getCodeTypeIconByPath(filePath = '') {
       return getDiscussionCodeTypeIconByPath(filePath)
     },
-    highlightCode(content = '', filePath = '') {
-      return highlightDiscussionCode(content, filePath)
+    getCodePreviewCacheKey(codePreview = {}) {
+      return `${String(codePreview.path || '')}::${String(codePreview.snippet || '')}`
     },
     getCodePreviewSnippetHtml(codePreview) {
       if (!codePreview) return ''
-      return this.highlightCode(codePreview.snippet || '', codePreview.path || '')
+      const cacheKey = this.getCodePreviewCacheKey(codePreview)
+      return this.codePreviewSnippetHtmlByKey[cacheKey] || escapeCodeHtml(codePreview.snippet || '')
+    },
+    preloadRightPanelChunk(tabKey = this.activeRightTab) {
+      if (tabKey === 'docs') {
+        void loadDiscussionDocsPanel()
+        return
+      }
+      if (tabKey === 'code') {
+        void loadDiscussionCodePanel()
+        return
+      }
+      if (tabKey === 'task') {
+        void loadDiscussionTasksPanel()
+      }
+    },
+    preloadChatMorePanel() {
+      void loadDiscussionChatMorePanel()
+    },
+    preloadResourcePicker() {
+      void loadDiscussionResourcePicker()
+    },
+    async refreshRightPanelCodeHighlight() {
+      const taskId = ++this.codeHighlightTaskId
+      const content = String(this.codeText || '')
+      const filePath = this.currentCodeFile?.path || ''
+      const language = this.currentCodeFile?.language || ''
+
+      this.highlightedCodeText = escapeCodeHtml(content)
+      if (!content) return
+
+      try {
+        const html = await highlightCodeAsync(content, { filePath, language })
+        if (taskId !== this.codeHighlightTaskId) return
+        this.highlightedCodeText = html
+      } catch {
+        if (taskId !== this.codeHighlightTaskId) return
+        this.highlightedCodeText = escapeCodeHtml(content)
+      }
+    },
+    async refreshMemoryHighlight() {
+      const taskId = ++this.memoryHighlightTaskId
+      const content = String(this.memoryPreviewItem?.content || '')
+      const filePath = this.memoryPreviewItem?.filePath || this.memoryPreviewItem?.title || 'memory.md'
+
+      this.highlightedMemoryText = escapeCodeHtml(content)
+      if (!content) return
+
+      try {
+        const html = await highlightCodeAsync(content, { filePath, language: 'markdown' })
+        if (taskId !== this.memoryHighlightTaskId) return
+        this.highlightedMemoryText = html
+      } catch {
+        if (taskId !== this.memoryHighlightTaskId) return
+        this.highlightedMemoryText = escapeCodeHtml(content)
+      }
+    },
+    async refreshCurrentChatPreviewHighlights() {
+      const previews = this.currentChatRenderedMessages
+        .map((message) => message?.codePreview)
+        .filter(Boolean)
+
+      const nextSnippetHtmlByKey = {}
+      previews.forEach((preview) => {
+        nextSnippetHtmlByKey[this.getCodePreviewCacheKey(preview)] = escapeCodeHtml(preview.snippet || '')
+      })
+      this.codePreviewSnippetHtmlByKey = nextSnippetHtmlByKey
+
+      if (!previews.length) return
+
+      const batchId = ++this.messagePreviewHighlightTaskId
+      try {
+        const results = await Promise.all(previews.map(async (preview) => {
+          const html = await highlightCodeAsync(preview.snippet || '', {
+            filePath: preview.path || '',
+            language: preview.language || ''
+          })
+          return {
+            cacheKey: this.getCodePreviewCacheKey(preview),
+            html
+          }
+        }))
+
+        if (batchId !== this.messagePreviewHighlightTaskId) return
+
+        const merged = { ...this.codePreviewSnippetHtmlByKey }
+        results.forEach(({ cacheKey, html }) => {
+          merged[cacheKey] = html
+        })
+        this.codePreviewSnippetHtmlByKey = merged
+      } catch {
+        if (batchId !== this.messagePreviewHighlightTaskId) return
+      }
     },
     switchRightTab(nextTab, options = {}) {
       if (!nextTab || this.activeRightTab === nextTab) return
+      this.preloadRightPanelChunk(nextTab)
       this.activeRightTab = nextTab
 
       const shouldPrefetchCode = options.prefetchCode !== false
       if (shouldPrefetchCode && nextTab === 'code' && this.currentChat && !this.codePanelLoading && !this.currentRoomCodeFiles.length) {
+        warmupCodeHighlighter()
         this.syncCurrentRoomCode()
       }
     },
@@ -723,6 +963,8 @@ export default {
       const previewPath = String(codePreview?.path || '').trim()
       if (!previewPath || !this.currentChat) return
 
+      this.preloadRightPanelChunk('code')
+      warmupCodeHighlighter()
       this.switchRightTab('code', { prefetchCode: false })
       this.memoryPreviewItem = null
       this.codePanelError = ''
@@ -766,6 +1008,7 @@ export default {
       const documentId = Number(documentPreview?.documentId || 0)
       if (!documentId || !this.currentChat) return
 
+      this.preloadRightPanelChunk('docs')
       this.documentPreviewRequest = {
         key: `${documentId}-${Date.now()}`,
         roomId: Number(this.currentChat.id || 0),
@@ -833,6 +1076,7 @@ export default {
     async openCodePreviewPicker() {
       if (!this.currentChat || this.uploadingAttachment) return
       this.memoryPreviewItem = null
+      this.preloadResourcePicker()
       const gameId = this.effectiveCodeGameId
       if (!gameId) {
         this.errorText = '当前房间没有可用的游戏源码'
@@ -958,9 +1202,16 @@ export default {
       await Promise.all(loadingTasks)
     },
     scrollMessagesToBottom() {
+      const anchor = this.$refs.messagesBottomRef
       const container = this.$refs.messagesPaneRef
-      if (container) {
-        container.scrollTop = container.scrollHeight
+      if (anchor && typeof anchor.scrollIntoView === 'function') {
+        requestAnimationFrame(() => {
+          anchor.scrollIntoView({ block: 'end' })
+        })
+      } else if (container) {
+        requestAnimationFrame(() => {
+          container.scrollTop = container.scrollHeight
+        })
       }
     },
     focusDraftInput() {

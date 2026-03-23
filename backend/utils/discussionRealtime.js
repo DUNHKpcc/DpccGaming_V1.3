@@ -168,6 +168,16 @@ const emitRoomMemoryEvent = (roomId, payload = {}) => {
   });
 };
 
+const emitRoomAiProgressEvent = (roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextRoomId) return;
+  ioInstance.to(roomChannel(nextRoomId)).emit('discussion:ai-progress', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
 const emitRoomRemovedEvent = (roomId, payload = {}) => {
   if (!ioInstance) return;
   const nextRoomId = parseRoomId(roomId);
@@ -185,6 +195,7 @@ module.exports = {
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
   emitRoomMemoryEvent,
+  emitRoomAiProgressEvent,
   emitRoomRemovedEvent,
   emitUserNotificationEvent,
   roomChannel

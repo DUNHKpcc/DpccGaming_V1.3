@@ -15,7 +15,8 @@ const {
   emitRoomDocumentsEvent,
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
-  emitRoomMemoryEvent
+  emitRoomMemoryEvent,
+  emitRoomAiProgressEvent
 } = require('../../utils/discussionRealtime');
 const { createNotification } = require('../../utils/notification');
 const { ARK_CONFIG } = require('../aiController');
@@ -40,6 +41,14 @@ const ROOM_MEMORY_CODE_LIMIT = 8;
 const ROOM_MEMORY_DOCUMENT_LIMIT = 6;
 const ROOM_MEMORY_CONTEXT_LIMIT = 4;
 const ROOM_MEMORY_FILE_MAX_LENGTH = 6000;
+const AI_REPLY_CHAR_LIMIT = 80;
+const AI_PROGRESS_STAGES = Object.freeze({
+  queued: 'queued',
+  memory: 'memory',
+  generating: 'generating',
+  finalizing: 'finalizing',
+  error: 'error'
+});
 
 let friendInviteLinksTableReady = false;
 let friendInviteLinksTableInitPromise = null;
@@ -55,6 +64,7 @@ let roomSummaryTableReady = false;
 let roomSummaryTableInitPromise = null;
 let roomMemoryTableReady = false;
 let roomMemoryTableInitPromise = null;
+const roomAiExecutionLocks = new Map();
 
 const toInt = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -76,6 +86,57 @@ const parseJsonObject = (rawValue) => {
 const safeText = (value, maxLength = 255) => String(value || '').trim().slice(0, maxLength);
 const safeLongText = (value, maxLength = 12000) => String(value || '').replace(/\r/g, '').trim().slice(0, maxLength);
 const normalizeCodePath = (value = '') => String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
+const normalizeRoomLockKey = (roomId) => String(Number(roomId || 0) || '').trim();
+
+const acquireRoomAiExecutionLock = (roomId) => {
+  const roomKey = normalizeRoomLockKey(roomId);
+  if (!roomKey) return false;
+  if (roomAiExecutionLocks.get(roomKey)) return false;
+  roomAiExecutionLocks.set(roomKey, true);
+  return true;
+};
+
+const releaseRoomAiExecutionLock = (roomId) => {
+  const roomKey = normalizeRoomLockKey(roomId);
+  if (!roomKey) return;
+  roomAiExecutionLocks.delete(roomKey);
+};
+
+const isRoomAiExecutionLocked = (roomId) => {
+  const roomKey = normalizeRoomLockKey(roomId);
+  if (!roomKey) return false;
+  return roomAiExecutionLocks.get(roomKey) === true;
+};
+
+const estimateTokenCount = (text = '') => {
+  const source = String(text || '').trim();
+  if (!source) return 0;
+  const asciiMatches = source.match(/[A-Za-z0-9_.-]+/g) || [];
+  const nonAsciiLength = source.replace(/[A-Za-z0-9_.-\s]/g, '').length;
+  const asciiTokenCount = asciiMatches.reduce((sum, item) => sum + Math.max(1, Math.ceil(item.length / 4)), 0);
+  return asciiTokenCount + nonAsciiLength;
+};
+
+const clampAiReplyContent = (text = '', limit = AI_REPLY_CHAR_LIMIT) => {
+  const source = safeLongText(text || '', 4000);
+  if (!source) {
+    return {
+      content: '',
+      charCount: 0,
+      tokenCount: 0
+    };
+  }
+  const nextLimit = Math.max(1, Number(limit || AI_REPLY_CHAR_LIMIT) || AI_REPLY_CHAR_LIMIT);
+  const normalized = source.replace(/\s+/g, ' ').trim();
+  const limited = normalized.length > nextLimit
+    ? `${normalized.slice(0, Math.max(1, nextLimit - 1)).trim()}…`
+    : normalized;
+  return {
+    content: limited,
+    charCount: limited.length,
+    tokenCount: estimateTokenCount(limited)
+  };
+};
 
 const parseDocumentSource = (rawSource) => {
   const value = String(rawSource || '').trim().toLowerCase();
@@ -368,6 +429,8 @@ const getRuntimeRoomSettings = async (pool, roomId) => {
     dualAiLoopEnabled: Boolean(parsed.dualAiLoopEnabled),
     dualAiLoopPrompt: safeLongText(parsed.dualAiLoopPrompt || '', 1000),
     dualAiLoopTurnCount: Number(parsed.dualAiLoopTurnCount || 0) || 0,
+    dualAiLoopAnchorMessageId: Math.max(0, Number(parsed.dualAiLoopAnchorMessageId || 0) || 0),
+    dualAiLoopRepliesForAnchor: Math.max(0, Number(parsed.dualAiLoopRepliesForAnchor || 0) || 0),
     aiSlots: [0, 1].map((index) => createRuntimeAiSlot(rawSlots[index], index))
   };
 };
@@ -548,7 +611,6 @@ const buildPromptFromAiContext = ({
 
   return [
     systemDirective,
-    `当前讨论游戏：${safeText(gameTitle || '未命名游戏', 120)}`,
     summaryText ? `房间摘要：\n${summaryText}` : '',
     memoryText ? `检索到的房间记忆：\n${memoryText}` : '',
     recentText ? `最近对话：\n${recentText}` : '',
@@ -572,7 +634,7 @@ const requestArkAiReply = async ({ prompt, gameTitle, roomMessages, roomSummary,
         content: [
           {
             type: 'text',
-            text: systemDirective || '你是 DpccGaming 讨论房间内的 AI 制作顾问。请围绕当前游戏制作流程给出结构化、可执行的建议。'
+            text: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。请结合房间消息、共享记忆、文档和代码内容，自然、清晰地回应当前讨论。'
           }
         ]
       },
@@ -635,7 +697,7 @@ const requestQwenCodeMaxReply = async ({ prompt, gameTitle, roomMessages, roomSu
       messages: [
         {
           role: 'system',
-          content: systemDirective || '你是 DpccGaming 讨论房间内的 AI 编程搭档。请围绕当前游戏开发上下文给出清晰、自然、可执行的中文回复。'
+          content: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。请结合房间消息、共享记忆、文档和代码内容，给出清晰、自然、可执行的中文回复。'
         },
         {
           role: 'user',
@@ -676,6 +738,7 @@ const buildRoomScopedAiPrompt = ({
   room = {},
   loopPrompt = '',
   prompt = '',
+  targetUserName = '',
   roomSummary = null,
   recentMessages = []
 }) => {
@@ -683,10 +746,13 @@ const buildRoomScopedAiPrompt = ({
   return [
     `当前 AI 名称：${safeText(slot.name || 'AI 助手', 80)}`,
     slot.context ? `AI 上下文：${safeLongText(slot.context, 1200)}` : '',
+    targetUserName ? `本次优先回复对象：${safeText(targetUserName, 80)}` : '',
     prompt ? `调用指令：${safeLongText(prompt, 1200)}` : '',
     loopPrompt ? `轮询目标：${safeLongText(loopPrompt, 1200)}` : '',
     roomSummary?.summaryText ? `已有摘要：\n${safeLongText(roomSummary.summaryText, 1800)}` : '',
     recentMessages.length ? '请基于当前房间成员最近的真实对话、共享文档和源码记忆接续发言。' : '',
+    targetUserName && prompt ? '请优先围绕这位用户最近一次消息展开协作，不要脱离用户问题让 AI 之间无限互相追问。' : '',
+    '最终回复必须使用简体中文，并严格控制在 80 字以内。',
     effectivePrompt
   ].filter(Boolean).join('\n\n');
 };
@@ -741,7 +807,8 @@ const requestRoomAiReplyBySlot = async ({
   slot = {},
   prompt = '',
   loopPrompt = '',
-  recentMessages = []
+  recentMessages = [],
+  targetUserName = ''
 }) => {
   const parsedRoomId = Number(roomId || 0);
   if (!parsedRoomId) throw new Error('无效的 roomId');
@@ -765,30 +832,36 @@ const requestRoomAiReplyBySlot = async ({
     room: roomContext,
     loopPrompt,
     prompt,
+    targetUserName,
     roomSummary: summary,
     recentMessages
   });
 
+  let rawReply = '';
   if (slot.provider === 'custom' && slot.customEndpoint && slot.customModel && slot.apiKey) {
-    return requestCustomAiReply({ slot, prompt: buildPromptFromAiContext({
+    rawReply = await requestCustomAiReply({
+      slot, prompt: buildPromptFromAiContext({
+        prompt: scopedPrompt,
+        gameTitle: roomContext.game_title,
+        recentMessages,
+        roomSummary: summary,
+        memoryEntries,
+        systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手，请结合房间记忆、文档与代码记忆，用简体中文自然接续发言。最终回复严格控制在80字以内。'
+      })
+    });
+  } else {
+    rawReply = await generateAiReply({
       prompt: scopedPrompt,
       gameTitle: roomContext.game_title,
-      recentMessages,
+      roomMessages: recentMessages,
+      builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
       roomSummary: summary,
       memoryEntries,
-      systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手，请结合房间记忆、文档与源码记忆，用简体中文自然接续发言。'
-    }) });
+      systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。你会看到成员消息、文件发送信息、房间摘要和共享记忆。请明确区分是谁发了什么，并基于当前讨论自然、可执行地回复。最终回复严格控制在80字以内。'
+    });
   }
 
-  return generateAiReply({
-    prompt: scopedPrompt,
-    gameTitle: roomContext.game_title,
-    roomMessages: recentMessages,
-    builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
-    roomSummary: summary,
-    memoryEntries,
-    systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。你会看到成员消息、文件发送信息、房间摘要和共享记忆。请明确区分是谁发了什么，并围绕当前游戏开发上下文给出自然、可执行的中文回复。'
-  });
+  return clampAiReplyContent(rawReply, AI_REPLY_CHAR_LIMIT);
 };
 
 const getRoomNotificationContext = async (pool, roomId) => {
@@ -1217,6 +1290,85 @@ const mapRoomMemoryRow = (row = {}) => ({
   createdAt: row.created_at || null
 });
 
+const normalizeMemoryTitleForDedupe = (title = '') => (
+  safeText(title || '', 255)
+    .replace(/^(消息源码|源码|消息文档|文档)\//, '')
+    .trim()
+    .toLowerCase()
+);
+
+const buildRoomMemoryDedupeKey = (entry = {}) => {
+  const memoryType = safeText(entry.memoryType || '', 32);
+  if (!memoryType || memoryType === 'summary' || memoryType === 'profile' || memoryType === 'message' || memoryType === 'note') {
+    return `unique:${safeText(entry.sourceKey || entry.id || '', 160)}`;
+  }
+
+  if (memoryType === 'document') {
+    const sourceDocumentId = Number(entry.sourceDocumentId || 0) || 0;
+    if (sourceDocumentId > 0) return `document:id:${sourceDocumentId}`;
+    const titleKey = normalizeMemoryTitleForDedupe(entry.title || '');
+    if (titleKey) return `document:title:${titleKey}`;
+  }
+
+  if (memoryType === 'code') {
+    const sourceGameId = safeText(entry.sourceGameId || '', 120);
+    const sourcePath = safeText(entry.sourcePath || '', 320).toLowerCase();
+    if (sourceGameId && sourcePath) return `code:path:${sourceGameId}:${sourcePath}`;
+    const titleKey = normalizeMemoryTitleForDedupe(entry.title || '');
+    if (titleKey) return `code:title:${titleKey}`;
+  }
+
+  return `unique:${safeText(entry.sourceKey || entry.id || '', 160)}`;
+};
+
+const pickPreferredMemoryEntry = (currentEntry = null, nextEntry = null) => {
+  if (!currentEntry) return nextEntry;
+  if (!nextEntry) return currentEntry;
+
+  const currentHasMessageLink = Number(currentEntry.sourceMessageId || 0) > 0;
+  const nextHasMessageLink = Number(nextEntry.sourceMessageId || 0) > 0;
+  if (currentHasMessageLink !== nextHasMessageLink) {
+    return nextHasMessageLink ? nextEntry : currentEntry;
+  }
+
+  const currentUpdatedAt = new Date(currentEntry.updatedAt || currentEntry.createdAt || 0).getTime();
+  const nextUpdatedAt = new Date(nextEntry.updatedAt || nextEntry.createdAt || 0).getTime();
+  if (currentUpdatedAt !== nextUpdatedAt) {
+    return nextUpdatedAt > currentUpdatedAt ? nextEntry : currentEntry;
+  }
+
+  const currentContentLength = String(currentEntry.content || '').length;
+  const nextContentLength = String(nextEntry.content || '').length;
+  if (currentContentLength !== nextContentLength) {
+    return nextContentLength > currentContentLength ? nextEntry : currentEntry;
+  }
+
+  return (Number(nextEntry.id || 0) || 0) > (Number(currentEntry.id || 0) || 0) ? nextEntry : currentEntry;
+};
+
+const dedupeRoomMemoryEntries = (entries = []) => {
+  if (!Array.isArray(entries) || !entries.length) return [];
+  const dedupedMap = new Map();
+  entries.forEach((entry) => {
+    const dedupeKey = buildRoomMemoryDedupeKey(entry);
+    const existingEntry = dedupedMap.get(dedupeKey);
+    dedupedMap.set(dedupeKey, pickPreferredMemoryEntry(existingEntry, entry));
+  });
+
+  return [...dedupedMap.values()].sort((left, right) => {
+    const typeOrder = ['summary', 'profile', 'document', 'code', 'message', 'note'];
+    const leftIndex = Math.max(0, typeOrder.indexOf(String(left.memoryType || '')));
+    const rightIndex = Math.max(0, typeOrder.indexOf(String(right.memoryType || '')));
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+
+    const leftUpdatedAt = new Date(left.updatedAt || left.createdAt || 0).getTime();
+    const rightUpdatedAt = new Date(right.updatedAt || right.createdAt || 0).getTime();
+    if (leftUpdatedAt !== rightUpdatedAt) return rightUpdatedAt - leftUpdatedAt;
+
+    return (Number(right.id || 0) || 0) - (Number(left.id || 0) || 0);
+  });
+};
+
 const listRoomMemoryEntries = async (pool, roomId) => {
   await ensureRoomMemoryTable(pool);
   const [rows] = await pool.execute(
@@ -1231,7 +1383,7 @@ const listRoomMemoryEntries = async (pool, roomId) => {
        id DESC`,
     [roomId]
   );
-  return rows.map((row) => mapRoomMemoryRow(row));
+  return dedupeRoomMemoryEntries(rows.map((row) => mapRoomMemoryRow(row)));
 };
 
 const getRoomSummary = async (pool, roomId) => {
@@ -1649,8 +1801,11 @@ module.exports = {
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
   emitRoomMemoryEvent,
+  emitRoomAiProgressEvent,
   createNotification,
   toInt,
+  AI_REPLY_CHAR_LIMIT,
+  AI_PROGRESS_STAGES,
   parseDocumentSource,
   parseTaskStatus,
   parseTaskPriority,
@@ -1684,5 +1839,10 @@ module.exports = {
   getRoomSummary,
   listRoomMemoryEntries,
   refreshRoomMemoryArtifacts,
-  requestRoomAiReplyBySlot
+  requestRoomAiReplyBySlot,
+  acquireRoomAiExecutionLock,
+  releaseRoomAiExecutionLock,
+  isRoomAiExecutionLocked,
+  estimateTokenCount,
+  clampAiReplyContent
 };

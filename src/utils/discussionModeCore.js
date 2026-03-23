@@ -1,24 +1,5 @@
-import hljs from 'highlight.js/lib/core'
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import json from 'highlight.js/lib/languages/json'
-import xml from 'highlight.js/lib/languages/xml'
-import css from 'highlight.js/lib/languages/css'
-import python from 'highlight.js/lib/languages/python'
-import cpp from 'highlight.js/lib/languages/cpp'
-import csharp from 'highlight.js/lib/languages/csharp'
 import { getAvatarUrl } from './avatar'
 import { getBuiltinModelAvatarUrl } from './discussionChatMore'
-
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('xml', xml)
-hljs.registerLanguage('css', css)
-hljs.registerLanguage('python', python)
-hljs.registerLanguage('cpp', cpp)
-hljs.registerLanguage('c', cpp)
-hljs.registerLanguage('csharp', csharp)
 
 const MODE_LABELS = {
   friend: '好友',
@@ -196,43 +177,6 @@ export const getDiscussionCodeTypeIconByPath = (filePath = '') => {
   return '/codeType/js.webp'
 }
 
-const inferDiscussionHighlightLanguage = (filePath = '') => {
-  const normalized = String(filePath || '').toLowerCase()
-  if (normalized.endsWith('.ts') || normalized.endsWith('.tsx')) return 'typescript'
-  if (normalized.endsWith('.js') || normalized.endsWith('.jsx')) return 'javascript'
-  if (normalized.endsWith('.vue') || normalized.endsWith('.html')) return 'xml'
-  if (normalized.endsWith('.css') || normalized.endsWith('.scss') || normalized.endsWith('.less')) return 'css'
-  if (normalized.endsWith('.json')) return 'json'
-  if (normalized.endsWith('.py')) return 'python'
-  if (normalized.endsWith('.cs')) return 'csharp'
-  if (normalized.endsWith('.cpp') || normalized.endsWith('.cc')) return 'cpp'
-  if (normalized.endsWith('.c') || normalized.endsWith('.h')) return 'c'
-  return ''
-}
-
-export const highlightDiscussionCode = (content = '', filePath = '') => {
-  const source = String(content || '')
-  if (!source) return ''
-
-  const language = inferDiscussionHighlightLanguage(filePath)
-  if (language && hljs.getLanguage(language)) {
-    try {
-      return hljs.highlight(source, { language }).value
-    } catch {
-      // fallback to auto detect
-    }
-  }
-
-  try {
-    return hljs.highlightAuto(source).value
-  } catch {
-    return source
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-  }
-}
-
 export const normalizeDiscussionDocumentPickerItem = (document = {}) => {
   const id = Number.parseInt(document.id, 10)
   const name = String(document.file_name || document.name || '').trim()
@@ -370,6 +314,9 @@ export const mapDiscussionMessage = (item, context = {}) => {
   const localAiName = String(metadata?.local_ai_name || '').trim()
   const localAiAvatarUrl = String(metadata?.local_ai_avatar_url || '').trim()
   const aiModelName = String(metadata?.ai_model || '').trim()
+  const aiTargetLabel = String(metadata?.target_username || '').trim()
+  const aiReplyTokenCount = Number.parseInt(metadata?.reply_token_count, 10) || 0
+  const aiReplyCharLimit = Number.parseInt(metadata?.reply_char_limit, 10) || 0
   let text = (item.content || '').toString()
 
   if (codePreview && /^代码预览[:：]/.test(text)) {
@@ -393,7 +340,6 @@ export const mapDiscussionMessage = (item, context = {}) => {
       : getAvatarUrl(item.avatar_url || '')
 
   if (senderType === 'system') text = `[系统] ${text}`
-  if (senderType === 'ai') text = `[AI] ${text}`
 
   return {
     id: item.id || Date.now(),
@@ -406,6 +352,10 @@ export const mapDiscussionMessage = (item, context = {}) => {
     codePreview,
     documentPreview,
     text,
+    aiTargetLabel,
+    aiReplyTokenCount,
+    aiReplyCharLimit,
+    isPendingAi: false,
     time: formatDiscussionClock(item.created_at),
     rawTime: item.created_at
   }

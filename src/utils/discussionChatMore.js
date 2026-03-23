@@ -27,7 +27,7 @@ export const CHAT_MORE_ROLE_PRESET_OPTIONS = [
 ]
 
 export const CHAT_MORE_BUILTIN_MODELS = [
-  'DouBaoSeed1.6',
+  'DouBaoSeed',
   'GPT-5.4',
   'Claude 4.6 opus',
   'Gemini 3.0 Pro',
@@ -36,6 +36,10 @@ export const CHAT_MORE_BUILTIN_MODELS = [
 ]
 
 export const CHAT_MORE_BUILTIN_MODEL_META = {
+  'DouBaoSeed': {
+    label: 'DouBaoSeed',
+    logo: '/Ai/DouBaoSeed1.6.png'
+  },
   'DouBaoSeed1.6': {
     label: 'DouBaoSeed1.6',
     logo: '/Ai/DouBaoSeed1.6.png'

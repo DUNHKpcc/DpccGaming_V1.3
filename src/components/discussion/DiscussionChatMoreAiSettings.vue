@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-more-ai-grid">
+  <div class="chat-more-ai-grid" :class="`chat-more-ai-grid-${mode}`">
     <div
       v-for="(slot, slotIndex) in aiSlots"
       :key="`${slot.id}-${mode}`"
@@ -94,6 +94,7 @@
             <span>{{ slot.name || `协作 AI ${slotIndex + 1}` }}</span>
           </span>
           <small>{{ resolveAiSlotModelLabel(slot) }}</small>
+          <small>回复上限 80 字</small>
         </div>
       </template>
 
@@ -117,17 +118,9 @@
             @input="$emit('update-slot-field', slot.id, 'context', $event.target.value)"
           ></textarea>
         </label>
-
-        <div class="chat-more-field">
-          <span>房间记忆</span>
-          <label class="chat-more-switch chat-more-switch-inline">
-            <input
-              type="checkbox"
-              :checked="slot.memoryEnabled !== false"
-              @change="$emit('update-slot-field', slot.id, 'memoryEnabled', $event.target.checked)"
-            />
-            <span>{{ slot.memoryEnabled !== false ? '已启用共享记忆' : '不使用共享记忆' }}</span>
-          </label>
+        <div class="chat-more-field-foot">
+          <span>上下文约 {{ estimateTokenCount(slot.context) }} tokens</span>
+          <span>回复上限 80 字</span>
         </div>
 
         <div class="chat-more-avatar-row">
@@ -139,7 +132,7 @@
             />
             <span v-else>{{ (slot.name || `A${slotIndex + 1}`).slice(0, 2) }}</span>
           </div>
-          <label class="chat-more-upload-btn">
+          <label class="chat-more-upload-btn chat-more-upload-tile">
             <input
               type="file"
               accept="image/*"
@@ -147,6 +140,15 @@
             />
             上传头像
           </label>
+          <button
+            type="button"
+            class="chat-more-memory-toggle-tile"
+            :class="{ active: slot.memoryEnabled !== false }"
+            @click="$emit('update-slot-field', slot.id, 'memoryEnabled', !(slot.memoryEnabled !== false))"
+          >
+            <i class="fa fa-brain"></i>
+            <span>{{ slot.memoryEnabled !== false ? '共享记忆' : '记忆关闭' }}</span>
+          </button>
         </div>
 
         <div v-if="slotIndex === 0" class="chat-more-memory-manager">
@@ -167,19 +169,9 @@
           <div v-if="memoryError" class="chat-error">{{ memoryError }}</div>
           <div v-else-if="!roomMemoryItems.length" class="chat-empty">当前房间还没有可用记忆文件</div>
           <div v-else class="chat-more-memory-list">
-            <button
-              v-for="memoryItem in topRoomMemoryItems"
-              :key="memoryItem.sourceKey || memoryItem.id"
-              type="button"
-              class="chat-more-memory-item"
-              @click="$emit('open-memory-file', memoryItem)"
-            >
-              <span class="chat-more-memory-item-title">{{ memoryItem.title }}</span>
-              <span class="chat-more-memory-item-meta">{{ formatMemoryMeta(memoryItem) }}</span>
-            </button>
-            <div v-if="overflowRoomMemoryItems.length" class="chat-more-memory-scroll-shell">
+            <div class="chat-more-memory-scroll-shell">
               <button
-                v-for="memoryItem in overflowRoomMemoryItems"
+                v-for="memoryItem in roomMemoryItems"
                 :key="memoryItem.sourceKey || memoryItem.id"
                 type="button"
                 class="chat-more-memory-item"
@@ -232,14 +224,6 @@ export default {
     }
   },
   emits: ['update-slot-field', 'avatar-file-change', 'refresh-room-memory', 'open-memory-file'],
-  computed: {
-    topRoomMemoryItems() {
-      return this.roomMemoryItems.slice(0, 3)
-    },
-    overflowRoomMemoryItems() {
-      return this.roomMemoryItems.slice(3)
-    }
-  },
   methods: {
     resolveAiSlotModelLabel(slot = {}) {
       if (slot.provider === 'custom') {
@@ -281,6 +265,14 @@ export default {
       const typeLabel = typeLabelMap[memoryItem.memoryType] || '记忆'
       const updatedAt = this.formatMemoryTime(memoryItem.updatedAt)
       return updatedAt ? `${typeLabel} · ${updatedAt}` : typeLabel
+    },
+    estimateTokenCount(text = '') {
+      const source = String(text || '').trim()
+      if (!source) return 0
+      const asciiMatches = source.match(/[A-Za-z0-9_.-]+/g) || []
+      const asciiCount = asciiMatches.reduce((sum, item) => sum + Math.max(1, Math.ceil(item.length / 4)), 0)
+      const nonAsciiCount = source.replace(/[A-Za-z0-9_.-\s]/g, '').length
+      return asciiCount + nonAsciiCount
     }
   }
 }

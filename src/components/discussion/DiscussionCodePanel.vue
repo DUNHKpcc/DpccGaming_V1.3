@@ -1,53 +1,55 @@
 <template>
   <div class="discussion-code-panel">
-    <div class="right-path-row">
-      <img
-        class="right-filetype-icon"
-        :src="getCodeTypeIconByPath(displayFileName)"
-        alt="code type"
-      />
-      <span class="right-source-pill">
-        {{ displaySourceTitle }}
-      </span>
-      <select
-        v-if="!memoryPreviewItem && currentRoomCodeFiles.length"
-        :value="currentCodePath"
-        class="right-path-input right-path-select"
-        @change="$emit('update:currentCodePath', $event.target.value)"
-      >
-        <option
-          v-for="file in currentRoomCodeFiles"
-          :key="file.path"
-          :value="file.path"
+    <div class="code-shell-card">
+      <div class="right-path-row">
+        <img
+          class="right-filetype-icon"
+          :src="getCodeTypeIconByPath(displayFileName)"
+          alt="code type"
+        />
+        <span class="right-source-pill">
+          {{ displaySourceTitle }}
+        </span>
+        <select
+          v-if="!memoryPreviewItem && currentRoomCodeFiles.length"
+          :value="currentCodePath"
+          class="right-path-input right-path-select"
+          @change="$emit('update:currentCodePath', $event.target.value)"
         >
-          {{ file.path }}
-        </option>
-      </select>
-      <input
-        v-else
-        class="right-path-input"
-        type="text"
-        :value="displayFileName"
-        readonly
-      />
-      <button
-        type="button"
-        class="right-plus-btn"
-        :disabled="codePanelLoading || !currentCodeSourceGameId || Boolean(memoryPreviewItem)"
-        :title="memoryPreviewItem ? '当前正在查看记忆文件' : '刷新当前房间源码'"
-        @click="$emit('refresh')"
-      >
-        <i :class="codePanelLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
-      </button>
-    </div>
+          <option
+            v-for="file in currentRoomCodeFiles"
+            :key="file.path"
+            :value="file.path"
+          >
+            {{ file.path }}
+          </option>
+        </select>
+        <input
+          v-else
+          class="right-path-input"
+          type="text"
+          :value="displayFileName"
+          readonly
+        />
+        <button
+          type="button"
+          class="right-plus-btn"
+          :disabled="codePanelLoading || !currentCodeSourceGameId || Boolean(memoryPreviewItem)"
+          :title="memoryPreviewItem ? '当前正在查看记忆文件' : '刷新当前房间源码'"
+          @click="$emit('refresh')"
+        >
+          <i :class="codePanelLoading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate-right'"></i>
+        </button>
+      </div>
 
-    <div class="right-code-shell">
-      <div v-if="codePanelLoading" class="code-empty-state">源码加载中...</div>
-      <div v-else-if="codePanelError" class="code-empty-state error">{{ codePanelError }}</div>
-      <pre v-else-if="memoryPreviewItem" class="code-panel"><code class="hljs" v-html="highlightedMemoryText"></code></pre>
-      <div v-else-if="!currentChat" class="code-empty-state">请先选择一个讨论房间</div>
-      <div v-else-if="!currentRoomCodeFiles.length" class="code-empty-state">当前房间游戏暂无可浏览源码</div>
-      <pre v-else class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
+      <div class="right-code-shell">
+        <div v-if="codePanelLoading" class="code-empty-state">源码加载中...</div>
+        <div v-else-if="codePanelError" class="code-empty-state error">{{ codePanelError }}</div>
+        <pre v-else-if="memoryPreviewItem" class="code-panel"><code class="hljs" v-html="highlightedMemoryText"></code></pre>
+        <div v-else-if="!currentChat" class="code-empty-state">请先选择一个讨论房间</div>
+        <div v-else-if="!currentRoomCodeFiles.length" class="code-empty-state">当前房间游戏暂无可浏览源码</div>
+        <pre v-else class="code-panel"><code class="hljs" v-html="highlightedCodeText"></code></pre>
+      </div>
     </div>
   </div>
 </template>
@@ -130,11 +132,26 @@ export default {
 .discussion-code-panel {
   flex: 1;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  padding: 10px 12px 12px;
+  background: transparent;
+}
+
+.code-shell-card {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dfe4eb;
+  border-radius: 18px;
+  background: #ffffff;
+  box-sizing: border-box;
   overflow: hidden;
 }
 
@@ -143,10 +160,11 @@ export default {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
   padding: 6px 12px 4px;
-  border-top: 1px solid #d6d9dd;
   border-bottom: 1px solid #d6d9dd;
-  background: #ececec;
+  background: #ffffff;
 }
 
 .right-filetype-icon {
@@ -221,11 +239,11 @@ export default {
 }
 
 .right-code-shell {
-  margin: 10px 12px 12px;
   border: none;
-  border-radius: 14px;
+  border-radius: 0;
   background: #ffffff;
-  width: calc(100% - 24px);
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
   min-width: 0;
   flex: 1;
