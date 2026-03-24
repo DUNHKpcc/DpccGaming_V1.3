@@ -644,8 +644,9 @@ onBeforeUnmount(() => {
 }
 
 .notification-item {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 1rem;
   padding: 1rem;
@@ -664,6 +665,7 @@ onBeforeUnmount(() => {
 
 .notification-item.unread {
   background: var(--notify-unread-bg);
+  padding-right: 2rem;
 }
 
 .notification-icon {
@@ -717,13 +719,18 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 0.5rem;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
 .notification-title {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
   color: var(--notify-title);
   margin: 0;
   font-size: 0.95rem;
+  overflow-wrap: anywhere;
 }
 
 .notification-time {
@@ -738,6 +745,7 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
   line-height: 1.4;
   margin: 0 0 0.5rem 0;
+  overflow-wrap: anywhere;
 }
 
 .notification-actions {
@@ -755,13 +763,14 @@ onBeforeUnmount(() => {
 }
 
 .unread-indicator {
-  align-self: start;
-  margin-top: 0.25rem;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
   width: 0.5rem;
   height: 0.5rem;
   background: var(--notify-unread-accent);
   border-radius: 50%;
-  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .notification-ghost-btn {
@@ -804,6 +813,10 @@ onBeforeUnmount(() => {
     padding: 0.75rem;
     gap: 0.75rem;
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .notification-item.unread {
+    padding-right: 1.5rem;
   }
 
   .notification-icon {
