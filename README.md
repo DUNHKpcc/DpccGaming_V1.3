@@ -1,6 +1,7 @@
 # DpccGaming Vue版本
 
 这是DpccGaming游戏平台的Vue 3版本，使用现代化的前端技术栈重构。
+立即体验https://dpccgaming.xyz/
 
 立即体验https://dpccgaming.xyz/
 

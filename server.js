@@ -5,10 +5,12 @@
 }
 
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fsSync = require('fs');
 
 const appConfig = require('./backend/config/app');
 const { initDatabase } = require('./backend/config/database');
@@ -21,11 +23,46 @@ const commentRoutes = require('./backend/routes/comments');
 const notificationRoutes = require('./backend/routes/notifications');
 const aiRoutes = require('./backend/routes/ai');
 const debugRoutes = require('./backend/routes/debug');
+const cookieRoutes = require('./backend/routes/cookies');
+const discussionRoutes = require('./backend/routes/discussion');
+const { initDiscussionRealtime } = require('./backend/utils/discussionRealtime');
 
 const app = express();
 
 const isWindows = process.platform === 'win32';
 console.log('🔍 环境检测:', isWindows ? 'Windows开发环境' : 'Linux生产环境');
+
+const uniquePaths = (paths = []) => [...new Set(paths.filter(Boolean))];
+
+const toCandidatePaths = (rawPath = '') => {
+  const value = String(rawPath || '').trim();
+  if (!value) return [];
+  if (path.isAbsolute(value)) return [value];
+
+  const candidates = [
+    path.resolve(process.cwd(), value),
+    path.resolve(__dirname, value)
+  ];
+
+  // 兼容运维常见写法：wwwroot/...（缺少开头 /）
+  if (value.startsWith('wwwroot/')) {
+    candidates.unshift(`/${value}`);
+  }
+
+  return uniquePaths(candidates);
+};
+
+const pickDataPath = (envValue, defaults = []) => {
+  const envCandidates = toCandidatePaths(envValue);
+  const existingEnvPath = envCandidates.find((item) => fsSync.existsSync(item));
+  if (existingEnvPath) return existingEnvPath;
+  if (envCandidates.length > 0) return envCandidates[0];
+
+  const defaultCandidates = uniquePaths(defaults);
+  const existingDefaultPath = defaultCandidates.find((item) => fsSync.existsSync(item));
+  if (existingDefaultPath) return existingDefaultPath;
+  return defaultCandidates[0];
+};
 
 app.set('trust proxy', true);
 
@@ -46,22 +83,36 @@ const generalLimiter = rateLimit({
 });
 
 const uploadsPath = isWindows
-  ? path.join(__dirname, 'uploads')
-  : '/www/wwwroot/dpccgaming.xyz/uploads';
+  ? pickDataPath(process.env.UPLOADS_PATH, [path.join(__dirname, 'uploads')])
+  : pickDataPath(process.env.UPLOADS_PATH, [
+    '/wwwroot/dpccgaming.xyz/uploads',
+    '/www/wwwroot/dpccgaming.xyz/uploads',
+    path.join(__dirname, 'uploads')
+  ]);
 
 const gamesPath = isWindows
-  ? path.join(__dirname, 'games')
-  : path.join('/www', 'wwwroot', 'dpccgaming.xyz', 'games');
+  ? pickDataPath(process.env.GAMES_ROOT_PATH, [path.join(__dirname, 'games')])
+  : pickDataPath(process.env.GAMES_ROOT_PATH, [
+    '/wwwroot/dpccgaming.xyz/games',
+    '/www/wwwroot/dpccgaming.xyz/games',
+    path.join(__dirname, 'games')
+  ]);
 
-const codePath = path.join(uploadsPath, 'code');
+const codePath = isWindows
+  ? pickDataPath(process.env.CODE_ROOT_PATH, [path.join(uploadsPath, 'code')])
+  : pickDataPath(process.env.CODE_ROOT_PATH, [
+    '/wwwroot/dpccgaming.xyz/uploads/code',
+    '/www/wwwroot/dpccgaming.xyz/uploads/code',
+    path.join(uploadsPath, 'code')
+  ]);
 
 process.env.UPLOADS_PATH = process.env.UPLOADS_PATH || uploadsPath;
 process.env.GAMES_ROOT_PATH = process.env.GAMES_ROOT_PATH || gamesPath;
 process.env.CODE_ROOT_PATH = process.env.CODE_ROOT_PATH || codePath;
 
-console.log('📁 Upload root:', process.env.UPLOADS_PATH);
-console.log('📁 Games root:', process.env.GAMES_ROOT_PATH);
-console.log('🧩 Code root:', process.env.CODE_ROOT_PATH);
+console.log('Upload root:', process.env.UPLOADS_PATH);
+console.log('Games root:', process.env.GAMES_ROOT_PATH);
+console.log('Code root:', process.env.CODE_ROOT_PATH);
 
 app.use(cors({
   origin: appConfig.cors.origins,
@@ -93,6 +144,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/debug', debugRoutes);
+app.use('/api/cookies', cookieRoutes);
+app.use('/api/discussion', discussionRoutes);
 
 app.use(errorHandler);
 
@@ -102,11 +155,17 @@ app.use('*', (req, res) => {
 
 async function startServer() {
   try {
-    console.log('🗄️ 初始化数据库连接...');
+    console.log('初始化数据库连接...');
     await initDatabase();
-    console.log('✅ 数据库连接初始化成功');
+    console.log('数据库连接初始化成功');
 
-    const server = app.listen(appConfig.server.port, () => {
+    const server = http.createServer(app);
+    initDiscussionRealtime({
+      server,
+      corsOrigins: appConfig.cors.origins
+    });
+
+    server.listen(appConfig.server.port, () => {
       const port = appConfig.server.port;
 
       console.log('\nDpccGaming服务器启动成功');
@@ -126,6 +185,7 @@ async function startServer() {
       console.log('   - /api/ai/* (AI助手)');
       console.log('   - /api/admin/* (管理员功能)');
       console.log('   - /api/debug/* (调试工具)');
+      console.log('   - /api/discussion/* (讨论模式/好友/匹配)');
       console.log('   - /uploads/* (静态文件)');
       console.log('   - /games/* (游戏文件)');
       console.log('='.repeat(50));

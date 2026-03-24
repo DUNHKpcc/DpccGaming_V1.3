@@ -41,6 +41,14 @@
         </div>
       </div>
     </div>
+    <!-- 悬浮小组件 -->
+    <div class="new-year-widget">
+      <div class="widget-content">
+        <div class="widget-text">
+          <span class="greeting">蓝图模式正在完善中....</span>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -477,7 +485,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
   .hero-section {
     background-color: #000000;
@@ -503,7 +512,7 @@ onUnmounted(() => {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: center; 
   justify-content: center;
   gap: clamp(1rem, 3vh, 2.5rem);
 }
@@ -535,7 +544,7 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
   transform: scaleY(1.3);
   transform-origin: bottom center;
-  font-family: 'Bebas Neue', cursive;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
 }
 @media (max-width: 640px) {
   :deep(.hero-title-line--small),
@@ -558,7 +567,7 @@ onUnmounted(() => {
 :deep([data-theme="light"] .hero-title-line--large) {
   color: #000000;
   font-weight: 800;
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
   letter-spacing: 0.1em;
   transform: translateX(6px);
 }
@@ -567,7 +576,7 @@ onUnmounted(() => {
 :deep([data-theme="dark"] .hero-title-line--large) {
   color: #ffffff;
   font-weight: 800;
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
   letter-spacing: 0.1em;
   transform: translateX(6px);
 }
@@ -577,13 +586,17 @@ onUnmounted(() => {
   font-size: clamp(1rem, 2vw, 1.35rem);
   color: #ffffff;
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif !important;
+  font-smooth: always !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
 }
 
 
 [data-theme="light"] .hero-subtitle {
   color: #000000;
-  font-family: "Bebas Neue", Gadget, sans-serif;
+  font-family: 'Bebas Neue', 'Segoe UI', Gadget, Tahoma, Geneva, Arial, sans-serif;
 }
 
 .hero-image-wrapper {
@@ -853,5 +866,74 @@ a-waves::before {
 .fade-in-up {
   opacity: 0;
   transform: translateY(40px);
+}
+
+
+.new-year-widget {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 12;
+}
+
+.widget-content {
+  background: black;
+  border-radius: 50px;
+  padding: 12px 30px;
+  box-shadow: 
+    0 4px 15px rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(109, 108, 108, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.widget-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.greeting {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .new-year-widget {
+    top: 14px;
+    right: 12px;
+  }
+  
+  .widget-content {
+    padding: 10px 25px;
+  }
+  
+  .greeting {
+    font-size: 0.9rem;
+    letter-spacing: 1.5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .new-year-widget {
+    top: 12px;
+    right: 8px;
+  }
+  
+  .widget-content {
+    padding: 8px 20px;
+  }
+  
+  .greeting {
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+  }
 }
 </style>

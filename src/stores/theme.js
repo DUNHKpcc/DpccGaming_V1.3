@@ -1,36 +1,35 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useCookieStore } from './cookie'
 
 export const useThemeStore = defineStore('theme', () => {
-  const isDark = ref(true) // 默认暗色模式
+  const isDark = ref(true)
 
-  // 切换主题
   const toggleTheme = () => {
     isDark.value = !isDark.value
     applyTheme()
   }
 
-  // 设置特定主题
   const setTheme = (dark) => {
     isDark.value = dark
     applyTheme()
   }
 
-  // 应用主题到DOM
-  const applyTheme = () => {
+  const applyTheme = (options = {}) => {
     const root = document.documentElement
     if (isDark.value) {
       root.setAttribute('data-theme', 'dark')
-      // 移除亮色模式的遮罩
       removeThemeOverlay()
     } else {
       root.setAttribute('data-theme', 'light')
-      // 直接切换主题，不使用遮罩动画
       removeThemeOverlay()
+    }
+
+    if (options.persist !== false) {
+      syncThemePreference()
     }
   }
 
-  // 添加遮罩动画
   const addThemeOverlay = () => {
     const existingOverlay = document.getElementById('theme-transition-overlay')
     if (existingOverlay) {
@@ -55,12 +54,10 @@ export const useThemeStore = defineStore('theme', () => {
 
     document.body.appendChild(overlay)
 
-    // 触发动画
     requestAnimationFrame(() => {
       overlay.style.transform = 'scaleY(1)'
     })
 
-    // 动画结束后移除遮罩
     setTimeout(() => {
       if (overlay.parentNode) {
         overlay.remove()
@@ -68,7 +65,6 @@ export const useThemeStore = defineStore('theme', () => {
     }, 600)
   }
 
-  // 移除遮罩动画（暗色模式）
   const removeThemeOverlay = () => {
     const overlay = document.getElementById('theme-transition-overlay')
     if (overlay) {
@@ -82,9 +78,25 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  // 初始化主题
+  const syncThemePreference = () => {
+    const cookieStore = useCookieStore()
+    if (!cookieStore.initialized) {
+      cookieStore.init()
+    }
+    const themeValue = isDark.value ? 'dark' : 'light'
+    cookieStore.setThemePreference(themeValue)
+  }
+
   const initTheme = () => {
-    applyTheme()
+    const cookieStore = useCookieStore()
+    cookieStore.init()
+    const storedTheme = cookieStore.preferences?.theme
+    const canUse =
+      cookieStore.consentStatus && cookieStore.preferences?.functional
+    if (canUse && (storedTheme === 'dark' || storedTheme === 'light')) {
+      isDark.value = storedTheme === 'dark'
+    }
+    applyTheme({ persist: false })
   }
 
   return {

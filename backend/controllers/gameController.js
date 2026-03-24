@@ -5,21 +5,94 @@ const AdmZip = require('adm-zip');
 const { getPool } = require('../config/database');
 const { createNotification } = require('../utils/notification');
 
+const DEFAULT_AVATAR_URL = '/avatars/default-avatar.svg';
+let avatarColumnAvailableCache = null;
+let libraryTableReady = false;
+let libraryTableInitPromise = null;
+
+const isAvatarColumnAvailable = async (pool) => {
+  if (avatarColumnAvailableCache !== null) {
+    return avatarColumnAvailableCache;
+  }
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) AS count
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'users'
+         AND COLUMN_NAME = 'avatar_url'`
+    );
+    avatarColumnAvailableCache = Number(rows?.[0]?.count || 0) > 0;
+  } catch (error) {
+    console.warn('检查游戏上传者头像字段失败，回退默认头像:', error.message);
+    avatarColumnAvailableCache = false;
+  }
+
+  return avatarColumnAvailableCache;
+};
+
+const ensureLibraryTable = async (pool) => {
+  if (libraryTableReady) return;
+  if (libraryTableInitPromise) {
+    await libraryTableInitPromise;
+    return;
+  }
+
+  libraryTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS user_game_library (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      game_id VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_user_game (user_id, game_id),
+      KEY idx_user_created (user_id, created_at),
+      KEY idx_game (game_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await libraryTableInitPromise;
+    libraryTableReady = true;
+  } finally {
+    libraryTableInitPromise = null;
+  }
+};
+
 // 获取游戏列表
 const getGamesList = async (req, res) => {
   try {
     const pool = getPool();
-    const [games] = await pool.execute(`
-      SELECT 
-        g.*,
-        COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
-        COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count
-      FROM games g
-      LEFT JOIN comments c ON g.game_id = c.game_id
-      WHERE g.status = 'approved'
-      GROUP BY g.id
-      ORDER BY g.created_at DESC
-    `);
+    const hasAvatarColumn = await isAvatarColumnAvailable(pool);
+    const [games] = await pool.execute(
+      hasAvatarColumn
+        ? `SELECT 
+             g.*,
+             COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
+             COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count,
+             u.username AS uploaded_by_username,
+             COALESCE(u.avatar_url, ?) AS uploaded_by_avatar_url
+           FROM games g
+           LEFT JOIN comments c ON g.game_id = c.game_id
+           LEFT JOIN users u ON g.uploaded_by = u.id
+           WHERE g.status = 'approved'
+           GROUP BY g.id, u.username, u.avatar_url
+           ORDER BY g.created_at DESC`
+        : `SELECT 
+             g.*,
+             COALESCE(AVG(CASE WHEN c.rating > 0 THEN c.rating END), 0) as average_rating,
+             COUNT(DISTINCT CASE WHEN c.rating > 0 THEN c.id END) as comment_count,
+             u.username AS uploaded_by_username,
+             ? AS uploaded_by_avatar_url
+           FROM games g
+           LEFT JOIN comments c ON g.game_id = c.game_id
+           LEFT JOIN users u ON g.uploaded_by = u.id
+           WHERE g.status = 'approved'
+           GROUP BY g.id, u.username
+           ORDER BY g.created_at DESC`,
+      [DEFAULT_AVATAR_URL]
+    );
 
     // 格式化游戏数据并检查源码状态
     const formattedGames = await Promise.all(games.map(async (game) => {
@@ -56,6 +129,9 @@ const getGamesList = async (req, res) => {
         average_rating: parseFloat(game.average_rating).toFixed(1),
         comment_count: game.comment_count,
         play_count: game.play_count || 0,
+        uploaded_by_id: game.uploaded_by || null,
+        uploaded_by_username: game.uploaded_by_username || '匿名开发者',
+        uploaded_by_avatar_url: game.uploaded_by_avatar_url || DEFAULT_AVATAR_URL,
         code_package_url: codePackageUrl,
         code_exists: codeExists
       };
@@ -158,50 +234,130 @@ const getGameDetail = async (req, res) => {
   }
 };
 
-// 代码浏览：返回 uploads/code/<gameId> 下已上传源码的部分文件内容
-const getGameCode = async (req, res) => {
-  try {
-    const { gameId } = req.params;
-    const codeDir = path.join(process.env.CODE_ROOT_PATH || path.join(process.cwd(), 'uploads', 'code'), gameId);
+const CODE_BROWSE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.css', '.scss', '.less', '.html', '.json', '.md', '.c', '.cpp', '.h', '.cs', '.py']);
+const CODE_BROWSE_MAX_FILES = 60;
+const CODE_BROWSE_MAX_FILE_SIZE = 200 * 1024; // 200KB
+const CODE_BROWSE_SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.output', '.cache']);
 
-    // coding 模式只读取 uploads/code 下解压的源码
-    if (!fsSync.existsSync(codeDir) || !fsSync.lstatSync(codeDir).isDirectory()) {
-      return res.status(404).json({ error: '源码尚未上传或目录不存在' });
-    }
+const normalizeCodePath = (value = '') => String(value).replace(/\\/g, '/').replace(/^\/+/, '');
+const resolveCodeArtifacts = (codeRootPath, gameId) => {
+  const codeDir = path.join(codeRootPath, gameId);
+  const codeZipPath = path.join(codeRootPath, `${gameId}.zip`);
+  const dirExists = fsSync.existsSync(codeDir) && fsSync.lstatSync(codeDir).isDirectory();
+  const zipExists = fsSync.existsSync(codeZipPath);
+  return { codeDir, codeZipPath, dirExists, zipExists };
+};
 
-    const targetDir = codeDir;
+async function collectCodeFilesFromDirectory(targetDir) {
+  const files = [];
 
-    // 扫描与过滤
-    const exts = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.css', '.scss', '.less', '.html', '.json', '.md', '.c', '.cpp', '.h', '.cs', '.py']);
-    const MAX_FILES = 60;
-    const MAX_FILE_SIZE = 200 * 1024; // 200KB
+  async function walk(dir) {
+    const items = await fs.readdir(dir, { withFileTypes: true });
+    for (const item of items) {
+      if (files.length >= CODE_BROWSE_MAX_FILES) return;
+      const full = path.join(dir, item.name);
 
-    const files = [];
-    async function walk(dir) {
-      const items = await fs.readdir(dir, { withFileTypes: true });
-      for (const item of items) {
-        if (files.length >= MAX_FILES) return; // 控制数量
-        const full = path.join(dir, item.name);
-        if (item.isDirectory()) {
-          // 跳过庞大目录
-          if (['node_modules', 'dist', 'build', '.git', '.output', '.cache'].includes(item.name)) continue;
-          await walk(full);
-        } else {
-          const ext = path.extname(item.name).toLowerCase();
-          if (!exts.has(ext)) continue;
-          const rel = path.relative(targetDir, full).replace(/\\/g, '/');
-          try {
-            const stat = await fs.lstat(full);
-            if (stat.size > MAX_FILE_SIZE) continue;
-            const content = await fs.readFile(full, 'utf8');
-            files.push({ path: rel, content });
-          } catch (e) {
-            // 忽略无法读取的文件
-          }
-        }
+      if (item.isDirectory()) {
+        if (CODE_BROWSE_SKIP_DIRS.has(item.name)) continue;
+        await walk(full);
+        continue;
+      }
+
+      const ext = path.extname(item.name).toLowerCase();
+      if (!CODE_BROWSE_EXTS.has(ext)) continue;
+
+      const rel = normalizeCodePath(path.relative(targetDir, full));
+      if (!rel || rel.startsWith('..')) continue;
+
+      try {
+        const stat = await fs.lstat(full);
+        if (stat.size > CODE_BROWSE_MAX_FILE_SIZE) continue;
+        const content = await fs.readFile(full, 'utf8');
+        files.push({ path: rel, content });
+      } catch (e) {
+        // 忽略无法读取的文件
       }
     }
-    await walk(targetDir);
+  }
+
+  await walk(targetDir);
+  return files;
+}
+
+function collectCodeFilesFromZip(zipPath) {
+  try {
+    const files = [];
+    const zip = new AdmZip(zipPath);
+    const entries = zip.getEntries() || [];
+
+    for (const entry of entries) {
+      if (files.length >= CODE_BROWSE_MAX_FILES) break;
+      if (entry.isDirectory) continue;
+
+      const rel = normalizeCodePath(entry.entryName || '');
+      if (!rel || rel.includes('../')) continue;
+
+      const ext = path.extname(rel).toLowerCase();
+      if (!CODE_BROWSE_EXTS.has(ext)) continue;
+
+      const rawSize = Number(entry.header?.size || 0);
+      if (Number.isFinite(rawSize) && rawSize > CODE_BROWSE_MAX_FILE_SIZE) continue;
+
+      try {
+        const content = entry.getData().toString('utf8');
+        if (Buffer.byteLength(content, 'utf8') > CODE_BROWSE_MAX_FILE_SIZE) continue;
+        files.push({ path: rel, content });
+      } catch (e) {
+        // 忽略无法读取/解码的文件
+      }
+    }
+
+    return files;
+  } catch (error) {
+    console.warn('⚠️ 读取源码压缩包失败:', error.message);
+    return [];
+  }
+}
+
+// 代码浏览：优先读取 uploads/code/<gameId> 目录，不存在时回退读取 uploads/code/<gameId>.zip
+const getGameCode = async (req, res) => {
+  try {
+    const requestedGameId = String(req.params.gameId || '').trim();
+    if (!requestedGameId) {
+      return res.status(400).json({ error: '缺少游戏ID' });
+    }
+
+    const codeRootPath = process.env.CODE_ROOT_PATH || path.join(process.cwd(), 'uploads', 'code');
+    let resolvedGameId = requestedGameId;
+    let { codeDir, codeZipPath, dirExists, zipExists } = resolveCodeArtifacts(codeRootPath, resolvedGameId);
+
+    if (!dirExists && !zipExists) {
+      const pool = getPool();
+      const [rows] = await pool.execute(
+        'SELECT game_id FROM games WHERE game_id = ? OR CAST(id AS CHAR) = ? LIMIT 1',
+        [requestedGameId, requestedGameId]
+      );
+
+      const mappedGameId = rows?.[0]?.game_id ? String(rows[0].game_id).trim() : '';
+      if (mappedGameId) {
+        resolvedGameId = mappedGameId;
+        ({ codeDir, codeZipPath, dirExists, zipExists } = resolveCodeArtifacts(codeRootPath, resolvedGameId));
+      }
+    }
+
+    if (!dirExists && !zipExists) {
+      return res.status(404).json({ error: '源码尚未上传或目录不存在', game_id: resolvedGameId });
+    }
+
+    let files = [];
+
+    if (dirExists) {
+      files = await collectCodeFilesFromDirectory(codeDir);
+    }
+
+    if (!files.length && zipExists) {
+      files = collectCodeFilesFromZip(codeZipPath);
+    }
 
     res.json({ files });
   } catch (error) {
@@ -216,7 +372,7 @@ const downloadGameCode = async (req, res) => {
     const { gameId } = req.params;
     const codeRootPath = process.env.CODE_ROOT_PATH || path.join(process.cwd(), 'uploads', 'code');
     const predefinedZip = path.join(codeRootPath, `${gameId}.zip`);
-    
+
     if (fsSync.existsSync(predefinedZip)) {
       return res.sendFile(predefinedZip);
     }
@@ -505,11 +661,78 @@ const recordGamePlay = async (req, res) => {
   }
 };
 
+// 获取我的游戏库
+const getMyLibrary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const pool = getPool();
+    await ensureLibraryTable(pool);
+
+    const [rows] = await pool.execute(
+      `SELECT l.game_id, l.created_at AS saved_at,
+              g.title, g.category, g.thumbnail_url, g.video_url, g.play_count, g.game_url
+       FROM user_game_library l
+       JOIN games g ON g.game_id = l.game_id
+       WHERE l.user_id = ? AND g.status = 'approved'
+       ORDER BY l.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ games: rows });
+  } catch (error) {
+    console.error('获取用户游戏库失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+// 添加游戏到我的库
+const addToLibrary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { gameId } = req.params;
+    if (!gameId) {
+      return res.status(400).json({ error: '缺少 gameId' });
+    }
+
+    const pool = getPool();
+    await ensureLibraryTable(pool);
+
+    const [games] = await pool.execute(
+      `SELECT game_id, title
+       FROM games
+       WHERE game_id = ? AND status = 'approved'
+       LIMIT 1`,
+      [gameId]
+    );
+
+    if (!games.length) {
+      return res.status(404).json({ error: '游戏不存在或未通过审核' });
+    }
+
+    const [result] = await pool.execute(
+      `INSERT IGNORE INTO user_game_library (user_id, game_id)
+       VALUES (?, ?)`,
+      [userId, gameId]
+    );
+
+    res.json({
+      added: result.affectedRows > 0,
+      game_id: gameId,
+      message: result.affectedRows > 0 ? '已加入游戏库' : '该游戏已在你的库中'
+    });
+  } catch (error) {
+    console.error('加入游戏库失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
 module.exports = {
   getGamesList,
   getGameDetail,
   getGameCode,
   downloadGameCode,
   uploadGame,
-  recordGamePlay
+  recordGamePlay,
+  getMyLibrary,
+  addToLibrary
 };

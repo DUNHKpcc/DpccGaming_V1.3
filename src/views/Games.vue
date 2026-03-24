@@ -9,7 +9,7 @@
             <h1 class="text-3xl font-bold text-white">游戏库</h1>
             <button
               @click="openAddGameModal"
-              class="bg-white hover:bg-white/90 text-[#1d1d1f] px-6 py-3 rounded-lg transition-colors duration-300 flex items-center gap-2"
+              class="add-game-btn bg-white hover:bg-white/90 text-[#1d1d1f] px-6 py-3 rounded-lg transition-colors duration-300 flex items-center gap-2"
             >
               <i class="fa fa-plus"></i>
               添加游戏
@@ -22,18 +22,30 @@
           >
             <div class="filter-group">
               <button
-                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90"
+                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90 flex items-center gap-2"
                 @click="openEngineSlider"
               >
-                <i class="fa fa-cogs mr-2"></i>游戏引擎
+                <img
+                  v-if="getEngineFilterIcon()"
+                  :src="getEngineFilterIcon()"
+                  alt="游戏引擎"
+                  class="filter-btn-icon"
+                />
+                <span>游戏引擎</span>
               </button>
             </div>
             <div class="filter-group">
               <button
-                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90"
+                class="filter-btn bg-white text-[#1d1d1f] border border-black/10 px-4 py-2 rounded-full transition-all duration-300 hover:bg-white/90 flex items-center gap-2"
                 @click="openCodeSlider"
               >
-                <i class="fa fa-code mr-2"></i>编程语言
+                <img
+                  v-if="getCodeFilterIcon()"
+                  :src="getCodeFilterIcon()"
+                  alt="编程语言"
+                  class="filter-btn-icon"
+                />
+                <span>编程语言</span>
               </button>
             </div>
           </div>
@@ -67,15 +79,27 @@
                     active:
                       (currentSliderType === 'engine' &&
                         (selectedEngine === opt ||
-                          (selectedEngine === 'all' && opt === 'ȫ��'))) ||
+                          (selectedEngine === 'all' && opt === '其它'))) ||
                       (currentSliderType === 'code' &&
                         (selectedCodeType === opt ||
-                          (selectedCodeType === 'all' && opt === 'ȫ��')))
+                          (selectedCodeType === 'all' && opt === '其它')))
                   }
                 ]"
                 @click="onSliderSelect(opt)"
               >
-                {{ opt }}
+                <img
+                  v-if="currentSliderType === 'engine' && getEngineOptionIcon(opt)"
+                  :src="getEngineOptionIcon(opt)"
+                  alt="游戏引擎"
+                  class="option-chip-icon"
+                />
+                <img
+                  v-if="currentSliderType === 'code' && getCodeOptionIcon(opt)"
+                  :src="getCodeOptionIcon(opt)"
+                  alt="编程语言"
+                  class="option-chip-icon"
+                />
+                <span>{{ opt }}</span>
               </button>
             </div>
           </div>
@@ -92,7 +116,7 @@
             <div
               v-for="game in filteredGames"
               :key="game.id"
-              class="game-card glass-card overflow-hidden"
+              class="game-card glass-card"
             >
               <div class="relative group">
                 <div
@@ -151,12 +175,12 @@
                   </template>
                 </div>
                 <div
-                  class="absolute top-4 right-4 bg-white text-[#1d1d1f] text-sm font-bold px-3 py-1 rounded-full border border-black/10 shadow-sm"
+                  class="game-tag-badge absolute top-4 right-4 bg-white text-[#1d1d1f] text-sm font-bold px-3 py-1 rounded-full border border-black/10 shadow-sm"
                 >
                   {{ categoryToZh(game.category || 'action') }}
                 </div>
               </div>
-              <div class="p-6">
+              <div class="game-card-body p-6" :style="getCardThemeStyle(game)">
                 <div class="flex justify-between items-start mb-3">
                   <h3 class="text-xl font-bold text-white">
                     {{ game.title }}
@@ -171,15 +195,43 @@
                 <p class="text-white/80 text-sm mb-4">
                   {{ game.description }}
                 </p>
+                <div class="card-author-line mb-4">
+                  <AvatarFriendAction
+                    :user-id="game.uploaded_by_id"
+                    :username="game.uploaded_by_username"
+                    placement="left"
+                  >
+                    <img
+                      :src="getAvatarUrl(game.uploaded_by_avatar_url)"
+                      alt="作者头像"
+                      class="card-author-avatar"
+                      @error="handleAvatarError"
+                    />
+                  </AvatarFriendAction>
+                  <div class="card-author-meta">
+                    <span class="card-author-text">
+                      By {{ game.uploaded_by_username || '匿名开发者' }}
+                    </span>
+                    <UserLevelBadge :user-id="game.uploaded_by_id" />
+                  </div>
+                </div>
                 <div class="flex items-center text-sm text-white/80 mb-4">
                   <i class="fa fa-tag mr-2"></i>
                   <span>游戏类别: {{ categoryToZh(game.category || 'action') }}</span>
-                  <i class="fa fa-cogs mr-2 ml-4"></i>
+                  <img
+                    :src="getEngineIcon(game)"
+                    alt="游戏引擎"
+                    class="engine-type-icon ml-4 mr-2"
+                  />
                   <span>游戏引擎: {{ getEngine(game) || 'Cocos' }}</span>
-                  <i class="fa fa-code mr-2 ml-4"></i>
+                  <img
+                    :src="getCodeTypeIcon(game)"
+                    alt="编程语言"
+                    class="code-type-icon ml-4 mr-2"
+                  />
                   <span>编程语言: {{ getCodeType(game) || 'TypeScript' }}</span>
                 </div>
-                <div class="flex justify-between items-center">
+                <div class="game-card-actions flex justify-between items-center">
                   <span class="text-sm text-white/80">
                     <i class="fa fa-play mr-1"></i>
                     {{ game.play_count || 0 }} 次
@@ -190,6 +242,13 @@
                       class="play-game-btn bg-white hover:bg-white/90 text-[#1d1d1f] px-4 py-2 rounded-full text-sm transition-all duration-300"
                     >
                       立即开始
+                    </button>
+                    <button
+                      @click="addGameToLibrary(game)"
+                      :disabled="isAddingLibrary(game) || isInLibrary(game)"
+                      class="add-library-btn px-4 py-2 rounded-full text-sm transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {{ isInLibrary(game) ? '已在库中' : (isAddingLibrary(game) ? '加入中...' : '加入库') }}
                     </button>
                   </div>
                 </div>
@@ -203,15 +262,23 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 import { resolveMediaUrl } from '../utils/media'
 import { gsap } from 'gsap'
 import { categoryToZh } from '../utils/category'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import { apiCall } from '../utils/api'
+import { useAuthStore } from '../stores/auth'
+import { useNotificationStore } from '../stores/notification'
+import AvatarFriendAction from '../components/AvatarFriendAction.vue'
+import UserLevelBadge from '../components/UserLevelBadge.vue'
 
 const gameStore = useGameStore()
 const modalStore = useModalStore()
+const authStore = useAuthStore()
+const notificationStore = useNotificationStore()
 
 const games = ref([])
 const engines = ['全部', 'Godot', 'Unity', 'Cocos', '其他']
@@ -225,6 +292,12 @@ const hoveredVideoId = ref(null)
 const videoStates = reactive({})
 const videoRefs = new Map()
 const initializedVideos = new Set()
+const cardThemeStyles = reactive({})
+const themedGameKeys = new Set()
+const pendingThemeKeys = new Set()
+const libraryGameIds = ref(new Set())
+const addingLibraryIds = reactive({})
+const isLoggedIn = computed(() => authStore.isLoggedIn)
 
 // Slider state
 const sliderVisible = ref(false)
@@ -298,6 +371,55 @@ const normalizeCodeType = val => {
   return v
 }
 
+const codeTypeIconMap = {
+  typescript: '/codeType/typescript.jpg',
+  javascript: '/codeType/js.webp',
+  'c#': '/codeType/csharp.webp'
+}
+
+const engineIconMap = {
+  godot: '/engineType/godot.webp',
+  unity: '/engineType/unity.webp',
+  cocos: '/engineType/cocos.webp',
+  other: '/engineType/cocos.webp'
+}
+
+const getCodeTypeIcon = game => {
+  const normalized = normalizeCodeType(getCodeType(game)) || 'typescript'
+  return codeTypeIconMap[normalized] || codeTypeIconMap.typescript
+}
+
+const getEngineIcon = game => {
+  const normalized = normalizeEngine(getEngine(game)) || 'cocos'
+  return engineIconMap[normalized] || engineIconMap.cocos
+}
+
+const getEngineFilterIcon = () => {
+  if (selectedEngine.value === 'all') return ''
+  const normalized = normalizeEngine(selectedEngine.value)
+  if (normalized === 'other') return ''
+  return engineIconMap[normalized] || ''
+}
+
+const getCodeFilterIcon = () => {
+  if (selectedCodeType.value === 'all') return ''
+  const normalized = normalizeCodeType(selectedCodeType.value)
+  if (normalized === 'other') return ''
+  return codeTypeIconMap[normalized] || ''
+}
+
+const getEngineOptionIcon = opt => {
+  if (opt === '全部' || opt === '其他') return ''
+  const normalized = normalizeEngine(opt)
+  return engineIconMap[normalized]
+}
+
+const getCodeOptionIcon = opt => {
+  if (opt === '全部' || opt === '其他') return ''
+  const normalized = normalizeCodeType(opt)
+  return codeTypeIconMap[normalized]
+}
+
 // Apply filters to games
 const applyFilters = () => {
   const selEngine = normalizeEngine(selectedEngine.value)
@@ -346,7 +468,6 @@ const onOptionsBarLeave = () => {
   overlay.value.hoverKey = null
 }
 
-// Scroll cards area to the grid anchor
 const scrollToGrid = () => {
   const scrollContainer = document.querySelector('.games-cards-scroll')
   const gridEl = document.querySelector('.games-grid-anchor')
@@ -409,9 +530,212 @@ const openAddGameModal = () => {
   modalStore.openModal('addGame')
 }
 
+const loadUserLibrary = async () => {
+  if (!isLoggedIn.value) {
+    libraryGameIds.value = new Set()
+    return
+  }
+
+  try {
+    const data = await apiCall('/games/library/mine')
+    const nextSet = new Set((data?.games || []).map(item => String(item.game_id)))
+    libraryGameIds.value = nextSet
+  } catch (error) {
+    console.error('加载用户游戏库失败:', error)
+  }
+}
+
 // Media helpers
 const getVideoUrl = videoUrl => resolveMediaUrl(videoUrl)
 const getGameKey = game => game.game_id || game.id
+
+const isInLibrary = game => {
+  const key = getGameKey(game)
+  if (!key) return false
+  return libraryGameIds.value.has(String(key))
+}
+
+const isAddingLibrary = game => {
+  const key = getGameKey(game)
+  if (!key) return false
+  return addingLibraryIds[String(key)] === true
+}
+
+const addGameToLibrary = async game => {
+  const key = getGameKey(game)
+  if (!key) return
+
+  if (!isLoggedIn.value) {
+    modalStore.openModal('login')
+    notificationStore.info('请先登录', '登录后可将游戏加入个人游戏库')
+    return
+  }
+
+  if (isInLibrary(game)) return
+
+  const keyText = String(key)
+  addingLibraryIds[keyText] = true
+  try {
+    await apiCall(`/games/${encodeURIComponent(keyText)}/library`, {
+      method: 'POST'
+    })
+    const nextSet = new Set(libraryGameIds.value)
+    nextSet.add(keyText)
+    libraryGameIds.value = nextSet
+    notificationStore.success('加入成功', '游戏已加入你的游戏库')
+  } catch (error) {
+    notificationStore.error('加入失败', error.message || '请稍后重试')
+  } finally {
+    addingLibraryIds[keyText] = false
+  }
+}
+
+const rgbTuple = (r, g, b) =>
+  `${Math.max(0, Math.min(255, Math.round(r)))}, ${Math.max(0, Math.min(255, Math.round(g)))}, ${Math.max(0, Math.min(255, Math.round(b)))}`
+
+const mixRgb = (a, b, t) => [
+  Math.round(a[0] + (b[0] - a[0]) * t),
+  Math.round(a[1] + (b[1] - a[1]) * t),
+  Math.round(a[2] + (b[2] - a[2]) * t)
+]
+
+const hashString = value => {
+  const text = String(value || '')
+  let hash = 0
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash)
+}
+
+const hslToRgb = (h, s, l) => {
+  const hue = (h % 360) / 360
+  const sat = Math.max(0, Math.min(1, s))
+  const light = Math.max(0, Math.min(1, l))
+  if (sat === 0) {
+    const v = Math.round(light * 255)
+    return [v, v, v]
+  }
+  const q = light < 0.5 ? light * (1 + sat) : light + sat - light * sat
+  const p = 2 * light - q
+  const hueToChannel = t => {
+    let x = t
+    if (x < 0) x += 1
+    if (x > 1) x -= 1
+    if (x < 1 / 6) return p + (q - p) * 6 * x
+    if (x < 1 / 2) return q
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6
+    return p
+  }
+  return [
+    Math.round(hueToChannel(hue + 1 / 3) * 255),
+    Math.round(hueToChannel(hue) * 255),
+    Math.round(hueToChannel(hue - 1 / 3) * 255)
+  ]
+}
+
+const applyThemeFromRgb = (key, rgb) => {
+  const main = rgb.map(v => Math.max(0, Math.min(255, Math.round(v))))
+  const bright = mixRgb(main, [255, 255, 255], 0.22)
+  const deep = mixRgb(main, [0, 0, 0], 0.44)
+  const edge = mixRgb(main, [0, 0, 0], 0.62)
+  cardThemeStyles[key] = {
+    '--card-theme-main': rgbTuple(main[0], main[1], main[2]),
+    '--card-theme-bright': rgbTuple(bright[0], bright[1], bright[2]),
+    '--card-theme-deep': rgbTuple(deep[0], deep[1], deep[2]),
+    '--card-theme-edge': rgbTuple(edge[0], edge[1], edge[2])
+  }
+}
+
+const applySeedTheme = game => {
+  const key = getGameKey(game)
+  if (!key || cardThemeStyles[key]) return
+  const seed = hashString(`${game?.title || 'game'}-${game?.category || ''}`)
+  const hue = seed % 360
+  const saturation = 0.48 + ((seed % 17) / 100)
+  const lightness = 0.43 + ((seed % 13) / 120)
+  applyThemeFromRgb(key, hslToRgb(hue, saturation, lightness))
+}
+
+const extractThemeFromElement = (element, key) => {
+  if (!element || !key) return false
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = 22
+    canvas.height = 22
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) return false
+
+    context.drawImage(element, 0, 0, canvas.width, canvas.height)
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+
+    let r = 0
+    let g = 0
+    let b = 0
+    let count = 0
+
+    for (let i = 0; i < data.length; i += 4) {
+      const alpha = data[i + 3] / 255
+      if (alpha < 0.2) continue
+      const pr = data[i]
+      const pg = data[i + 1]
+      const pb = data[i + 2]
+      const luminance = (0.2126 * pr + 0.7152 * pg + 0.0722 * pb) / 255
+      if (luminance < 0.05 || luminance > 0.95) continue
+      r += pr
+      g += pg
+      b += pb
+      count += 1
+    }
+
+    if (!count) return false
+    applyThemeFromRgb(key, [r / count, g / count, b / count])
+    themedGameKeys.add(key)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+const queueImageThemeExtraction = game => {
+  const key = getGameKey(game)
+  if (!key || themedGameKeys.has(key) || pendingThemeKeys.has(key)) return
+  const coverUrl = resolveMediaUrl(game?.thumbnail_url || '')
+  if (!coverUrl) return
+
+  pendingThemeKeys.add(key)
+  const image = new Image()
+  image.crossOrigin = 'anonymous'
+  image.referrerPolicy = 'no-referrer'
+
+  image.onload = () => {
+    extractThemeFromElement(image, key)
+    pendingThemeKeys.delete(key)
+  }
+  image.onerror = () => {
+    pendingThemeKeys.delete(key)
+  }
+  image.src = coverUrl
+}
+
+const bindVideoThemeExtraction = (video, key) => {
+  const tryExtract = () => {
+    if (!video || themedGameKeys.has(key)) return
+    extractThemeFromElement(video, key)
+  }
+  if (video.readyState >= 2) {
+    tryExtract()
+  }
+  video.addEventListener('loadeddata', tryExtract, { once: true })
+  video.addEventListener('canplay', tryExtract, { once: true })
+  video.addEventListener('play', tryExtract, { once: true })
+}
+
+const getCardThemeStyle = game => {
+  const key = getGameKey(game)
+  return key ? cardThemeStyles[key] || null : null
+}
 
 // Video state helpers
 const ensureVideoState = key => {
@@ -453,6 +777,7 @@ const setVideoRef = (el, key) => {
   if (el) {
     videoRefs.set(key, el)
     const state = ensureVideoState(key)
+    bindVideoThemeExtraction(el, key)
     if (!initializedVideos.has(key)) {
       setupVideoElement(el, state)
       initializedVideos.add(key)
@@ -561,330 +886,26 @@ const isVideoPlaying = key => {
 
 onMounted(() => {
   loadGames()
+  loadUserLibrary()
 })
 
 // React to filter changes
 watch([selectedEngine, selectedCodeType, games], () => {
   applyFilters()
 })
+
+watch(isLoggedIn, () => {
+  loadUserLibrary()
+})
+
+watch(filteredGames, currentGames => {
+  currentGames.forEach(game => {
+    applySeedTheme(game)
+    if (!game?.video_url) {
+      queueImageThemeExtraction(game)
+    }
+  })
+}, { immediate: true })
 </script>
 
-<style scoped>
-.games-page {
-  /* Distance from topbar; adjust if needed */
-  --topbar-gap: 72px;
-  min-height: 100vh;
-  height: 100vh;
-  position: fixed;
-  width: 100%;
-  overflow: hidden; 
-  font-family: 'Quicksand', sans-serif;
-  background-color: #000;
-  color: #f3f4f6;
-}
-
-@media (max-width: 768px) {
-  .games-page {
-    --topbar-gap: 64px;
-  }
-}
-
-.games-page::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.45),
-    rgba(0, 0, 0, 0.75)
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.content-wrapper {
-  position: relative;
-  margin-top: var(--topbar-gap);
-  z-index: 10;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  max-height: 100vh;
-}
-
-.games-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  height: 100%;
-  overflow: hidden;
-  max-height: 100vh;
-} 
-
-.games-header {
-  flex-shrink: 0;
-  margin-bottom: 4px;
-  width: 100%;
-  overflow: hidden;
-}
-
-.games-cards-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto; 
-  padding-bottom: 24px;
-}
-
-.games-cards-scroll::-webkit-scrollbar {
-  width: 8px;
-}
-
-.games-cards-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-}
-
-.games-cards-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.games-grid-anchor {
-  scroll-margin-top: 12px;
-}
-
-/* Sidebar spacing on large screens */
-@media (min-width: 1024px) {
-  .games-page .content-wrapper {
-    padding-left: 96px;
-  }
-}
-
-@media (min-width: 1536px) {
-  .games-page .content-wrapper {
-    padding-left: 120px;
-  }
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 0;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  background-clip: padding-box;
-  -webkit-background-clip: padding-box;
-  isolation: isolate;
-  contain: paint;
-  will-change: transform;
-  transition: background 0.3s ease;
-}
-
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-}
-
-.game-card {
-  transition: transform 0.3s ease;
-}
-
-.game-card:hover {
-  transform: translateY(-4px);
-}
-
-.filter-menu {
-  position: relative;
-  z-index: 10;
-}
-
-.filter-group {
-  position: relative;
-  z-index: 10;
-}
-
-.filter-dropdown {
-  min-width: 120px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  z-index: 100;
-}
-
-.filter-menu:focus-within .filter-dropdown {
-  display: block;
-}
-
-.options-bar-wrapper {
-  margin-bottom: 16px;
-}
-
-.options-bar {
-  position: relative;
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 14px;
-  background: transparent;
-  box-shadow: none;
-  border: 1px solid transparent;
-  overflow: hidden;
-}
-
-.options-bar.is-engine {
-  background: transparent;
-}
-
-.options-bar.is-code {
-  background: transparent;
-}
-
-.option-chip {
-  position: relative;
-  white-space: nowrap;
-  padding: 10px 16px;
-  border-radius: 9999px;
-  background: #ffffff;
-  color: #1d1d1f;
-  font-weight: 600;
-  font-size: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  transition:
-    transform 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease,
-    color 160ms ease;
-}
-
-.option-chip:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-}
-
-.option-chip.active {
-  background: #ffffff;
-  color: #1d1d1f;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06) inset;
-}
-
-.video-wrapper .game-video {
-  transform-origin: center;
-  will-change: transform;
-}
-
-.video-control-panel .control-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  background: #ffffff;
-  color: #1d1d1f;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  transition:
-    background 0.2s ease,
-    transform 0.2s ease,
-    color 0.2s ease;
-}
-
-.video-control-panel .control-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
-  transform: translateY(-1px);
-}
-
-.video-control-panel {
-  z-index: 2;
-}
-
-.glass-overlay {
-  position: absolute;
-  left: 0;
-  top: 0;
-  pointer-events: none;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.32);
-  border: 2px solid #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  transition:
-    transform 140ms ease,
-    width 140ms ease,
-    height 140ms ease,
-    opacity 160ms ease;
-  z-index: 1000;
-}
-
-.magnifier {
-  transform: scale(1.24);
-  color: #fff;
-  font-weight: bold;
-  z-index: 1200;
-  background: rgba(255, 255, 255, 0.46) !important;
-  box-shadow: 0 0 20px 6px rgba(255, 255, 255, 0.18);
-  transition:
-    transform 0.13s cubic-bezier(0.67, 0.12, 0.85, 1.21),
-    background 0.18s,
-    box-shadow 0.18s;
-}
-
-@keyframes movement {
-  0%,
-  100% {
-    background-size:
-      130vmax 130vmax,
-      80vmax 80vmax,
-      90vmax 90vmax,
-      110vmax 110vmax,
-      90vmax 90vmax;
-    background-position:
-      -80vmax -80vmax,
-      60vmax -30vmax,
-      10vmax 10vmax,
-      -30vmax -10vmax,
-      50vmax 50vmax;
-  }
-  25% {
-    background-size:
-      100vmax 100vmax,
-      90vmax 90vmax,
-      100vmax 100vmax,
-      90vmax 90vmax,
-      60vmax 60vmax;
-    background-position:
-      -60vmax -90vmax,
-      50vmax -40vmax,
-      0vmax -20vmax,
-      -40vmax -20vmax,
-      40vmax 60vmax;
-  }
-  50% {
-    background-size:
-      80vmax 80vmax,
-      110vmax 110vmax,
-      80vmax 80vmax,
-      60vmax 60vmax,
-      80vmax 80vmax;
-    background-position:
-      -50vmax -70vmax,
-      40vmax -30vmax,
-      10vmax 0vmax,
-      20vmax 10vmax,
-      30vmax 70vmax;
-  }
-  75% {
-    background-size:
-      90vmax 90vmax,
-      90vmax 90vmax,
-      100vmax 100vmax,
-      90vmax 90vmax,
-      70vmax 70vmax;
-    background-position:
-      -50vmax -40vmax,
-      50vmax -30vmax,
-      20vmax 0vmax,
-      -10vmax 10vmax,
-      40vmax 60vmax;
-  }
-}
-</style>
-
+<style scoped src="../styles/games.css"></style>

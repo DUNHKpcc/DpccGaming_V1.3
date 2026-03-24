@@ -41,6 +41,27 @@ const getNotifications = async (req, res) => {
   }
 };
 
+// 获取未读通知状态
+const getUnreadStatus = async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.execute(`
+      SELECT COUNT(*) AS unread_count
+      FROM notifications
+      WHERE user_id = ? AND is_read = false
+    `, [req.user.userId]);
+
+    const unreadCount = Number(rows?.[0]?.unread_count || 0);
+    res.json({
+      unreadCount,
+      hasUnread: unreadCount > 0
+    });
+  } catch (error) {
+    console.error('获取未读通知状态错误:', error);
+    res.status(500).json({ error: '获取未读状态失败' });
+  }
+};
+
 // 标记通知为已读
 const markNotificationAsRead = async (req, res) => {
   try {
@@ -83,6 +104,7 @@ const markAllNotificationsAsRead = async (req, res) => {
 
 module.exports = {
   getNotifications,
+  getUnreadStatus,
   markNotificationAsRead,
   markAllNotificationsAsRead
 };

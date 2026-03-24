@@ -1,22 +1,21 @@
-<template>
-  <footer class="bg_footer text-gray-300 pt-16 pb-8">
+﻿<template>
+  <footer class="bg_footer pt-16 pb-8 transition-colors duration-300">
     <div class="container mx-auto px-4">
-      <!-- 顶部 CTA 区域 -->
       <div
         class="flex flex-col md:flex-row md:items-center md:justify-between gap-8 pb-12"
       >
-        <div>
-          <h2 class="text-3xl md:text-4xl font-bold text-white mb-2">
+        <div class="footer-text-offset footer-cta-copy">
+          <h2 class="footer-cta-title text-3xl md:text-4xl font-bold section-title">
             Get Started with DpccGaming
           </h2>
-          <p class="text-lg text-gray-400">
+          <p class="text-lg section-text">
             免费开始收集和分享你的独立游戏
           </p>
         </div>
 
         <a
           href="/games"
-          class="inline-flex items-center justify-center gap-3 bg-white text-black font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+          class="cta-button inline-flex items-center justify-center gap-3 font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
         >
           <i class="fa-brands fa-windows text-xl"/>
           <span>下载 DpccGaming</span>
@@ -24,29 +23,28 @@
         </a>
       </div>
 
-
-      <div class="border-t border-gray-800 pt-10">
+      <div class="border-t border-gray-800/20 pt-10">
         <div
           class="grid grid-cols-1 md:grid-cols-4 gap-10 pb-10 text-sm md:text-base"
         >
-          <div>
-            <div class="flex items-center mb-4">
+          <div class="footer-text-offset">
+            <div class="flex items-center">
               <img
-                src="/logo.png"
+                :src="currentLogo"
                 alt="DpccGaming Logo"
                 class="w-8 h-8 mr-2"
               />
-              <span class="text-xl font-semibold text-white">
+              <span class="footer-brand-title text-xl font-semibold section-title">
                 DpccGaming
               </span>
             </div>
-            <p class="text-gray-500 max-w-xs">
+            <p class="footer-brand-description section-text max-w-xs">
               面向个人开发者的游戏收集与分发平台，在一个地方展示、分享和发现创意作品。
             </p>
           </div>
 
-          <div>
-            <h3 class="text-gray-400 font-semibold mb-3">条款</h3>
+          <div class="footer-text-offset">
+            <h3 class="font-semibold mb-3 section-subtitle">条款</h3>
             <ul class="space-y-2">
               <li>
                 <a href="#" class="footer-link">服务条款</a>
@@ -55,19 +53,21 @@
                 <a href="#" class="footer-link">隐私政策</a>
               </li>
               <li>
-                <a href="#" class="footer-link">Cookie 政策</a>
+                <router-link to="/cookie-policy" class="footer-link">
+                  <span>Cookie 政策</span>
+                </router-link>
               </li>
             </ul>
           </div>
 
           <!-- Resources -->
-          <div>
-            <h3 class="text-gray-400 font-semibold mb-3">资源</h3>
+          <div class="footer-text-offset">
+            <h3 class="font-semibold mb-3 section-subtitle">资源</h3>
             <ul class="space-y-2">
               <li>
-                <router-link to="/docs" class="footer-link flex items-center gap-2">
+                <router-link to="/aidocs" class="footer-link flex items-center gap-2">
                   <i class="fa-solid fa-book-open text-sm" />
-                  <span>开发文档</span>
+                  <span>AiDocs 文档</span>
                 </router-link>
               </li>
               <li>
@@ -84,15 +84,13 @@
               </li>
             </ul>
           </div>
-          
-          <div>
-            <h3 class="text-gray-400 font-semibold mb-3">联系我们</h3>
+
+          <div class="footer-text-offset">
+            <h3 class="font-semibold mb-3 section-subtitle">联系我们</h3>
             <ul class="space-y-2">
-              <li>
-                <a href="#" class="footer-link flex items-center gap-2">
-                  <i class="fa-regular fa-message text-sm" />
-                  <span>反馈与建议</span>
-                </a>
+              <li class="section-text">
+                  <i class="fa-regular fa-message text-sm mr-2" />
+                  <span>反馈与建议 邮箱：sjh2329952249@163.com</span>
               </li>
               <li>
                 <a href="#" class="footer-link flex items-center gap-2">
@@ -101,15 +99,9 @@
                 </a>
               </li>
               <li>
-                <a href="#" class="footer-link flex items-center gap-2">
-                  <i class="fa-brands fa-x-twitter text-sm" />
-                  <span>X</span>
-                </a>
-              </li>
-              <li>
-                <a href="#" class="footer-link flex items-center gap-2">
-                  <i class="fa-brands fa-instagram text-sm" />
-                  <span>Instagram</span>
+                <a href="https://space.bilibili.com/397853169?spm_id_from=333.788.upinfo.head.click" class="footer-link flex items-center gap-2">
+                  <img src="/SocialMediaLogo/bilibili.png" alt="Bilibili Logo" class="w-10 h-5"/>
+                  <span>哔哩哔哩</span>
                 </a>
               </li>
             </ul>
@@ -117,9 +109,9 @@
         </div>
 
         <div
-          class="border-t border-gray-800 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs md:text-sm text-gray-500"
+          class="footer-bottom-row border-t border-gray-800/20 pt-6 flex flex-col items-center gap-4 text-xs md:text-sm section-text"
         >
-          <div class="space-y-1 text-center md:text-left">
+          <div class="footer-copy space-y-1 text-center">
             <p>&copy; 2025 SunJiaHao. All rights reserved.</p>
             <p>
               <a
@@ -135,11 +127,11 @@
 
           <button
             type="button"
-            class="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors duration-200"
+            class="footer-back-top footer-text-offset inline-flex items-center gap-2 section-text hover:opacity-80 transition-opacity duration-200"
             @click="scrollToTop"
           >
             <span>Back to top</span>
-            <span class="text-base">○</span>
+            <span class="text-base">↑</span>
           </button>
         </div>
       </div>
@@ -148,6 +140,12 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useThemeStore } from '../stores/theme'
+
+const themeStore = useThemeStore()
+const currentLogo = computed(() => (themeStore.isDark ? '/logo.png' : '/logo_light.png'))
+
 const scrollToTop = () => {
   window.scrollTo({
     top: 0,
@@ -157,13 +155,67 @@ const scrollToTop = () => {
 </script>
 
 <style scoped>
+
 .bg_footer {
-  background: rgb(29, 29, 31) !important;
-  background-color: rgb(29, 29, 31) !important;
+  background-color: #000000;
+  color: #ffffff;
+}
+
+.footer-text-offset {
+  transform: translateX(25px);
+}
+
+.footer-cta-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.footer-cta-title {
+  margin: 0;
+  padding: 0;
+}
+
+.footer-cta-copy .section-text {
+  margin: 0;
+}
+
+.footer-bottom-row {
+  position: relative;
+}
+
+.footer-copy {
+  text-align: center;
+}
+
+.footer-brand-title {
+  display: inline-block;
+  margin: 0;
+  margin-bottom: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.footer-brand-description {
+  margin: 0;
+  margin-top: 7px;
+}
+
+.section-title {
+  color: #ffffff;
+}
+
+.section-subtitle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.section-text {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .footer-link {
-  color: rgba(229, 231, 235, 0.8);
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
   transition: color 0.2s ease;
 }
@@ -172,13 +224,60 @@ const scrollToTop = () => {
   color: #ffffff;
 }
 
-.footer-icon-link {
-  color: rgba(229, 231, 235, 0.7);
-  transition: color 0.2s ease, transform 0.2s ease;
+.cta-button {
+  background-color: #ffffff;
+  color: #000000;
 }
 
-.footer-icon-link:hover {
+.cta-button:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+@media (min-width: 768px) {
+  .footer-bottom-row {
+    min-height: 2.5rem;
+  }
+
+  .footer-back-top {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%) translateX(25px);
+  }
+}
+
+[data-theme="light"] .bg_footer {
+  background-color: #ffffff;
+  color: #000000;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .section-title {
+  color: #000000;
+}
+
+[data-theme="light"] .section-subtitle {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] .section-text {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .footer-link {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .footer-link:hover {
+  color: #000000;
+}
+
+[data-theme="light"] .cta-button {
+  background-color: #000000;
   color: #ffffff;
-  transform: translateY(-1px);
+}
+
+[data-theme="light"] .cta-button:hover {
+  background-color: rgba(0, 0, 0, 0.85);
 }
 </style>

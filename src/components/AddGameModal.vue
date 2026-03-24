@@ -1,6 +1,6 @@
 <template>
   <div v-if="isOpen" 
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
+    class="fixed inset-0 z-[30000] flex items-center justify-center p-4 opacity-100 pointer-events-auto transition-opacity duration-300"
     @click="handleBackdropClick">
     <div class="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
     <div
@@ -30,7 +30,7 @@
             <option value="adventure">冒险</option>
             <option value="puzzle">谜题</option>
             <option value="racing">赛车</option>
-            <option value="simulation">模拟</option>
+            <option value="simulation">模拟</option> 
             <option value="strategy">策略</option>
           </select>
         </div>
@@ -59,7 +59,7 @@
             <option value="TypeScript">TypeScript</option>
             <option value="JavaScript">JavaScript</option>
             <option value="C#">C#</option>
-            <option value="其他">其他</option>
+            <option value="其他">其他</option>8
           </select>
         </div>
         <div class="mb-4">

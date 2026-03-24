@@ -73,7 +73,7 @@ declare namespace gsap {
     kill(revert?: boolean):void;
   }
 
-  interface AnimationVars extends CallbackVars {
+  export interface AnimationVars extends CallbackVars {
     [key: string]: any;
     data?: any;    
     id?: string | number;
@@ -183,7 +183,7 @@ declare namespace gsap {
       | "expo" | "expo.in" | "expo.out" | "expo.inOut"
       | "sine" | "sine.in" | "sine.out" | "sine.inOut" | ({} & string);
 
-  interface TweenVars extends AnimationVars {
+  export interface TweenVars extends AnimationVars {
     delay?: TweenValue;
     duration?: TweenValue;
     ease?: EaseString | EaseFunction;
@@ -303,21 +303,6 @@ declare namespace gsap {
    * @link https://greensock.com/docs/v3/GSAP/gsap.from()
    */
   function from(targets: TweenTarget, vars: TweenVars): core.Tween;
-  /**
-   * **Deprecated method signature.** Use the `duration` property instead.
-   * 
-   * ```js
-   * gsap.from(".class", 1, {x: 100});
-   * ```
-   * @deprecated since 3.0.0
-   * @param {TweenTarget} targets
-   * @param {number} duration - The duration parameter is deprecated. Use the `duration` property instead.
-   * @param {TweenVars} vars
-   * @returns {Tween} Tween instance
-   * @memberof gsap
-   * @link https://greensock.com/docs/v3/GSAP/gsap.from()
-   */
-  function from(targets: TweenTarget, duration: number, vars:TweenVars): core.Tween;
 
    /**
    * Creates a tween coming FROM the first set of values going TO the second set of values.
@@ -620,21 +605,6 @@ declare namespace gsap {
    * @link https://greensock.com/docs/v3/GSAP/gsap.to()
    */
   function to(targets: TweenTarget, vars: TweenVars): core.Tween;
-  /**
-   * **Deprecated method signature.** Use the `duration` property instead.
-   * 
-   * ```js
-   * gsap.to(".class", 1, {x: 100});
-   * ```
-   * @deprecated since version 3.0.0
-   * @param {TweenTarget} targets
-   * @param {number} duration - The duration parameter is deprecated. Use the `duration` property instead.
-   * @param {TweenVars} vars
-   * @returns {Tween} Tween instance
-   * @memberof gsap
-   * @link https://greensock.com/docs/v3/GSAP/gsap.to()
-   */
-  function to(targets: TweenTarget, duration: number, vars: TweenVars): core.Tween;
 
   /**
    * Manually update the root (global) timeline. Make sure to unhook GSAP's default ticker.
@@ -647,7 +617,7 @@ declare namespace gsap {
    * gsap.updateRoot(20);
    * ```
    *
-   * @param {number} number
+   * @param {number} time
    * @returns {void} Void
    * @memberof gsap
    * @link https://greensock.com/docs/v3/GSAP/gsap.updateRoot()

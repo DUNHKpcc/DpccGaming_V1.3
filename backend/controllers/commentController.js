@@ -1,6 +1,31 @@
 const { getPool } = require('../config/database');
 const { createNotification } = require('../utils/notification');
 
+const DEFAULT_AVATAR_URL = '/avatars/default-avatar.svg';
+let avatarColumnAvailableCache = null;
+
+const isAvatarColumnAvailable = async (pool) => {
+  if (avatarColumnAvailableCache !== null) {
+    return avatarColumnAvailableCache;
+  }
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) AS count
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'users'
+         AND COLUMN_NAME = 'avatar_url'`
+    );
+    avatarColumnAvailableCache = Number(rows?.[0]?.count || 0) > 0;
+  } catch (error) {
+    console.warn('检查 comments 头像字段失败，回退为无头像模式:', error.message);
+    avatarColumnAvailableCache = false;
+  }
+
+  return avatarColumnAvailableCache;
+};
+
 // 获取游戏评论（包含回复）
 const getGameComments = async (req, res) => {
   try {
@@ -8,26 +33,46 @@ const getGameComments = async (req, res) => {
 
     // 获取数据库连接池
     const pool = getPool();
+    const hasAvatarColumn = await isAvatarColumnAvailable(pool);
 
     // 获取主评论
-    const [comments] = await pool.execute(`
-      SELECT c.*, u.username 
-      FROM comments c 
-      JOIN users u ON c.user_id = u.id 
-      WHERE c.game_id = ? AND c.parent_id IS NULL
-      ORDER BY c.created_at DESC
-    `, [gameId]);
+    const [comments] = await pool.execute(
+      hasAvatarColumn
+        ? `SELECT c.*, u.username, COALESCE(u.avatar_url, ?) AS avatar_url
+           FROM comments c
+           JOIN users u ON c.user_id = u.id
+           WHERE c.game_id = ? AND c.parent_id IS NULL
+           ORDER BY c.created_at DESC`
+        : `SELECT c.*, u.username
+           FROM comments c
+           JOIN users u ON c.user_id = u.id
+           WHERE c.game_id = ? AND c.parent_id IS NULL
+           ORDER BY c.created_at DESC`,
+      hasAvatarColumn ? [DEFAULT_AVATAR_URL, gameId] : [gameId]
+    );
 
     // 为每个主评论获取回复
     for (let comment of comments) {
-      const [replies] = await pool.execute(`
-        SELECT c.*, u.username, ru.username as reply_to_username
-        FROM comments c 
-        JOIN users u ON c.user_id = u.id 
-        LEFT JOIN users ru ON c.reply_to_user_id = ru.id
-        WHERE c.parent_id = ?
-        ORDER BY c.created_at ASC
-      `, [comment.id]);
+      const [replies] = await pool.execute(
+        hasAvatarColumn
+          ? `SELECT c.*, u.username, COALESCE(u.avatar_url, ?) AS avatar_url,
+                    ru.username AS reply_to_username,
+                    COALESCE(ru.avatar_url, ?) AS reply_to_avatar_url
+             FROM comments c
+             JOIN users u ON c.user_id = u.id
+             LEFT JOIN users ru ON c.reply_to_user_id = ru.id
+             WHERE c.parent_id = ?
+             ORDER BY c.created_at ASC`
+          : `SELECT c.*, u.username, ru.username as reply_to_username
+             FROM comments c
+             JOIN users u ON c.user_id = u.id
+             LEFT JOIN users ru ON c.reply_to_user_id = ru.id
+             WHERE c.parent_id = ?
+             ORDER BY c.created_at ASC`,
+        hasAvatarColumn
+          ? [DEFAULT_AVATAR_URL, DEFAULT_AVATAR_URL, comment.id]
+          : [comment.id]
+      );
 
       comment.replies = replies;
     }

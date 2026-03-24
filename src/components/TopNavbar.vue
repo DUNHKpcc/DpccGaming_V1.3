@@ -2,19 +2,21 @@
   <header class="top-navbar">
     <div class="navbar-content">
       <div class="navbar-left">
-        <button 
+        <button
           @click="toggleSidebar"
           class="menu-button"
-          aria-label="打开菜单">
+          aria-label="打开菜单"
+        >
           <i class="fa fa-bars"></i>
         </button>
-        
+
         <div class="navbar-title">
           <router-link to="/" class="title-link">
-            <img 
-              :src="currentLogo" 
-              alt="DpccGaming Logo" 
-              class="logo-image mr-2">
+            <img
+              :src="currentLogo"
+              alt="DpccGaming Logo"
+              class="logo-image mr-2"
+            />
             DpccGaming
           </router-link>
         </div>
@@ -23,29 +25,26 @@
           <router-link to="/blog" class="nav-link" active-class="nav-link-active">
             Blog
           </router-link>
-          <router-link to="/docs" class="nav-link" active-class="nav-link-active">
-            Docs
+          <router-link to="/aidocs" class="nav-link" active-class="nav-link-active">
+            AiDocs
           </router-link>
         </nav>
       </div>
 
       <div class="navbar-right">
-        <button 
+        <button
           @click="toggleTheme"
           class="theme-toggle-btn"
-          :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'">
+          :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'"
+        >
           <i class="fa fa-adjust" aria-hidden="true"></i>
         </button>
 
         <div v-if="!isLoggedIn" class="auth-buttons">
-          <button 
-            @click="openLoginModal"
-            class="btn-secondary">
+          <button @click="openLoginModal" class="btn-secondary">
             登录
           </button>
-          <button 
-            @click="openRegisterModal"
-            class="btn-primary">
+          <button @click="openRegisterModal" class="btn-primary">
             注册
           </button>
         </div>
@@ -53,14 +52,22 @@
         <div v-else class="user-menu">
           <div class="user-info">
             <div class="user-avatar">
-              <i class="fa fa-user"></i>
+              <img
+                v-if="currentUser?.avatar_url"
+                :src="getAvatarUrl(currentUser.avatar_url)"
+                alt="用户头像"
+                class="user-avatar-image"
+                @error="handleAvatarError"
+              />
+              <i v-else class="fa fa-user"></i>
             </div>
-            <span class="username">{{ currentUser.username }}</span>
+            <div class="username-row">
+              <span class="username">{{ currentUser.username }}</span>
+              <UserLevelBadge :user-id="currentUser?.id" />
+            </div>
           </div>
           <div class="dropdown">
-            <button 
-              @click="toggleDropdown"
-              class="dropdown-toggle">
+            <button @click="toggleDropdown" class="dropdown-toggle">
               <i class="fa fa-chevron-down"></i>
             </button>
             <div v-if="showDropdown" class="dropdown-menu">
@@ -68,7 +75,7 @@
                 <i class="fa fa-user"></i>
                 账户详情
               </router-link>
-              <router-link v-if="isAdmin" to="/admin" class="dropdown-item" @click="closeDropdown">
+              <router-link v-if="isAdmin" to="/admin" class="dropdown-item" target="_blank" rel="noopener" @click="closeDropdown">
                 <i class="fa fa-cog"></i>
                 管理后台
               </router-link>
@@ -89,6 +96,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { useThemeStore } from '../stores/theme'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -101,26 +110,22 @@ const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const isDark = computed(() => themeStore.isDark)
 
-// 根据主题动态返回logo路径
-const currentLogo = computed(() => {
-  return isDark.value ? '/logo.png' : '/logo_light.png'
-})
+const currentLogo = computed(() => (isDark.value ? '/logo.png' : '/logo_light.png'))
 
-// 检查管理员权限
 const checkAdminPermission = async () => {
   const token = localStorage.getItem('token')
-  if (!token) {
-    isAdmin.value = false
-    return
-  }
-  
+
   try {
+    const headers = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
     const response = await fetch('/api/admin/check-permission', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      credentials: 'include',
+      headers
     })
-    
+
     if (response.ok) {
       const data = await response.json()
       isAdmin.value = data.isAdmin && ['admin', 'super_admin'].includes(data.user.role)
@@ -134,7 +139,6 @@ const checkAdminPermission = async () => {
 }
 
 const toggleSidebar = () => {
-  // 通过事件总线或store来通知侧边栏切换
   window.dispatchEvent(new CustomEvent('toggle-sidebar'))
 }
 
@@ -163,7 +167,6 @@ const toggleTheme = () => {
   themeStore.toggleTheme()
 }
 
-// 点击外部关闭下拉菜单
 const handleClickOutside = (event) => {
   if (!event.target.closest('.dropdown')) {
     showDropdown.value = false
@@ -172,7 +175,6 @@ const handleClickOutside = (event) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  // 检查管理员权限
   checkAdminPermission()
 })
 
@@ -189,15 +191,13 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
-  /* 暗色模式（默认） */
+  z-index: 20000;
   background: rgb(29, 29, 31);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 亮色模式下的导航栏 */
 [data-theme="light"] .top-navbar {
   background: #ffffff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
@@ -281,7 +281,6 @@ onUnmounted(() => {
   color: #ffffff;
 }
 
-/* 亮色模式下的菜单按钮 */
 [data-theme="light"] .menu-button {
   background: #f3f4f6;
   color: #1f2937;
@@ -295,13 +294,11 @@ onUnmounted(() => {
 .navbar-title {
   font-size: 1.25rem;
   font-weight: bold;
-  /* 暗色模式（默认） */
   color: #f9fafb;
   margin: 0;
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 亮色模式下的标题 */
 [data-theme="light"] .navbar-title {
   color: #000000;
 }
@@ -318,7 +315,6 @@ onUnmounted(() => {
   color: #676767;
 }
 
-/* Logo样式 */
 .logo-image {
   width: 1.5rem;
   height: 1.5rem;
@@ -331,7 +327,6 @@ onUnmounted(() => {
   transform: scale(1.05);
 }
 
-/* 亮色模式下的logo样式 */
 [data-theme="light"] .logo-image {
   opacity: 1;
 }
@@ -342,7 +337,6 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
-/* 主题切换按钮样式 */
 .theme-toggle-btn {
   display: flex;
   align-items: center;
@@ -370,7 +364,6 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-/* 亮色模式下的主题切换按钮 */
 [data-theme="light"] .theme-toggle-btn {
   background: #f8f9fa;
   color: #4a5568;
@@ -388,7 +381,6 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  /* 暗色模式（默认） */
   background: #ffffff;
   color: #000000;
   border: none;
@@ -400,12 +392,10 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover {
-  /* 暗色模式（默认） */
   background: #f3f4f6;
   color: #000000;
 }
 
-/* 亮色模式下的主按钮 */
 [data-theme="light"] .btn-primary {
   background: #000000;
   color: #ffffff;
@@ -417,7 +407,6 @@ onUnmounted(() => {
 }
 
 .btn-secondary {
-  /* 暗色模式（默认） */
   background: #ffffff;
   color: #000000;
   border: 1px solid #ffffff;
@@ -429,12 +418,10 @@ onUnmounted(() => {
 }
 
 .btn-secondary:hover {
-  /* 暗色模式（默认） */
   background: #f9fafb;
   color: #374151;
 }
 
-/* 亮色模式下的次要按钮 */
 [data-theme="light"] .btn-secondary {
   background: #000000;
   color: #ffffff;
@@ -471,14 +458,26 @@ onUnmounted(() => {
   font-size: 0.875rem;
 }
 
+.user-avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
 .username {
   font-weight: 500;
-  /* 暗色模式（默认） */
   color: #ffffff;
   transition: color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 亮色模式下的用户名 */
+.username-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 [data-theme="light"] .username {
   color: #1f2937;
 }
@@ -516,7 +515,7 @@ onUnmounted(() => {
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   min-width: 12rem;
-  z-index: 50;
+  z-index: 20001;
 }
 
 [data-theme="light"] .dropdown-menu {
@@ -551,51 +550,51 @@ onUnmounted(() => {
   .navbar-content {
     padding: 0.75rem 1rem;
   }
-  
+
   .navbar-left {
     gap: 0.75rem;
   }
-  
+
   .menu-button {
     width: 2.25rem;
     height: 2.25rem;
   }
-  
+
   .navbar-title {
     font-size: 1.125rem;
   }
-  
+
   .navbar-right {
     gap: 0.5rem;
   }
-  
+
   .theme-toggle-btn {
     width: 2.25rem;
     height: 2.25rem;
   }
-  
+
   .theme-toggle-btn i {
     font-size: 0.875rem;
   }
-  
+
   .auth-buttons {
     gap: 0.25rem;
   }
-  
+
   .btn-primary,
   .btn-secondary {
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
   }
-  
+
   .user-info {
     gap: 0.25rem;
   }
-  
+
   .username {
     font-size: 0.875rem;
   }
-  
+
   .user-avatar {
     width: 1.75rem;
     height: 1.75rem;
@@ -607,23 +606,23 @@ onUnmounted(() => {
   .navbar-content {
     padding: 0.5rem 0.75rem;
   }
-  
+
   .navbar-title {
     font-size: 1rem;
   }
-  
+
   .title-link i {
-    display: none; /* 在小屏幕上隐藏游戏手柄图标 */
+    display: none;
   }
-  
+
   .btn-primary,
   .btn-secondary {
     padding: 0.375rem 0.5rem;
     font-size: 0.8rem;
   }
-  
-  .username {
-    display: none; /* 在很小屏幕上隐藏用户名 */
+
+  .username-row {
+    display: none;
   }
 }
 </style>

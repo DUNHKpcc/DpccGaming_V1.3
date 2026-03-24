@@ -1,5 +1,5 @@
 <template>
-  <header class="fixed w-full z-50 bg-white shadow-sm">
+  <header class="fixed w-full z-[1000] bg-white shadow-sm">
     <nav class="container mx-auto px-4 py-4 flex items-center justify-between">
       <div class="flex items-center">
         <img src="/logo.png" alt="DpccGaming Logo" class="w-8 h-8 mr-2">
@@ -23,6 +23,7 @@
           <div class="flex items-center space-x-2">
             <i class="fa fa-user-circle text-primary text-xl"></i>
             <span class="text-dark font-medium">{{ currentUser?.username }}</span>
+            <UserLevelBadge :user-id="currentUser?.id" />
           </div>
           <button @click="logout" class="text-neutral hover:text-primary transition-colors duration-300">
             退出登录
@@ -37,6 +38,7 @@
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()

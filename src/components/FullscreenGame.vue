@@ -59,9 +59,26 @@
           <div v-if="commentsLoading" class="text-center py-4 text-white/80">加载评论...</div>
           <div v-else-if="comments.length === 0" class="text-center py-4 text-white/80">暂无评论，成为第一个评论者吧！</div>
           <div v-else v-for="comment in comments" :key="comment.id" class="mb-4 pb-4 border-b border-white/20">
-            <div class="flex justify-between items-start mb-1">
-              <div class="font-medium text-white">{{ comment.username }}</div>
-              <div class="text-yellow-400 text-sm">
+            <div class="comment-header">
+              <div class="comment-user comment-user-main">
+                <AvatarFriendAction
+                  :user-id="comment.user_id"
+                  :username="comment.username"
+                  placement="left"
+                >
+                  <img
+                    :src="getAvatarUrl(comment.avatar_url)"
+                    alt="用户头像"
+                    class="comment-avatar"
+                    @error="handleAvatarError"
+                  />
+                </AvatarFriendAction>
+                <div class="comment-name-row">
+                  <div class="comment-username font-medium text-white">{{ comment.username }}</div>
+                  <UserLevelBadge :user-id="comment.user_id" />
+                </div>
+              </div>
+              <div class="comment-rating text-yellow-400 text-sm">
                 <i v-for="star in comment.rating" :key="star" class="fa fa-star"></i>
                 <i v-for="star in (5 - comment.rating)" :key="star" class="fa fa-star-o"></i>
               </div>
@@ -101,8 +118,25 @@
             <!-- 回复列表 -->
             <div v-if="comment.replies?.length && !collapsedReplies.has(comment.id)" class="mt-3 ml-4 space-y-2">
               <div v-for="reply in comment.replies" :key="reply.id" class="mb-2 pb-2 border-l-2 border-white/20 pl-3">
-                <div class="flex justify-between items-start mb-1">
-                  <div class="font-medium text-sm text-white">{{ reply.username }}</div>
+                <div class="comment-header">
+                  <div class="comment-user">
+                    <AvatarFriendAction
+                      :user-id="reply.user_id"
+                      :username="reply.username"
+                      placement="left"
+                    >
+                      <img
+                        :src="getAvatarUrl(reply.avatar_url)"
+                        alt="用户头像"
+                        class="reply-avatar"
+                        @error="handleAvatarError"
+                      />
+                    </AvatarFriendAction>
+                    <div class="comment-name-row">
+                      <div class="comment-username font-medium text-sm text-white">{{ reply.username }}</div>
+                      <UserLevelBadge :user-id="reply.user_id" />
+                    </div>
+                  </div>
                   <button @click="showReplyForm(comment.id, reply.user_id, reply.id)" class="text-xs text-white/80 hover:text-white transition-colors duration-300">
                     回复
                   </button>
@@ -179,6 +213,9 @@ import { useGameStore } from '../stores/game'
 import { useNotificationStore } from '../stores/notification'
 import { setupGameEventHandling, focusGameIframe } from '../utils/gameEvents'
 import { resolveMediaUrl } from '../utils/media'
+import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import AvatarFriendAction from './AvatarFriendAction.vue'
+import UserLevelBadge from './UserLevelBadge.vue'
 
 const modalStore = useModalStore()
 const authStore = useAuthStore()
@@ -819,6 +856,62 @@ onUnmounted(() => {
   padding: 20px;
   height: calc(100% - 80px);
   overflow-y: auto;
+}
+
+.comment-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comment-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.comment-user-main {
+  flex: 1;
+}
+
+.comment-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.comment-username {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-rating {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.comment-avatar,
+.reply-avatar {
+  border-radius: 9999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.comment-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.reply-avatar {
+  width: 22px;
+  height: 22px;
 }
 
 .comments-drag-bar {

@@ -399,7 +399,7 @@ declare class ScrollTrigger {
    * @memberof ScrollTrigger
    * @link https://greensock.com/docs/v3/Plugins/ScrollTrigger/static.removeEventListener()
    */
-  static removeEventListener(event: "scrollStart" | "scrollEnd" | "refreshInit" | "refresh" | "matchMedia", callback: gsap.Callback): void;
+  static removeEventListener(event: "scrollStart" | "scrollEnd" | "refreshInit" | "refresh" | "matchMedia" | "revert", callback: gsap.Callback): void;
 
   /**
    * Records the current inline CSS styles for the given element(s) so they can be reverted later.

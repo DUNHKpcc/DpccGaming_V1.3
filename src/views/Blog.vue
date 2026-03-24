@@ -31,9 +31,13 @@
                 <h2 class="text-xl font-bold text-white mb-2">
                   {{ post.title }}
                 </h2>
-                <p class="text-sm text-white/60 mb-3">
-                  {{ post.date }}
-                </p>
+                <div class="post-meta mb-3">
+                  <span class="post-date">{{ post.dateLabel }}</span>
+                  <span class="post-author">
+                    <img src="/Ai/Sun.jpeg" alt="SunJiaHao" class="author-avatar" />
+                    <span>{{ post.author }}</span>
+                  </span>
+                </div>
                 <p class="text-sm text-white/80 leading-relaxed flex-1">
                   {{ post.summary }}
                 </p>
@@ -48,8 +52,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-
-const BLOG_BASE_URL = '/Blog'
+import { blogPosts } from '../data/blogPosts'
 
 
 const imagesLoaded = reactive({})
@@ -61,7 +64,7 @@ const handleImageLoad = (event, imageId) => {
 }
 
 const handleImageError = (event, imageId) => {
-  imagesLoaded[imageId] = true // 即使错误也设为true以隐藏loading
+  imagesLoaded[imageId] = true 
   imageErrors[imageId] = true
   console.warn(`Failed to load image for post ${imageId}:`, event.target.src)
 }
@@ -72,7 +75,7 @@ const preloadImages = () => {
     img.onload = () => handleImageLoad(img, post.id)
     img.onerror = () => handleImageError(img, post.id)
     img.src = post.image
-    imagesLoaded[post.id] = false // 初始化加载状态
+    imagesLoaded[post.id] = false 
   })
 }
 
@@ -80,65 +83,16 @@ onMounted(() => {
   preloadImages()
 })
 
-const posts = [
-  {
-    id: 1,
-    title: 'Coding模式优化',
-    date: '2025-11-25 SunJiaHao',
-    image: `${BLOG_BASE_URL}/CodingPanelNew1.webp`,
-    summary:
-      '优化游戏界面'
-  },
-  {
-    id: 2,
-    title: '全新的主界面',
-    date: '2025-11-23 SunJiaHao',
-    image: `${BLOG_BASE_URL}/GameModal.webp`,
-    summary:
-      '优化游戏界面'
-  },
-  {
-    id: 3,
-    title: '全新的主界面',
-    date: '2025-11-22 SunJiaHao',
-    image: `${BLOG_BASE_URL}/HeroSection.webp`,
-    summary:
-      '完成首页重构、游戏聚合展示和账号系统集成，DpccGaming 平台正式对外开放测试。'
-  },
-  {
-    id: 4,
-    title: '页脚更新',
-    date: '2025-11-21 SunJiaHao',
-    image: `${BLOG_BASE_URL}/Footer.webp`,
-    summary:
-      '新增更多连接方式，Discord 服务器、GitHub 代码库和更新日志入口一应俱全。'
-  },
-  {
-    id: 5,
-    title: '引入 Coding 模式与嵌入式编辑器',
-    date: '2025-11-15 SunJiaHao',
-    image: `${BLOG_BASE_URL}/Coding.webp`,
-    summary:
-      '为部分游戏开放代码查看和 Coding 模式，让学习和二次创作变得更加简单。'
-  },
-   {
-    id: 6,
-    title: '新增 Light/Dark 主题切换',
-    date: '2025-11-11 SunJiaHao', 
-    image: `${BLOG_BASE_URL}/LightSwitch.webp`,
-    summary:
-      '用户现在可以在 Light 和 Dark 主题之间切换，提升使用体验。'
-  },
-  {
-    id: 7,
-    title: '更流畅的GSAP动画效果',
-    date: '2025-11-09 SunJiaHao', 
-    image: `${BLOG_BASE_URL}/GSAP.webp`,
-    summary:
-      '优化GSAP动画，提升界面交互的流畅度和视觉效果。'
-  }
-
-]
+const posts = blogPosts.map(p => ({
+  ...p,
+  image: `/Blog/${p.imageName}`,
+  dateLabel: p.date?.includes(' ')
+    ? p.date.slice(0, p.date.lastIndexOf(' '))
+    : p.date,
+  author: p.date?.includes(' ')
+    ? p.date.slice(p.date.lastIndexOf(' ') + 1)
+    : 'SunJiaHao'
+}))
 </script>
 
 <style scoped>
@@ -149,8 +103,14 @@ const posts = [
     radial-gradient(circle at bottom, rgba(0, 0, 0, 0.7), #050509);
 }
 
+[data-theme="light"] .blog-page {
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 54%),
+    radial-gradient(circle at bottom, rgba(148, 163, 184, 0.2), #eef3fb);
+}
+
 .content-wrapper {
-  padding-top: 5rem;
+  padding-top: 0;
   height: 100%;
 }
 
@@ -164,6 +124,64 @@ const posts = [
   flex: 1;
   overflow-y: auto;
   padding-bottom: 2rem;
+}
+
+.blog-card {
+  border-radius: 12px;
+}
+
+.post-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.post-date {
+  flex: 1;
+  min-width: 0;
+}
+
+.post-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+}
+
+.author-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+[data-theme="light"] .blog-header h1 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .blog-content h2 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .blog-content p {
+  color: rgba(30, 41, 59, 0.86);
+}
+
+[data-theme="light"] .post-meta {
+  color: rgba(71, 85, 105, 0.86);
+}
+
+[data-theme="light"] .post-author {
+  color: rgba(30, 41, 59, 0.86);
+}
+
+[data-theme="light"] .author-avatar {
+  border-color: rgba(100, 116, 139, 0.35);
 }
 
 @media (min-width: 1024px) {
@@ -191,6 +209,19 @@ const posts = [
   transform: translateY(-4px);
   background: rgba(255, 255, 255, 0.12);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  box-shadow: 0 8px 24px rgba(148, 163, 184, 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme="light"] .glass-card:hover {
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(148, 163, 184, 0.3);
 }
 
 .blog-image-wrapper {
@@ -224,6 +255,10 @@ const posts = [
   backdrop-filter: blur(8px);
 }
 
+[data-theme="light"] .image-loading {
+  background: rgba(243, 247, 255, 0.72);
+}
+
 .loading-spinner {
   width: 32px;
   height: 32px;
@@ -231,6 +266,11 @@ const posts = [
   border-radius: 50%;
   border-top-color: #fff;
   animation: spin 1s ease-in-out infinite;
+}
+
+[data-theme="light"] .loading-spinner {
+  border: 3px solid rgba(100, 116, 139, 0.3);
+  border-top-color: #334155;
 }
 
 @keyframes spin {
