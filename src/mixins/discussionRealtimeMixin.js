@@ -48,18 +48,30 @@ export default {
       }
 
       let appendedCount = 0
+      let updatedLatest = false
       let unreadAdded = 0
       rawMessages.forEach((rawItem) => {
-        if (!this.appendMessageIfNeeded(chat, rawItem)) return
-        appendedCount += 1
-        if (Number(this.currentChatId) !== roomId && this.shouldCountAsUnread(rawItem)) {
+        const result = this.appendMessageIfNeeded(chat, rawItem)
+        if (result.action === 'ignored') return
+        if (result.action === 'appended') {
+          appendedCount += 1
+        }
+        if (Number(rawItem?.id || 0) === this.getLastMessageId(chat)) {
+          updatedLatest = true
+        }
+        if (result.action === 'appended' && Number(this.currentChatId) !== roomId && this.shouldCountAsUnread(rawItem)) {
           unreadAdded += 1
         }
       })
-      if (!appendedCount) return
+      if (!appendedCount && !updatedLatest) return
 
       chat.messagesLoaded = true
-      this.updateChatSummary(chat, rawMessages[rawMessages.length - 1])
+      const latestRawMessage = rawMessages[rawMessages.length - 1]
+      if (Number(latestRawMessage?.id || 0) === this.getLastMessageId(chat)) {
+        this.updateChatSummary(chat, latestRawMessage)
+      } else {
+        this.refreshChatSummaryFromMessages(chat)
+      }
       if (Number(this.currentChatId) === roomId) {
         chat.unread = 0
         this.$nextTick(() => this.scrollMessagesToBottom())
@@ -129,6 +141,10 @@ export default {
 
       this.socket.on('discussion:room-settings', (payload) => {
         this.handleSocketRoomSettings(payload)
+      })
+
+      this.socket.on('discussion:room-history-cleared', (payload) => {
+        this.handleSocketRoomHistoryCleared(payload)
       })
 
       this.socket.on('discussion:room-memory', (payload) => {
@@ -220,14 +236,19 @@ export default {
 
       const chat = this.chats.find((item) => item.id === roomId)
       if (!chat) return
-      if (!this.appendMessageIfNeeded(chat, rawMessage)) return
+      const result = this.appendMessageIfNeeded(chat, rawMessage)
+      if (result.action === 'ignored') return
       chat.messagesLoaded = true
-      this.updateChatSummary(chat, rawMessage)
+      if (Number(rawMessage?.id || 0) === this.getLastMessageId(chat)) {
+        this.updateChatSummary(chat, rawMessage)
+      } else if (result.action === 'updated') {
+        this.refreshChatSummaryFromMessages(chat)
+      }
 
       if (Number(this.currentChatId) === roomId) {
         chat.unread = 0
         this.$nextTick(() => this.scrollMessagesToBottom())
-      } else if (this.shouldCountAsUnread(rawMessage)) {
+      } else if (result.action === 'appended' && this.shouldCountAsUnread(rawMessage)) {
         chat.unread = Number(chat.unread || 0) + 1
       }
     },
@@ -280,16 +301,31 @@ export default {
     handleSocketRoomSettings(payload) {
       const roomId = Number(payload?.roomId)
       if (!roomId) return
+      if (this.hasPendingRoomSettingsEdits(roomId)) {
+        return
+      }
+      const previousSettings = this.getRoomSettings(roomId)
+      const previousCutoff = Math.max(0, Number(previousSettings?.clearedBeforeMessageId || 0) || 0)
       const nextSettings = normalizeChatMoreSettings(payload?.settings || {})
-      const previousGameId = String(this.getRoomSettings(roomId)?.sourceGameId || '').trim()
+      const previousGameId = String(previousSettings?.sourceGameId || '').trim()
       const nextGameId = String(nextSettings?.sourceGameId || '').trim()
       this.setRoomSettings(roomId, nextSettings)
+      this.markRoomSettingsSynced(roomId, this.getRoomSettingsLocalRevision(roomId))
       this.applyRoomSettingsToLoadedChats()
+      if (nextSettings.clearedBeforeMessageId > previousCutoff) {
+        this.applyRoomHistoryClear(roomId, nextSettings.clearedBeforeMessageId, { updateSettings: false })
+      }
 
       if (Number(this.currentChatId) === roomId && previousGameId !== nextGameId) {
         this.currentCodePath = ''
         this.syncCurrentRoomCode({ force: true })
       }
+    },
+    handleSocketRoomHistoryCleared(payload) {
+      const roomId = Number(payload?.roomId)
+      const clearedBeforeMessageId = Number(payload?.clearedBeforeMessageId || 0) || 0
+      if (!roomId) return
+      this.applyRoomHistoryClear(roomId, clearedBeforeMessageId)
     },
     handleSocketRoomMemory(payload) {
       const roomId = Number(payload?.roomId)

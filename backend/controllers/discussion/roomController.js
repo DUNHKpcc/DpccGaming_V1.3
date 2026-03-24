@@ -12,7 +12,9 @@ const {
   getJoinedMemberCount,
   getJoinedMember,
   getRoomPayload,
-  ensureRoomSettingsTable
+  ensureRoomSettingsTable,
+  ensureRoomMemberPreferencesTable,
+  createNotification
 } = require('./shared');
 
 const listPublicRoomsByGame = async (req, res) => {
@@ -43,13 +45,19 @@ const listMyRooms = async (req, res) => {
   try {
     const userId = req.user.userId;
     const pool = getPool();
-    await ensureRoomSettingsTable(pool);
+    await Promise.all([
+      ensureRoomSettingsTable(pool),
+      ensureRoomMemberPreferencesTable(pool)
+    ]);
     const [rooms] = await pool.execute(
       `SELECT r.id, r.room_uuid, r.room_code, r.game_id, r.mode, r.visibility, r.status, r.max_members,
               r.title, r.host_user_id, r.created_at, r.updated_at, g.title AS game_title, g.thumbnail_url AS game_thumbnail,
               rs.settings_json AS room_settings_json,
               rs.updated_by_user_id AS room_settings_updated_by_user_id,
               rs.updated_at AS room_settings_updated_at,
+              me.role AS self_role,
+              mp.custom_nickname AS member_custom_nickname,
+              mp.cleared_before_message_id AS cleared_before_message_id,
               (
                 SELECT rm.user_id
                 FROM discussion_room_members rm
@@ -88,13 +96,39 @@ const listMyRooms = async (req, res) => {
                 SELECT m.content
                 FROM discussion_messages m
                 WHERE m.room_id = r.id
+                  AND m.id > COALESCE(mp.cleared_before_message_id, 0)
                 ORDER BY m.id DESC
                 LIMIT 1
               ) AS last_message_content,
               (
+                SELECT m.metadata_json
+                FROM discussion_messages m
+                WHERE m.room_id = r.id
+                  AND m.id > COALESCE(mp.cleared_before_message_id, 0)
+                ORDER BY m.id DESC
+                LIMIT 1
+              ) AS last_message_metadata_json,
+              (
+                SELECT m.sender_type
+                FROM discussion_messages m
+                WHERE m.room_id = r.id
+                  AND m.id > COALESCE(mp.cleared_before_message_id, 0)
+                ORDER BY m.id DESC
+                LIMIT 1
+              ) AS last_message_sender_type,
+              (
+                SELECT m.sender_user_id
+                FROM discussion_messages m
+                WHERE m.room_id = r.id
+                  AND m.id > COALESCE(mp.cleared_before_message_id, 0)
+                ORDER BY m.id DESC
+                LIMIT 1
+              ) AS last_message_sender_user_id,
+              (
                 SELECT m.created_at
                 FROM discussion_messages m
                 WHERE m.room_id = r.id
+                  AND m.id > COALESCE(mp.cleared_before_message_id, 0)
                 ORDER BY m.id DESC
                 LIMIT 1
               ) AS last_message_at
@@ -102,6 +136,7 @@ const listMyRooms = async (req, res) => {
        JOIN discussion_rooms r ON r.id = me.room_id
        JOIN games g ON g.game_id = r.game_id
        LEFT JOIN discussion_room_settings rs ON rs.room_id = r.id
+       LEFT JOIN discussion_room_member_preferences mp ON mp.room_id = r.id AND mp.user_id = me.user_id
        WHERE me.user_id = ?
          AND me.status = 'joined'
          AND r.status IN ('waiting', 'active')
@@ -116,22 +151,104 @@ const listMyRooms = async (req, res) => {
   }
 };
 
+const sanitizeMemberIds = (rawMemberIds = [], currentUserId = null) => {
+  if (!Array.isArray(rawMemberIds)) return [];
+  const uniqueIds = new Set();
+  rawMemberIds.forEach((value) => {
+    const parsed = toInt(value);
+    if (!parsed || parsed === currentUserId) return;
+    uniqueIds.add(parsed);
+  });
+  return [...uniqueIds].slice(0, Math.max(0, MAX_ROOM_MEMBERS - 1));
+};
+
+const resolveRoomGame = async (connection, requestedGameId, participantIds = []) => {
+  if (requestedGameId) {
+    return getGameBasic(connection, requestedGameId);
+  }
+
+  const validParticipants = [...new Set(
+    participantIds
+      .map((value) => toInt(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  )];
+
+  if (validParticipants.length) {
+    const placeholders = validParticipants.map(() => '?').join(', ');
+    const [preferredGames] = await connection.execute(
+      `SELECT game_id
+       FROM games
+       WHERE uploaded_by IN (${placeholders})
+       ORDER BY (status = 'approved') DESC, uploaded_at DESC, created_at DESC
+       LIMIT 1`,
+      validParticipants
+    );
+    if (preferredGames[0]?.game_id) {
+      return getGameBasic(connection, preferredGames[0].game_id);
+    }
+  }
+
+  const [anyGames] = await connection.execute(
+    `SELECT game_id
+     FROM games
+     ORDER BY (status = 'approved') DESC, uploaded_at DESC, created_at DESC
+     LIMIT 1`
+  );
+  if (!anyGames[0]?.game_id) return null;
+  return getGameBasic(connection, anyGames[0].game_id);
+};
+
+const loadAcceptedFriendUsers = async (connection, userId, memberIds = []) => {
+  if (!memberIds.length) return [];
+  const placeholders = memberIds.map(() => '?').join(', ');
+  const [rows] = await connection.execute(
+    `SELECT u.id, u.username, u.status
+     FROM users u
+     WHERE u.id IN (${placeholders})
+       AND u.status = 'active'
+       AND EXISTS (
+         SELECT 1
+         FROM friendships f
+         WHERE f.status = 'accepted'
+           AND (
+             (f.requester_id = ? AND f.addressee_id = u.id)
+             OR (f.requester_id = u.id AND f.addressee_id = ?)
+           )
+       )`,
+    [...memberIds, userId, userId]
+  );
+  return rows;
+};
+
 const createRoom = async (req, res) => {
-  const { gameId, mode = 'room', visibility = 'private', title = '' } = req.body || {};
+  const {
+    gameId,
+    mode = 'room',
+    visibility = 'private',
+    title = '',
+    memberIds = [],
+    maxMembers = MAX_ROOM_MEMBERS
+  } = req.body || {};
   const userId = req.user.userId;
   const finalMode = ['friend', 'room', 'match'].includes(mode) ? mode : 'room';
   const finalVisibility = ['private', 'public'].includes(visibility) ? visibility : 'private';
-
-  if (!gameId) {
-    return res.status(400).json({ error: '缺少 gameId' });
-  }
+  const invitedMemberIds = finalMode === 'room' ? sanitizeMemberIds(memberIds, userId) : [];
 
   const connection = await beginTransaction();
   try {
-    const game = await getGameBasic(connection, gameId);
+    const acceptedFriendUsers = invitedMemberIds.length
+      ? await loadAcceptedFriendUsers(connection, userId, invitedMemberIds)
+      : [];
+    if (acceptedFriendUsers.length !== invitedMemberIds.length) {
+      await rollbackTransaction(connection);
+      return res.status(400).json({ error: '仅可邀请已添加的有效好友创建群聊' });
+    }
+
+    const participantIds = [userId, ...invitedMemberIds];
+    const game = await resolveRoomGame(connection, gameId, participantIds);
     if (!game) {
       await rollbackTransaction(connection);
-      return res.status(404).json({ error: '游戏不存在' });
+      return res.status(404).json({ error: gameId ? '游戏不存在' : '当前没有可用游戏，暂时无法创建群聊' });
     }
 
     const roomUuid = crypto.randomUUID();
@@ -141,11 +258,18 @@ const createRoom = async (req, res) => {
       return res.status(500).json({ error: '生成房间邀请码失败，请重试' });
     }
 
+    const nextMaxMembers = Math.max(
+      Math.min(Number(maxMembers || MAX_ROOM_MEMBERS) || MAX_ROOM_MEMBERS, MAX_ROOM_MEMBERS),
+      Math.max(2, participantIds.length)
+    );
+    const roomStatus = participantIds.length >= 2 ? 'active' : 'waiting';
+    const startedAtSql = participantIds.length >= 2 ? 'CURRENT_TIMESTAMP' : 'NULL';
+
     const [insertRoomResult] = await connection.execute(
       `INSERT INTO discussion_rooms
-       (room_uuid, room_code, game_id, host_user_id, mode, visibility, status, max_members, title)
-       VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?, ?)`,
-      [roomUuid, roomCode, gameId, userId, finalMode, finalVisibility, MAX_ROOM_MEMBERS, title || null]
+       (room_uuid, room_code, game_id, host_user_id, mode, visibility, status, max_members, title, started_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${startedAtSql})`,
+      [roomUuid, roomCode, game.game_id, userId, finalMode, finalVisibility, roomStatus, nextMaxMembers, title || null]
     );
 
     const roomId = insertRoomResult.insertId;
@@ -157,10 +281,34 @@ const createRoom = async (req, res) => {
       [roomId, userId]
     );
 
+    if (invitedMemberIds.length) {
+      const placeholders = invitedMemberIds.map(() => '(?, ?, \'member\', \'friend_invite\', \'joined\')').join(', ');
+      const values = invitedMemberIds.flatMap((memberId) => [roomId, memberId]);
+      await connection.execute(
+        `INSERT INTO discussion_room_members
+         (room_id, user_id, role, join_source, status)
+         VALUES ${placeholders}`,
+        values
+      );
+    }
+
     await commitTransaction(connection);
 
     const pool = getPool();
     const payload = await getRoomPayload(pool, roomId, userId);
+    if (acceptedFriendUsers.length) {
+      const roomName = String(title || '').trim() || `${game.title || '协作房间'} 群聊`;
+      await Promise.all(
+        acceptedFriendUsers.map((friend) => createNotification(
+          Number(friend.id),
+          'comment_reply',
+          '你被邀请加入群聊',
+          `[discussion-room:${roomId}] 你已加入群聊「${roomName}」，现在可以开始协作讨论。`,
+          game.game_id,
+          null
+        ))
+      );
+    }
     res.status(201).json({ room: payload });
   } catch (error) {
     await rollbackTransaction(connection);
@@ -175,6 +323,10 @@ const getRoomDetail = async (req, res) => {
     if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
 
     const pool = getPool();
+    const member = await getJoinedMember(pool, roomId, req.user.userId, false);
+    if (!member || member.status !== 'joined') {
+      return res.status(403).json({ error: '仅房间成员可查看房间详情' });
+    }
     const room = await getRoomPayload(pool, roomId, req.user.userId);
     if (!room) return res.status(404).json({ error: '房间不存在' });
 
@@ -208,6 +360,16 @@ const joinRoom = async (req, res) => {
       await commitTransaction(connection);
       const roomDetail = await getRoomPayload(getPool(), roomId, userId);
       return res.json({ room: roomDetail, message: '已在房间中' });
+    }
+
+    if (room.mode === 'friend') {
+      await rollbackTransaction(connection);
+      return res.status(403).json({ error: '该私聊房间仅限已加入成员进入' });
+    }
+
+    if (room.visibility === 'private' && (!existing || existing.status !== 'joined')) {
+      await rollbackTransaction(connection);
+      return res.status(403).json({ error: '该房间为私密群聊，请通过有效邀请加入' });
     }
 
     const joinedCount = await getJoinedMemberCount(connection, roomId);

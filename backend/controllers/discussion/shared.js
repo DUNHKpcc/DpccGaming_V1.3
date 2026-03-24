@@ -15,6 +15,8 @@ const {
   emitRoomDocumentsEvent,
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
+  emitRoomSettingsEventToUser,
+  emitRoomHistoryClearedEventToUser,
   emitRoomMemoryEvent,
   emitRoomAiProgressEvent
 } = require('../../utils/discussionRealtime');
@@ -61,6 +63,8 @@ const ROOM_MEMORY_FILE_MAX_LENGTH = 6000;
 
 let friendInviteLinksTableReady = false;
 let friendInviteLinksTableInitPromise = null;
+let roomInviteLinksTableReady = false;
+let roomInviteLinksTableInitPromise = null;
 let roomDocumentsTableReady = false;
 let roomDocumentsTableInitPromise = null;
 let roomDocumentStateTableReady = false;
@@ -69,6 +73,8 @@ let roomTasksTableReady = false;
 let roomTasksTableInitPromise = null;
 let roomSettingsTableReady = false;
 let roomSettingsTableInitPromise = null;
+let roomMemberPreferencesTableReady = false;
+let roomMemberPreferencesTableInitPromise = null;
 let roomSummaryTableReady = false;
 let roomSummaryTableInitPromise = null;
 let roomMemoryTableReady = false;
@@ -266,6 +272,75 @@ const getJoinedMember = async (connection, roomId, userId, forUpdate = false) =>
   return rows[0] || null;
 };
 
+const normalizeRoomMemberPreferences = (rawPreferences = {}) => ({
+  customNickname: safeText(rawPreferences.customNickname || rawPreferences.custom_nickname || '', 40),
+  clearedBeforeMessageId: Math.max(0, Number(
+    rawPreferences.clearedBeforeMessageId
+      ?? rawPreferences.cleared_before_message_id
+      ?? 0
+  ) || 0),
+  clearedAt: rawPreferences.clearedAt || rawPreferences.cleared_at || null
+});
+
+const getRoomMemberPreferences = async (connection, roomId, userId) => {
+  await ensureRoomMemberPreferencesTable(connection);
+  const [rows] = await connection.execute(
+    `SELECT room_id, user_id, custom_nickname, cleared_before_message_id, cleared_at, updated_at
+     FROM discussion_room_member_preferences
+     WHERE room_id = ? AND user_id = ?
+     LIMIT 1`,
+    [roomId, userId]
+  );
+  return normalizeRoomMemberPreferences(rows[0] || {});
+};
+
+const saveRoomMemberPreferences = async (connection, roomId, userId, rawPreferences = {}) => {
+  const existingPreferences = await getRoomMemberPreferences(connection, roomId, userId);
+  const sanitizedPreferences = {};
+  if (Object.prototype.hasOwnProperty.call(rawPreferences, 'customNickname')) {
+    sanitizedPreferences.customNickname = rawPreferences.customNickname;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawPreferences, 'custom_nickname')) {
+    sanitizedPreferences.custom_nickname = rawPreferences.custom_nickname;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawPreferences, 'clearedBeforeMessageId')) {
+    sanitizedPreferences.clearedBeforeMessageId = rawPreferences.clearedBeforeMessageId;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawPreferences, 'cleared_before_message_id')) {
+    sanitizedPreferences.cleared_before_message_id = rawPreferences.cleared_before_message_id;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawPreferences, 'clearedAt')) {
+    sanitizedPreferences.clearedAt = rawPreferences.clearedAt;
+  }
+  if (Object.prototype.hasOwnProperty.call(rawPreferences, 'cleared_at')) {
+    sanitizedPreferences.cleared_at = rawPreferences.cleared_at;
+  }
+  const mergedPreferences = normalizeRoomMemberPreferences({
+    ...existingPreferences,
+    ...sanitizedPreferences
+  });
+
+  await connection.execute(
+    `INSERT INTO discussion_room_member_preferences
+     (room_id, user_id, custom_nickname, cleared_before_message_id, cleared_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       custom_nickname = VALUES(custom_nickname),
+       cleared_before_message_id = VALUES(cleared_before_message_id),
+       cleared_at = VALUES(cleared_at),
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      roomId,
+      userId,
+      mergedPreferences.customNickname,
+      mergedPreferences.clearedBeforeMessageId,
+      mergedPreferences.clearedAt || null
+    ]
+  );
+
+  return mergedPreferences;
+};
+
 const getRoomPayload = async (connection, roomId, currentUserId = null) => {
   await ensureRoomSettingsTable(connection);
   const [rooms] = await connection.execute(
@@ -286,9 +361,14 @@ const getRoomPayload = async (connection, roomId, currentUserId = null) => {
   if (!rooms.length) return null;
 
   const [members] = await connection.execute(
-    `SELECT m.user_id, m.role, m.status, m.join_source, m.joined_at, m.left_at, u.username
+    `SELECT m.user_id, m.role, m.status, m.join_source, m.joined_at, m.left_at,
+            u.username, u.avatar_url,
+            mp.custom_nickname AS member_custom_nickname
      FROM discussion_room_members m
      JOIN users u ON u.id = m.user_id
+     LEFT JOIN discussion_room_member_preferences mp
+       ON mp.room_id = m.room_id
+      AND mp.user_id = m.user_id
      WHERE m.room_id = ?
      ORDER BY m.joined_at ASC`,
     [roomId]
@@ -303,7 +383,12 @@ const getRoomPayload = async (connection, roomId, currentUserId = null) => {
     ...rooms[0],
     joined_count: joinedCount,
     am_i_member: amIMember,
-    members
+    members: members.map((member) => ({
+      ...member,
+      display_name: rooms[0]?.mode === 'room'
+        ? (safeText(member.member_custom_nickname || '', 40) || safeText(member.username || '', 80))
+        : safeText(member.username || '', 80)
+    }))
   };
 };
 
@@ -336,6 +421,10 @@ const getRuntimeRoomSettings = async (pool, roomId) => {
   return {
     sourceGameId: safeText(parsed.sourceGameId || '', 120),
     sourceGameTitle: safeText(parsed.sourceGameTitle || '', 255),
+    roomTitle: safeText(parsed.roomTitle || '', 120),
+    roomAvatarUrl: safeText(parsed.roomAvatarUrl || '', 200000),
+    roomMaxMembers: Math.max(2, Math.min(MAX_ROOM_MEMBERS, Number(parsed.roomMaxMembers || MAX_ROOM_MEMBERS) || MAX_ROOM_MEMBERS)),
+    invitePermission: safeText(parsed.invitePermission || 'host-only', 40) || 'host-only',
     collaborationStatus: safeText(parsed.collaborationStatus || 'private-chat', 60) || 'private-chat',
     collaborationNote: safeLongText(parsed.collaborationNote || '', 1000),
     peerRolePreset: safeText(parsed.peerRolePreset || '', 80),
@@ -551,6 +640,39 @@ const ensureFriendInviteLinksTable = async (pool) => {
   }
 };
 
+const ensureRoomInviteLinksTable = async (pool) => {
+  if (roomInviteLinksTableReady) return;
+
+  if (roomInviteLinksTableInitPromise) {
+    await roomInviteLinksTableInitPromise;
+    return;
+  }
+
+  roomInviteLinksTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS discussion_room_invite_links (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      room_id BIGINT NOT NULL,
+      link_code VARCHAR(96) NOT NULL,
+      creator_user_id INT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      status ENUM('active', 'expired', 'revoked') NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_discussion_room_invite_links_code (link_code),
+      KEY idx_discussion_room_invite_links_room_status (room_id, status),
+      KEY idx_discussion_room_invite_links_creator_status (creator_user_id, status),
+      KEY idx_discussion_room_invite_links_expires (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await roomInviteLinksTableInitPromise;
+    roomInviteLinksTableReady = true;
+  } finally {
+    roomInviteLinksTableInitPromise = null;
+  }
+};
+
 const ensureRoomDocumentsTable = async (pool) => {
   if (roomDocumentsTableReady) return;
 
@@ -677,6 +799,37 @@ async function ensureRoomSettingsTable(pool) {
   }
 }
 
+async function ensureRoomMemberPreferencesTable(pool) {
+  if (roomMemberPreferencesTableReady) return;
+
+  if (roomMemberPreferencesTableInitPromise) {
+    await roomMemberPreferencesTableInitPromise;
+    return;
+  }
+
+  roomMemberPreferencesTableInitPromise = pool.execute(
+    `CREATE TABLE IF NOT EXISTS discussion_room_member_preferences (
+      room_id BIGINT NOT NULL,
+      user_id INT NOT NULL,
+      custom_nickname VARCHAR(40) NOT NULL DEFAULT '',
+      cleared_before_message_id BIGINT NOT NULL DEFAULT 0,
+      cleared_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (room_id, user_id),
+      KEY idx_discussion_room_member_preferences_user_updated (user_id, updated_at),
+      KEY idx_discussion_room_member_preferences_room_cleared (room_id, cleared_before_message_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
+  );
+
+  try {
+    await roomMemberPreferencesTableInitPromise;
+    roomMemberPreferencesTableReady = true;
+  } finally {
+    roomMemberPreferencesTableInitPromise = null;
+  }
+}
+
 async function ensureRoomSummaryTable(pool) {
   if (roomSummaryTableReady) return;
 
@@ -794,6 +947,7 @@ const mapRoomTaskRow = (row = {}) => ({
 });
 
 const generateFriendInviteCode = () => crypto.randomBytes(16).toString('hex');
+const generateRoomInviteCode = () => crypto.randomBytes(18).toString('hex');
 
 const parseInviteCode = (rawValue) => {
   const text = String(rawValue || '').trim();
@@ -810,7 +964,8 @@ const parseInviteCode = (rawValue) => {
   try {
     const url = new URL(text);
     return (
-      validCode(url.searchParams.get('friendInvite'))
+      validCode(url.searchParams.get('roomInvite'))
+      || validCode(url.searchParams.get('friendInvite'))
       || validCode(url.searchParams.get('invite'))
       || validCode(url.searchParams.get('code'))
       || ''
@@ -820,7 +975,7 @@ const parseInviteCode = (rawValue) => {
   }
 };
 
-const getFriendInviteLinkBase = (req) => {
+const getDiscussionInviteLinkBase = (req) => {
   const fromEnv = String(process.env.APP_PUBLIC_URL || '').trim().replace(/\/+$/, '');
   if (fromEnv) return fromEnv;
 
@@ -829,6 +984,8 @@ const getFriendInviteLinkBase = (req) => {
 
   return '';
 };
+
+const getFriendInviteLinkBase = (req) => getDiscussionInviteLinkBase(req);
 
 module.exports = {
   MAX_ROOM_MEMBERS,
@@ -843,6 +1000,8 @@ module.exports = {
   emitRoomDocumentsEvent,
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
+  emitRoomSettingsEventToUser,
+  emitRoomHistoryClearedEventToUser,
   emitRoomMemoryEvent,
   emitRoomAiProgressEvent,
   createNotification,
@@ -863,20 +1022,26 @@ module.exports = {
   getRoomByIdForUpdate,
   getJoinedMemberCount,
   getJoinedMember,
+  getRoomMemberPreferences,
+  saveRoomMemberPreferences,
   getRoomPayload,
   generateAiReply,
   notifyRoomMembers,
   removeUploadedFile,
   ensureFriendInviteLinksTable,
+  ensureRoomInviteLinksTable,
   ensureRoomDocumentsTable,
   ensureRoomDocumentStateTable,
   ensureRoomTasksTable,
   ensureRoomSettingsTable,
+  ensureRoomMemberPreferencesTable,
   ensureRoomSummaryTable,
   ensureRoomMemoryTable,
   mapRoomTaskRow,
   generateFriendInviteCode,
+  generateRoomInviteCode,
   parseInviteCode,
+  getDiscussionInviteLinkBase,
   getFriendInviteLinkBase,
   getRuntimeRoomSettings,
   getRoomSummary,

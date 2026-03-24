@@ -181,6 +181,14 @@
                     <span class="text-xs text-white/80">{{ friends.length }} 人</span>
                     <button
                       type="button"
+                      class="friend-add-open-btn secondary"
+                      @click="openGroupModal"
+                    >
+                      <i class="fa fa-users"></i>
+                      <span>拉群</span>
+                    </button>
+                    <button
+                      type="button"
                       class="friend-add-open-btn"
                       @click="openFriendModal"
                     >
@@ -414,6 +422,99 @@
                 </div>
               </div>
             </div>
+
+            <div
+              v-if="groupModalVisible"
+              class="friend-modal-mask"
+              @click.self="closeGroupModal"
+            >
+              <div class="friend-modal group-modal">
+                <div class="friend-modal-header">
+                  <h3>创建多人群聊</h3>
+                  <button type="button" class="friend-modal-close" @click="closeGroupModal">
+                    <i class="fa fa-times"></i>
+                  </button>
+                </div>
+
+                <div class="friend-modal-body group-modal-body">
+                  <section class="friend-modal-section">
+                    <div class="friend-modal-title-row">
+                      <h4>群聊信息</h4>
+                      <span class="friend-muted-text">{{ selectedGroupFriendIds.length + 1 }} / 4 人</span>
+                    </div>
+                    <div class="group-modal-field">
+                      <span>群聊名称</span>
+                      <input
+                        v-model.trim="groupTitle"
+                        type="text"
+                        maxlength="40"
+                        placeholder="可选，留空会自动生成"
+                      />
+                    </div>
+                    <div class="friend-muted-text">
+                      创建后会自动把已选好友加入群聊，并跳转到 discussion 页面。
+                    </div>
+                    <div class="group-modal-actions">
+                      <button
+                        type="button"
+                        class="friend-secondary-btn"
+                        @click="closeGroupModal"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        class="friend-primary-btn"
+                        :disabled="groupCreating || !selectedGroupFriendIds.length"
+                        @click="createGroupDiscussion"
+                      >
+                        {{ groupCreating ? '创建中...' : '立即拉群' }}
+                      </button>
+                    </div>
+                  </section>
+
+                  <section class="friend-modal-section">
+                    <div class="friend-modal-title-row">
+                      <h4>选择好友</h4>
+                      <span class="friend-muted-text">可多选</span>
+                    </div>
+                    <div v-if="friendsLoading" class="friend-muted-text">好友列表加载中...</div>
+                    <div v-else-if="!friends.length" class="friend-muted-text">暂无好友，先添加好友后再拉群</div>
+                    <div v-else class="group-friend-picker-list">
+                      <label
+                        v-for="friend in friends"
+                        :key="`group-friend-${friend.id}`"
+                        class="group-friend-picker-item"
+                        :class="{ active: selectedGroupFriendIds.includes(friend.id) }"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="selectedGroupFriendIds.includes(friend.id)"
+                          @change="toggleGroupFriend(friend.id)"
+                        />
+                        <img
+                          v-if="friend.avatar_url"
+                          :src="getAvatarUrl(friend.avatar_url)"
+                          :alt="friend.username"
+                          class="friend-avatar-img"
+                          @error="handleAvatarError"
+                        />
+                        <div v-else class="friend-avatar">
+                          {{ (friend.username || '?').charAt(0).toUpperCase() }}
+                        </div>
+                        <div class="friend-meta">
+                          <div class="username-level-row">
+                            <strong>{{ friend.username }}</strong>
+                            <UserLevelBadge :user-id="friend.id" />
+                          </div>
+                          <small>{{ friend.email || '未设置邮箱' }}</small>
+                        </div>
+                      </label>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -463,6 +564,9 @@ const googleBinding = ref(false)
 const googleBound = ref(false)
 const googleBoundLabel = ref('')
 const friendModalVisible = ref(false)
+const groupModalVisible = ref(false)
+const groupTitle = ref('')
+const selectedGroupFriendIds = ref([])
 const friendSearchKeyword = ref('')
 const friendSearching = ref(false)
 const friendSearchResults = ref([])
@@ -476,6 +580,7 @@ const friendRequestsLoading = ref(false)
 const incomingRequests = ref([])
 const outgoingRequests = ref([])
 const friendChatOpening = ref({})
+const groupCreating = ref(false)
 const logoutConfirmPending = ref(false)
 const logoutConfirmTimer = ref(null)
 const profileDraftState = ref({
@@ -664,6 +769,37 @@ const closeFriendModal = () => {
   friendModalVisible.value = false
   friendSearchKeyword.value = ''
   friendSearchResults.value = []
+}
+
+const openGroupModal = async () => {
+  if (!isLoggedIn.value) {
+    openLoginModal()
+    return
+  }
+  groupModalVisible.value = true
+  if (!friends.value.length) {
+    await loadFriends()
+  }
+}
+
+const closeGroupModal = () => {
+  groupModalVisible.value = false
+  groupTitle.value = ''
+  selectedGroupFriendIds.value = []
+}
+
+const toggleGroupFriend = (friendId) => {
+  const parsedId = Number.parseInt(friendId, 10)
+  if (!parsedId) return
+  if (selectedGroupFriendIds.value.includes(parsedId)) {
+    selectedGroupFriendIds.value = selectedGroupFriendIds.value.filter((id) => id !== parsedId)
+    return
+  }
+  if (selectedGroupFriendIds.value.length >= 3) {
+    notificationStore.warning('人数已满', '当前最多可邀请 3 位好友一起拉群')
+    return
+  }
+  selectedGroupFriendIds.value = [...selectedGroupFriendIds.value, parsedId]
 }
 
 const searchFriendUsers = async () => {
@@ -983,6 +1119,37 @@ const isOpeningFriendChat = (friendId) => {
   return friendChatOpening.value[String(friendId)] === true
 }
 
+const createGroupDiscussion = async () => {
+  if (!selectedGroupFriendIds.value.length) {
+    notificationStore.warning('请先选择好友', '至少选择 1 位好友后才能创建群聊')
+    return
+  }
+
+  groupCreating.value = true
+  try {
+    const data = await apiCall('/discussion/rooms', {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: 'room',
+        visibility: 'private',
+        title: groupTitle.value.trim(),
+        memberIds: selectedGroupFriendIds.value
+      })
+    })
+    const roomId = Number.parseInt(data?.room?.id, 10)
+    if (!roomId) {
+      throw new Error('未获取到可用群聊房间')
+    }
+    notificationStore.success('群聊已创建', '已把选中的好友加入新的多人群聊')
+    closeGroupModal()
+    router.push({ name: 'DiscussionMode', params: { id: String(roomId) } })
+  } catch (error) {
+    notificationStore.error('创建群聊失败', error.message || '请稍后重试')
+  } finally {
+    groupCreating.value = false
+  }
+}
+
 const openFriendDiscussion = async (friend = {}) => {
   const friendId = Number.parseInt(friend?.id, 10)
   if (!friendId || !isLoggedIn.value) return
@@ -1042,6 +1209,7 @@ watch(isLoggedIn, (loggedIn) => {
     clearLogoutConfirmState()
     libraryGames.value = []
     libraryLoading.value = false
+    closeGroupModal()
     wechatBinding.value = false
     wechatBound.value = false
     wechatBoundLabel.value = ''

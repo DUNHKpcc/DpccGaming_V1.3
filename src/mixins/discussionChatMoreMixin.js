@@ -1,9 +1,8 @@
 import { apiCall } from '../utils/api'
 import { useNotificationStore } from '../stores/notification'
 import {
-  CHAT_MORE_MENU_ITEMS,
   CHAT_MORE_COLLAB_STATUS_OPTIONS,
-  CHAT_MORE_ROLE_PRESET_OPTIONS,
+  CHAT_MORE_GROUP_INVITE_PERMISSION_OPTIONS,
   CHAT_MORE_BUILTIN_MODELS,
   createDefaultChatMoreSettings,
   normalizeChatMoreSettings,
@@ -20,18 +19,30 @@ export default {
   data() {
     return {
       showDeleteFriendConfirm: false,
-      chatMoreMenuItems: CHAT_MORE_MENU_ITEMS,
+      showClearHistoryConfirm: false,
       chatMoreBuiltinModels: CHAT_MORE_BUILTIN_MODELS,
       chatMoreCollabStatusOptions: CHAT_MORE_COLLAB_STATUS_OPTIONS,
-      chatMoreRolePresetOptions: CHAT_MORE_ROLE_PRESET_OPTIONS,
+      chatMoreGroupInvitePermissionOptions: CHAT_MORE_GROUP_INVITE_PERMISSION_OPTIONS,
       activeChatMoreSection: '',
       chatMoreSettingsByRoom: {},
+      roomSettingsLocalRevisionByRoom: {},
+      roomSettingsSyncedRevisionByRoom: {},
+      roomSettingsRequestSeqByRoom: {},
+      roomDetailByRoom: {},
       roomSummaryByRoom: {},
       roomMemoryByRoom: {},
       roomSettingsSaveTimers: {},
       gameLibraryLoading: false,
       gameLibraryError: '',
       gameLibraryGames: [],
+      inviteFriendsLoading: false,
+      inviteFriendsError: '',
+      inviteFriends: [],
+      roomInviteLinksByRoom: {},
+      roomInviteLinkGeneratingByRoom: {},
+      roomInviteExpireMinutesByRoom: {},
+      roomAvatarUploadingByRoom: {},
+      roomFriendInviteLoadingByUser: {},
       roomMemoryLoading: false,
       roomMemoryError: ''
     }
@@ -41,12 +52,23 @@ export default {
       const targetName = this.currentChat?.name || '该好友'
       return `删除 ${targetName} 后，将同时删除你们的私聊房间、历史消息、文档、任务、AI 设置以及相关通知记录，此操作不可恢复。`
     },
+    getClearHistoryWarningText() {
+      const targetName = this.currentChat?.name || '当前会话'
+      return `删除后，仅你这边的聊天记录会被清空；对方设备上的聊天记录不会受影响。与 ${targetName} 的后续新消息仍会正常显示。`
+    },
     openDeleteFriendConfirm() {
       if (!this.currentChat?.displayUserId) return
       this.showDeleteFriendConfirm = true
     },
     closeDeleteFriendConfirm() {
       this.showDeleteFriendConfirm = false
+    },
+    openClearHistoryConfirm() {
+      if (!this.currentChat?.id) return
+      this.showClearHistoryConfirm = true
+    },
+    closeClearHistoryConfirm() {
+      this.showClearHistoryConfirm = false
     },
     getRoomSettings(roomId) {
       const roomKey = String(roomId || '').trim()
@@ -59,6 +81,59 @@ export default {
       }
       return this.chatMoreSettingsByRoom[roomKey]
     },
+    getRoomSettingsLocalRevision(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 0
+      return Number(this.roomSettingsLocalRevisionByRoom[roomKey] || 0) || 0
+    },
+    getRoomSettingsSyncedRevision(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 0
+      return Number(this.roomSettingsSyncedRevisionByRoom[roomKey] || 0) || 0
+    },
+    markRoomSettingsLocalEdit(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 0
+      const nextRevision = this.getRoomSettingsLocalRevision(roomKey) + 1
+      this.roomSettingsLocalRevisionByRoom = {
+        ...this.roomSettingsLocalRevisionByRoom,
+        [roomKey]: nextRevision
+      }
+      return nextRevision
+    },
+    markRoomSettingsSynced(roomId, revision = null) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 0
+      const nextRevision = revision === null
+        ? this.getRoomSettingsLocalRevision(roomKey)
+        : Math.max(0, Number(revision || 0) || 0)
+      this.roomSettingsSyncedRevisionByRoom = {
+        ...this.roomSettingsSyncedRevisionByRoom,
+        [roomKey]: nextRevision
+      }
+      return nextRevision
+    },
+    nextRoomSettingsRequestSeq(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 0
+      const nextSeq = (Number(this.roomSettingsRequestSeqByRoom[roomKey] || 0) || 0) + 1
+      this.roomSettingsRequestSeqByRoom = {
+        ...this.roomSettingsRequestSeqByRoom,
+        [roomKey]: nextSeq
+      }
+      return nextSeq
+    },
+    getLatestRoomSettingsRequestSeq(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 0
+      return Number(this.roomSettingsRequestSeqByRoom[roomKey] || 0) || 0
+    },
+    hasPendingRoomSettingsEdits(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return false
+      if (this.roomSettingsSaveTimers[roomKey]) return true
+      return this.getRoomSettingsLocalRevision(roomKey) > this.getRoomSettingsSyncedRevision(roomKey)
+    },
     setRoomSettings(roomId, nextSettings = {}) {
       const roomKey = String(roomId || '').trim()
       if (!roomKey) return
@@ -66,6 +141,43 @@ export default {
         ...this.chatMoreSettingsByRoom,
         [roomKey]: normalizeChatMoreSettings(nextSettings)
       }
+    },
+    getRoomDetail(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return null
+      return this.roomDetailByRoom[roomKey] || null
+    },
+    setRoomDetail(roomId, room = null) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey || !room || typeof room !== 'object') return
+      this.roomDetailByRoom = {
+        ...this.roomDetailByRoom,
+        [roomKey]: room
+      }
+    },
+    getRoomInviteExpireMinutes(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return 60
+      return Number(this.roomInviteExpireMinutesByRoom[roomKey] || 60) || 60
+    },
+    setRoomInviteExpireMinutes(roomId, value) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return
+      const nextValue = Math.max(15, Number(value || 60) || 60)
+      this.roomInviteExpireMinutesByRoom = {
+        ...this.roomInviteExpireMinutesByRoom,
+        [roomKey]: nextValue
+      }
+    },
+    getRoomInviteLink(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return ''
+      return String(this.roomInviteLinksByRoom[roomKey] || '')
+    },
+    isRoomAvatarUploading(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return false
+      return this.roomAvatarUploadingByRoom[roomKey] === true
     },
     getRoomSummary(roomId) {
       const roomKey = String(roomId || '').trim()
@@ -102,9 +214,51 @@ export default {
       if (!roomKey) return createDefaultChatMoreSettings()
       const data = await apiCall(`/discussion/rooms/${roomKey}/settings`)
       const settings = normalizeChatMoreSettings(data?.settings || {})
+      if (this.hasPendingRoomSettingsEdits(roomKey)) {
+        return settings
+      }
       this.setRoomSettings(roomKey, settings)
+      this.markRoomSettingsSynced(roomKey, this.getRoomSettingsLocalRevision(roomKey))
       this.applyRoomSettingsToLoadedChats()
       return settings
+    },
+    async fetchRoomDetail(roomId, options = {}) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return null
+      if (!options.force && this.getRoomDetail(roomKey)) {
+        return this.getRoomDetail(roomKey)
+      }
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomKey}`)
+        const room = data?.room && typeof data.room === 'object' ? data.room : null
+        if (!room) return null
+        this.setRoomDetail(roomKey, room)
+        const currentChat = this.chats.find((chat) => String(chat?.id || '') === roomKey) || null
+        if (currentChat) {
+          currentChat.memberCount = Number(room.joined_count || currentChat.memberCount || 0) || 0
+          currentChat.statusRaw = room.status || currentChat.statusRaw
+          this.applyRoomSettingsToChat(currentChat)
+        }
+        return room
+      } catch (error) {
+        this.errorText = error.message || '加载群聊详情失败'
+        return this.getRoomDetail(roomKey)
+      }
+    },
+    async ensureInviteFriendsLoaded(options = {}) {
+      if (!options.force && (this.inviteFriendsLoading || this.inviteFriends.length)) return this.inviteFriends
+      this.inviteFriendsLoading = true
+      this.inviteFriendsError = ''
+      try {
+        const data = await apiCall('/discussion/friends')
+        this.inviteFriends = Array.isArray(data?.friends) ? data.friends : []
+      } catch (error) {
+        this.inviteFriends = []
+        this.inviteFriendsError = error.message || '加载好友失败'
+      } finally {
+        this.inviteFriendsLoading = false
+      }
+      return this.inviteFriends
     },
     async fetchRoomMemory(roomId) {
       const roomKey = String(roomId || '').trim()
@@ -164,13 +318,21 @@ export default {
         delete nextTimers[roomKey]
         this.roomSettingsSaveTimers = nextTimers
       }
-      const settings = this.getRoomSettings(roomKey)
+      const settings = normalizeChatMoreSettings(this.getRoomSettings(roomKey))
+      const requestSeq = this.nextRoomSettingsRequestSeq(roomKey)
+      const sentRevision = this.getRoomSettingsLocalRevision(roomKey)
       try {
         const data = await apiCall(`/discussion/rooms/${roomKey}/settings`, {
           method: 'PATCH',
           body: JSON.stringify({ settings })
         })
+        const latestRequestSeq = this.getLatestRoomSettingsRequestSeq(roomKey)
+        const currentRevision = this.getRoomSettingsLocalRevision(roomKey)
+        if (requestSeq !== latestRequestSeq || currentRevision !== sentRevision) {
+          return
+        }
         this.setRoomSettings(roomKey, data?.settings || settings)
+        this.markRoomSettingsSynced(roomKey, sentRevision)
         this.applyRoomSettingsToLoadedChats()
         if (String(this.currentChatId) === roomKey && this.activeRightTab === 'code') {
           this.syncCurrentRoomCode({ force: true })
@@ -188,6 +350,11 @@ export default {
     buildChatStatus(chat) {
       if (!chat) return ''
       const settings = this.getRoomSettings(chat.id)
+      if (chat.mode === 'room') {
+        const nextMaxMembers = Math.max(2, Number(settings.roomMaxMembers || chat.maxMembers || 4) || 4)
+        chat.maxMembers = nextMaxMembers
+        chat.baseStatus = `${chat.modeLabel || '房间'} · ${Number(chat.memberCount || 0)}/${nextMaxMembers}`
+      }
       const collabLabel = this.getCollaborationStatusLabel(settings.collaborationStatus)
       return `${chat.baseStatus}${collabLabel ? ` · ${collabLabel}` : chat?.roomStatusLabel ? ` · ${chat.roomStatusLabel}` : ''}`
     },
@@ -216,9 +383,18 @@ export default {
     applyRoomSettingsToChat(chat) {
       if (!chat) return
       const settings = this.getRoomSettings(chat.id)
-      chat.name = settings.customNickname || chat.baseName
+      if (chat.mode === 'room') {
+        const nextBaseName = settings.roomTitle || chat.defaultName || chat.baseName
+        chat.baseName = nextBaseName
+        chat.name = nextBaseName
+        chat.avatarUrl = settings.roomAvatarUrl || ''
+      } else {
+        chat.baseName = chat.defaultName || chat.baseName
+        chat.name = settings.customNickname || chat.baseName
+      }
+      chat.avatar = (chat.name || chat.baseName || 'R').charAt(0).toUpperCase() || 'R'
       chat.status = this.buildChatStatus(chat)
-      chat.displayRolePreset = settings.peerRolePreset || ''
+      chat.displayRolePreset = ''
     },
     applyRoomSettingsToLoadedChats() {
       this.chats.forEach((chat) => this.applyRoomSettingsToChat(chat))
@@ -227,10 +403,12 @@ export default {
       this.flushRoomSettingsSave(this.currentChat?.id)
       this.showChatMorePanel = false
       this.showDeleteFriendConfirm = false
+      this.showClearHistoryConfirm = false
       this.activeChatMoreSection = ''
     },
     toggleChatMorePanel() {
       if (!this.currentChatSupportsMorePanel) return
+      this.closeMessageContextMenu()
       this.closeAttachmentMenu()
       this.closeCodePicker()
       this.closeDocumentPicker()
@@ -278,8 +456,24 @@ export default {
       const roomId = this.currentChat?.id
       const settings = this.getRoomSettings(roomId)
       settings[field] = typeof value === 'string' ? value.trimStart() : value
-      if (field === 'peerRolePreset' || field === 'customNickname' || field === 'collaborationStatus') {
+      this.markRoomSettingsLocalEdit(roomId)
+      if (['customNickname', 'collaborationStatus', 'roomTitle', 'roomAvatarUrl', 'roomMaxMembers'].includes(field)) {
         this.applyRoomSettingsToLoadedChats()
+      }
+      if (field === 'customNickname' && this.currentChat?.mode === 'room') {
+        const detail = this.getRoomDetail(roomId)
+        const currentUserId = Number(this.currentUserId || 0) || 0
+        if (detail && Array.isArray(detail.members)) {
+          detail.members = detail.members.map((member) => {
+            if (Number(member?.user_id || 0) !== currentUserId) return member
+            return {
+              ...member,
+              member_custom_nickname: settings.customNickname,
+              display_name: settings.customNickname || member.username || member.display_name || '成员'
+            }
+          })
+          this.setRoomDetail(roomId, detail)
+        }
       }
       if (options.immediate) {
         this.flushRoomSettingsSave(roomId)
@@ -296,6 +490,7 @@ export default {
       const slot = settings.aiSlots.find((item) => item.id === slotId)
       if (!slot) return
       slot[field] = value
+      this.markRoomSettingsLocalEdit(roomId)
       if (field === 'enabled') {
         const enabledCount = settings.aiSlots.filter((item) => item?.enabled).length
         if (enabledCount < 2 && settings.dualAiLoopEnabled) {
@@ -304,7 +499,7 @@ export default {
         this.flushRoomSettingsSave(roomId)
         return
       }
-      this.queueRoomSettingsSave(roomId, field === 'apiKey' ? 0 : 280)
+      this.queueRoomSettingsSave(roomId, field === 'apiKey' ? 360 : 280)
     },
     async onAiAvatarFileChange(slotId, event) {
       const file = event?.target?.files?.[0]
@@ -318,6 +513,41 @@ export default {
       } finally {
         if (event?.target) event.target.value = ''
       }
+    },
+    async onRoomAvatarFileChange(event) {
+      const roomId = Number(this.currentChat?.id || 0)
+      const file = event?.target?.files?.[0]
+      if (!roomId || !file) return
+      const roomKey = String(roomId)
+      this.roomAvatarUploadingByRoom = {
+        ...this.roomAvatarUploadingByRoom,
+        [roomKey]: true
+      }
+      try {
+        const formData = new FormData()
+        formData.append('avatar', file)
+        const data = await apiCall(`/discussion/rooms/${roomId}/avatar`, {
+          method: 'POST',
+          body: formData
+        })
+        const avatarUrl = String(data?.avatarUrl || data?.settings?.roomAvatarUrl || '').trim()
+        this.setRoomSettings(roomId, {
+          ...this.getRoomSettings(roomId),
+          roomAvatarUrl: avatarUrl
+        })
+        this.applyRoomSettingsToLoadedChats()
+      } catch (error) {
+        this.errorText = error.message || '群聊头像处理失败'
+      } finally {
+        this.roomAvatarUploadingByRoom = {
+          ...this.roomAvatarUploadingByRoom,
+          [roomKey]: false
+        }
+        if (event?.target) event.target.value = ''
+      }
+    },
+    resetCurrentRoomAvatar() {
+      this.updateCurrentRoomSetting('roomAvatarUrl', '', { delay: 120 })
     },
     openMemoryFileInCodePanel(memoryItem = null) {
       if (!memoryItem) return
@@ -334,6 +564,12 @@ export default {
       }
       if (this.activeChatMoreSection === 'personal-ai') {
         await this.fetchRoomMemory(this.currentChat?.id)
+      }
+      if (this.activeChatMoreSection === 'group-profile' || this.activeChatMoreSection === 'group-members' || this.activeChatMoreSection === 'group-invite') {
+        await this.fetchRoomDetail(this.currentChat?.id, { force: true })
+      }
+      if (this.activeChatMoreSection === 'group-invite') {
+        await this.ensureInviteFriendsLoaded()
       }
     },
     async handleDeleteFriendClick() {
@@ -358,6 +594,91 @@ export default {
       } catch (error) {
         notificationStore.error('删除好友失败', error.message || '请稍后重试')
         this.errorText = error.message || '删除好友失败'
+      }
+    },
+    async handleClearHistoryClick() {
+      const roomId = Number(this.currentChat?.id || 0)
+      if (!roomId) return
+
+      const notificationStore = useNotificationStore()
+      this.showClearHistoryConfirm = false
+      this.errorText = ''
+
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomId}/messages/history`, {
+          method: 'DELETE'
+        })
+        this.applyRoomHistoryClear(roomId, data?.clearedBeforeMessageId || 0)
+        notificationStore.success('聊天记录已删除', '仅你这边的历史消息已清空，对方聊天记录保持不变。')
+      } catch (error) {
+        notificationStore.error('删除聊天记录失败', error.message || '请稍后重试')
+        this.errorText = error.message || '删除聊天记录失败'
+      }
+    },
+    async generateCurrentRoomInviteLink() {
+      const roomId = Number(this.currentChat?.id || 0)
+      if (!roomId) return
+      const roomKey = String(roomId)
+      this.roomInviteLinkGeneratingByRoom = {
+        ...this.roomInviteLinkGeneratingByRoom,
+        [roomKey]: true
+      }
+      this.errorText = ''
+      try {
+        const data = await apiCall(`/discussion/rooms/${roomId}/invite-links`, {
+          method: 'POST',
+          body: JSON.stringify({ expiresInMinutes: this.getRoomInviteExpireMinutes(roomId) })
+        })
+        this.roomInviteLinksByRoom = {
+          ...this.roomInviteLinksByRoom,
+          [roomKey]: data?.invite_link || data?.invite_code || ''
+        }
+      } catch (error) {
+        this.errorText = error.message || '生成群聊邀请链接失败'
+      } finally {
+        this.roomInviteLinkGeneratingByRoom = {
+          ...this.roomInviteLinkGeneratingByRoom,
+          [roomKey]: false
+        }
+      }
+    },
+    async copyCurrentRoomInviteLink() {
+      const notificationStore = useNotificationStore()
+      const inviteLink = this.getRoomInviteLink(this.currentChat?.id)
+      if (!inviteLink) return
+      try {
+        await navigator.clipboard.writeText(inviteLink)
+        notificationStore.success('邀请链接已复制', '可以把链接发给好友加入群聊。')
+      } catch (error) {
+        notificationStore.error('复制失败', error.message || '请手动复制邀请链接')
+      }
+    },
+    async inviteFriendIntoCurrentRoom(friend = {}) {
+      const roomId = Number(this.currentChat?.id || 0)
+      const targetUserId = Number(friend?.id || 0)
+      if (!roomId || !targetUserId) return
+      const key = String(targetUserId)
+      this.roomFriendInviteLoadingByUser = {
+        ...this.roomFriendInviteLoadingByUser,
+        [key]: true
+      }
+      this.errorText = ''
+      const notificationStore = useNotificationStore()
+      try {
+        await apiCall(`/discussion/rooms/${roomId}/members/invite`, {
+          method: 'POST',
+          body: JSON.stringify({ userId: targetUserId })
+        })
+        notificationStore.success('邀请已发送', `${friend.username || '该好友'} 已加入群聊。`)
+        await this.fetchRoomDetail(roomId, { force: true })
+      } catch (error) {
+        notificationStore.error('邀请失败', error.message || '请稍后重试')
+        this.errorText = error.message || '邀请好友进入群聊失败'
+      } finally {
+        this.roomFriendInviteLoadingByUser = {
+          ...this.roomFriendInviteLoadingByUser,
+          [key]: false
+        }
       }
     },
     toggleDualAiLoop(nextValue) {

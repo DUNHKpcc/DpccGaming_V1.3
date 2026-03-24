@@ -158,6 +158,28 @@ const emitRoomSettingsEvent = (roomId, payload = {}) => {
   });
 };
 
+const emitRoomSettingsEventToUser = (userId, roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextUserId = parseRoomId(userId);
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextUserId || !nextRoomId) return;
+  ioInstance.to(userChannel(nextUserId)).emit('discussion:room-settings', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
+const emitRoomHistoryClearedEventToUser = (userId, roomId, payload = {}) => {
+  if (!ioInstance) return;
+  const nextUserId = parseRoomId(userId);
+  const nextRoomId = parseRoomId(roomId);
+  if (!nextUserId || !nextRoomId) return;
+  ioInstance.to(userChannel(nextUserId)).emit('discussion:room-history-cleared', {
+    roomId: nextRoomId,
+    ...payload
+  });
+};
+
 const emitRoomMemoryEvent = (roomId, payload = {}) => {
   if (!ioInstance) return;
   const nextRoomId = parseRoomId(roomId);
@@ -194,6 +216,8 @@ module.exports = {
   emitRoomDocumentsEvent,
   emitRoomTasksEvent,
   emitRoomSettingsEvent,
+  emitRoomSettingsEventToUser,
+  emitRoomHistoryClearedEventToUser,
   emitRoomMemoryEvent,
   emitRoomAiProgressEvent,
   emitRoomRemovedEvent,

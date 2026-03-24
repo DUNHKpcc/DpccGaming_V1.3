@@ -1,4 +1,4 @@
-const { ARK_CONFIG } = require('../aiController');
+const { ARK_CONFIG } = require('../../aiController');
 const {
   AI_REPLY_CHAR_LIMIT,
   parseJsonObject,
@@ -314,60 +314,60 @@ const createRequestRoomAiReplyBySlot = ({
   recentMessages = [],
   targetUserName = ''
 }) => {
-  const parsedRoomId = Number(roomId || 0);
-  if (!parsedRoomId) throw new Error('无效的 roomId');
-  const roomContext = room || (await getRoomNotificationContext(pool, parsedRoomId));
-  if (!roomContext) throw new Error('房间不存在');
+    const parsedRoomId = Number(roomId || 0);
+    if (!parsedRoomId) throw new Error('无效的 roomId');
+    const roomContext = room || (await getRoomNotificationContext(pool, parsedRoomId));
+    if (!roomContext) throw new Error('房间不存在');
 
-  const roomMemory = await refreshRoomMemoryArtifacts(pool, parsedRoomId);
-  const summary = roomMemory.summary || await getRoomSummary(pool, parsedRoomId);
-  const useMemory = slot.memoryEnabled !== false;
-  const relevantEntries = useMemory
-    ? retrieveRelevantMemoryEntries(roomMemory.memory || [], `${prompt}\n${loopPrompt}`, summary?.summaryText || '')
-    : [];
-  const linkedEntries = useMemory
-    ? findRecentMessageLinkedMemoryEntries(roomMemory.memory || [], recentMessages)
-    : [];
-  const memoryEntries = [...new Map(
-    [...linkedEntries, ...relevantEntries].map((entry) => [entry.sourceKey || entry.id, entry])
-  ).values()].slice(0, Math.max(roomMemoryContextLimit, linkedEntries.length));
-  const scopedPrompt = buildRoomScopedAiPrompt({
-    slot,
-    room: roomContext,
-    loopPrompt,
-    prompt,
-    targetUserName,
-    roomSummary: summary,
-    recentMessages
-  });
-
-  let rawReply = '';
-  if (slot.provider === 'custom' && slot.customEndpoint && slot.customModel && slot.apiKey) {
-    rawReply = await requestCustomAiReply({
+    const roomMemory = await refreshRoomMemoryArtifacts(pool, parsedRoomId);
+    const summary = roomMemory.summary || await getRoomSummary(pool, parsedRoomId);
+    const useMemory = slot.memoryEnabled !== false;
+    const relevantEntries = useMemory
+      ? retrieveRelevantMemoryEntries(roomMemory.memory || [], `${prompt}\n${loopPrompt}`, summary?.summaryText || '')
+      : [];
+    const linkedEntries = useMemory
+      ? findRecentMessageLinkedMemoryEntries(roomMemory.memory || [], recentMessages)
+      : [];
+    const memoryEntries = [...new Map(
+      [...linkedEntries, ...relevantEntries].map((entry) => [entry.sourceKey || entry.id, entry])
+    ).values()].slice(0, Math.max(roomMemoryContextLimit, linkedEntries.length));
+    const scopedPrompt = buildRoomScopedAiPrompt({
       slot,
-      prompt: buildPromptFromAiContext({
+      room: roomContext,
+      loopPrompt,
+      prompt,
+      targetUserName,
+      roomSummary: summary,
+      recentMessages
+    });
+
+    let rawReply = '';
+    if (slot.provider === 'custom' && slot.customEndpoint && slot.customModel && slot.apiKey) {
+      rawReply = await requestCustomAiReply({
+        slot,
+        prompt: buildPromptFromAiContext({
+          prompt: scopedPrompt,
+          gameTitle: roomContext.game_title,
+          recentMessages,
+          roomSummary: summary,
+          memoryEntries,
+          systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手，请结合房间记忆、文档与代码记忆，用简体中文自然接续发言。最终回复严格控制在80字以内。'
+        })
+      });
+    } else {
+      rawReply = await generateAiReply({
         prompt: scopedPrompt,
         gameTitle: roomContext.game_title,
-        recentMessages,
+        roomMessages: recentMessages,
+        builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
         roomSummary: summary,
         memoryEntries,
-        systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手，请结合房间记忆、文档与代码记忆，用简体中文自然接续发言。最终回复严格控制在80字以内。'
-      })
-    });
-  } else {
-    rawReply = await generateAiReply({
-      prompt: scopedPrompt,
-      gameTitle: roomContext.game_title,
-      roomMessages: recentMessages,
-      builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
-      roomSummary: summary,
-      memoryEntries,
-      systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。你会看到成员消息、文件发送信息、房间摘要和共享记忆。请明确区分是谁发了什么，并基于当前讨论自然、可执行地回复。最终回复严格控制在80字以内。'
-    });
-  }
+        systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。你会看到成员消息、文件发送信息、房间摘要和共享记忆。请明确区分是谁发了什么，并基于当前讨论自然、可执行地回复。最终回复严格控制在80字以内。'
+      });
+    }
 
-  return clampAiReplyContent(rawReply, AI_REPLY_CHAR_LIMIT);
-};
+    return clampAiReplyContent(rawReply, AI_REPLY_CHAR_LIMIT);
+  };
 
 module.exports = {
   buildAiSenderLabel,

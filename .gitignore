@@ -6,5 +6,5 @@ public/Blog
 .vscode/sftp.json
 .vscode/sftp.json
 public/docsPhoto
-dist
+dist/
 public/

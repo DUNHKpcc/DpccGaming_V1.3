@@ -107,10 +107,12 @@
                       class="message-bubble"
                       :class="{
                         'is-pending-ai': message.isPendingAi,
+                        'is-revoked': message.isRevoked,
                         'code-preview-standalone': message.codePreview && !message.text && !message.attachment && !message.documentPreview,
                         'document-preview-standalone': message.documentPreview && !message.text && !message.attachment && !message.codePreview,
                         'image-attachment-standalone': message.attachment?.type === 'image' && !message.text && !message.codePreview
                       }"
+                      @contextmenu.stop.prevent="openMessageContextMenu($event, message)"
                     >
                       <div v-if="message.aiTargetLabel || message.aiReplyTokenCount || message.isPendingAi" class="message-ai-meta">
                         <span v-if="message.isPendingAi && message.aiProgressModeLabel" class="message-ai-meta-pill subtle">
@@ -316,7 +318,7 @@
 
           <DiscussionChatMorePanel
             v-if="showChatMorePanel && currentChatSupportsMorePanel"
-            :menu-items="chatMoreMenuItems"
+            :menu-items="currentChatMoreMenuItems"
             :active-section="activeChatMoreSection"
             :settings="currentChatMoreSettings"
             :enabled-ai-slots="enabledAiSlots"
@@ -325,9 +327,20 @@
             :effective-code-game-title="effectiveCodeGameTitle"
             :effective-code-game-id="effectiveCodeGameId"
             :current-chat="currentChat"
+            :room-detail="currentRoomDetail"
+            :room-avatar-uploading="currentRoomAvatarUploading"
+            :invite-friends="currentGroupInviteCandidates"
+            :invite-friends-loading="inviteFriendsLoading"
+            :invite-friends-error="inviteFriendsError"
+            :room-invite-link="currentRoomInviteLink"
+            :room-invite-link-generating="currentRoomInviteGenerating"
+            :room-invite-expire-minutes="currentRoomInviteExpireMinutes"
+            :can-manage-current-group="canManageCurrentGroup"
+            :can-invite-current-group-members="canInviteCurrentGroupMembers"
+            :group-invite-permission-options="chatMoreGroupInvitePermissionOptions"
+            :room-friend-invite-loading-by-user="roomFriendInviteLoadingByUser"
             :builtin-models="chatMoreBuiltinModels"
             :collab-status-options="chatMoreCollabStatusOptions"
-            :role-preset-options="chatMoreRolePresetOptions"
             :room-summary="currentRoomSummary"
             :room-memory-items="currentRoomMemoryItems"
             :room-memory-loading="roomMemoryLoading"
@@ -335,9 +348,14 @@
             :game-library-loading="gameLibraryLoading"
             :game-library-error="gameLibraryError"
             :game-library-games="gameLibraryGames"
+            :show-clear-history-confirm="showClearHistoryConfirm"
+            :clear-history-warning-text="getClearHistoryWarningText()"
             :show-delete-friend-confirm="showDeleteFriendConfirm"
             :delete-friend-warning-text="getDeleteFriendWarningText()"
             @item-click="handleChatMoreItemClick"
+            @open-clear-history-confirm="openClearHistoryConfirm"
+            @close-clear-history-confirm="closeClearHistoryConfirm"
+            @confirm-clear-history="handleClearHistoryClick"
             @open-delete-friend-confirm="openDeleteFriendConfirm"
             @close-delete-friend-confirm="closeDeleteFriendConfirm"
             @confirm-delete-friend="handleDeleteFriendClick"
@@ -347,11 +365,34 @@
             @reset-nickname="resetCurrentRoomNickname"
             @update-ai-slot-field="updateAiSlotField"
             @avatar-file-change="onAiAvatarFileChange"
+            @room-avatar-file-change="onRoomAvatarFileChange"
+            @reset-room-avatar="resetCurrentRoomAvatar"
+            @update-room-invite-expire-minutes="setRoomInviteExpireMinutes(currentChat?.id, $event)"
+            @generate-room-invite-link="generateCurrentRoomInviteLink"
+            @copy-room-invite-link="copyCurrentRoomInviteLink"
+            @invite-room-friend="inviteFriendIntoCurrentRoom"
             @refresh-room-memory="refreshCurrentRoomMemory"
             @open-memory-file="openMemoryFileInCodePanel"
             @toggle-dual-ai-loop="toggleDualAiLoop"
             @generate-dual-ai-loop-round="generateDualAiLoopRound"
           />
+
+          <div
+            v-if="messageContextMenu.visible"
+            class="message-context-menu"
+            :style="messageContextMenuStyle"
+            role="menu"
+            @click.stop
+          >
+            <button
+              type="button"
+              class="message-context-menu-item"
+              :disabled="!messageContextMenu.canRevoke"
+              @click="handleRevokeContextMessage"
+            >
+              {{ messageContextMenu.label }}
+            </button>
+          </div>
 
           <DiscussionResourcePicker
             :visible="showCodePicker"
@@ -439,7 +480,7 @@ import {
   highlightCodeAsync,
   warmupCodeHighlighter
 } from '../utils/asyncCodeHighlighter'
-import { normalizeChatMoreSettings } from '../utils/discussionChatMore'
+import { getChatMoreMenuItems, normalizeChatMoreSettings } from '../utils/discussionChatMore'
 import {
   toDiscussionInt,
   parseDiscussionMetadata,
@@ -551,6 +592,14 @@ export default {
       currentCodePath: '',
       errorText: '',
       showChatMorePanel: false,
+      messageContextMenu: {
+        visible: false,
+        x: 0,
+        y: 0,
+        messageId: null,
+        canRevoke: false,
+        label: '撤回消息'
+      },
       rightPanelTabs: [
         { key: 'docs', label: '文档区' },
         { key: 'code', label: '代码区' },
@@ -578,8 +627,17 @@ export default {
     currentChatSupportsMorePanel() {
       return this.isChatMoreAvailable(this.currentChat)
     },
+    currentChatMoreMenuItems() {
+      return getChatMoreMenuItems(this.currentChat)
+    },
     currentChatMoreSettings() {
       return this.getRoomSettings(this.currentChat?.id)
+    },
+    currentRoomDetail() {
+      return this.getRoomDetail(this.currentChat?.id)
+    },
+    currentRoomAvatarUploading() {
+      return this.isRoomAvatarUploading(this.currentChat?.id)
     },
     currentChatHeaderStatusMeta() {
       return this.getChatHeaderStatusMeta(this.currentChat)
@@ -603,6 +661,32 @@ export default {
     enabledAiSlots() {
       const slots = Array.isArray(this.currentChatMoreSettings?.aiSlots) ? this.currentChatMoreSettings.aiSlots : []
       return slots.filter((slot) => slot && slot.enabled)
+    },
+    currentRoomInviteLink() {
+      return this.getRoomInviteLink(this.currentChat?.id)
+    },
+    currentRoomInviteGenerating() {
+      return this.roomInviteLinkGeneratingByRoom[String(this.currentChat?.id || '')] === true
+    },
+    currentRoomInviteExpireMinutes() {
+      return this.getRoomInviteExpireMinutes(this.currentChat?.id)
+    },
+    currentGroupInviteCandidates() {
+      const currentMemberIds = new Set(
+        (Array.isArray(this.currentRoomDetail?.members) ? this.currentRoomDetail.members : [])
+          .filter((member) => String(member?.status || '') === 'joined')
+          .map((member) => Number(member?.user_id || 0))
+          .filter((id) => id > 0)
+      )
+      return this.inviteFriends.filter((friend) => !currentMemberIds.has(Number(friend?.id || 0)))
+    },
+    canManageCurrentGroup() {
+      return this.currentChat?.mode === 'room' && this.currentChat?.isHost === true
+    },
+    canInviteCurrentGroupMembers() {
+      if (this.currentChat?.mode !== 'room') return false
+      if (this.currentChat?.isHost) return true
+      return this.currentChatMoreSettings?.invitePermission === 'all-members'
     },
     currentRoomPendingAiMessages() {
       return this.getPendingAiMessages(this.currentChat?.id)
@@ -650,6 +734,12 @@ export default {
         String(lastMessage?.id || ''),
         String(lastMessage?.rawTime || '')
       ].join(':')
+    },
+    messageContextMenuStyle() {
+      return {
+        left: `${this.messageContextMenu.x}px`,
+        top: `${this.messageContextMenu.y}px`
+      }
     },
     currentRoomCodeFiles() {
       const gameKey = this.effectiveCodeGameId
@@ -764,6 +854,7 @@ export default {
     },
     currentChatId() {
       this.activeChatMoreSection = ''
+      this.closeMessageContextMenu()
       this.refreshCurrentChatPreviewHighlights()
     },
     codeText() {
@@ -776,6 +867,7 @@ export default {
       }
     },
     currentChatScrollSignature() {
+      this.closeMessageContextMenu()
       this.refreshCurrentChatPreviewHighlights()
       this.$nextTick(() => this.scrollMessagesToBottom())
     },
@@ -806,9 +898,15 @@ export default {
     this.startMessagePolling()
     this.initializeDiscussion()
     window.addEventListener('click', this.closeAttachmentMenu)
+    window.addEventListener('click', this.closeMessageContextMenu)
+    window.addEventListener('scroll', this.closeMessageContextMenu, true)
+    window.addEventListener('keydown', this.handleGlobalKeydown)
   },
   beforeUnmount() {
     window.removeEventListener('click', this.closeAttachmentMenu)
+    window.removeEventListener('click', this.closeMessageContextMenu)
+    window.removeEventListener('scroll', this.closeMessageContextMenu, true)
+    window.removeEventListener('keydown', this.handleGlobalKeydown)
     Object.values(this.roomSettingsSaveTimers).forEach((timerId) => window.clearTimeout(timerId))
     this.stopMessagePolling()
     this.teardownSocket()
@@ -827,14 +925,22 @@ export default {
       }
     },
     resolveDisplayedMessageSenderName(message = {}) {
-      if (message?.from !== 'me' && message?.senderType === 'user' && this.currentChat?.name) {
+      if (this.currentChat?.mode === 'friend' && message?.from !== 'me' && message?.senderType === 'user' && this.currentChat?.name) {
         return this.currentChat.name
+      }
+      if (this.currentChat?.mode === 'room' && message?.from === 'me' && message?.senderType === 'user') {
+        return this.currentChatMoreSettings?.customNickname || message?.senderName || this.currentUsername
       }
       return message?.senderName || '成员'
     },
     parseRoomId(value) {
       const roomId = toDiscussionInt(value)
       return roomId && roomId > 0 ? roomId : null
+    },
+    parseRoomInviteCode(rawValue) {
+      const directCode = String(rawValue || '').trim()
+      if (directCode) return directCode
+      return ''
     },
     formatMessageTimeDivider(rawTime) {
       return formatDiscussionMessageTimeDivider(rawTime)
@@ -1099,9 +1205,17 @@ export default {
       }
     },
     mapRoomToChat(room) {
-      const parsedSettings = normalizeChatMoreSettings(parseDiscussionMetadata(room.room_settings_json) || {})
+      const parsedSettings = normalizeChatMoreSettings({
+        ...(parseDiscussionMetadata(room.room_settings_json) || {}),
+        roomTitle: room.title || '',
+        roomMaxMembers: room.max_members || 4,
+        customNickname: room.member_custom_nickname || '',
+        clearedBeforeMessageId: room.cleared_before_message_id || 0
+      })
       this.setRoomSettings(room.id, parsedSettings)
-      const chat = createDiscussionChatFromRoom(room)
+      const chat = createDiscussionChatFromRoom(room, {
+        currentUserId: this.currentUserId
+      })
       this.applyRoomSettingsToChat(chat)
       return chat
     },
@@ -1114,13 +1228,54 @@ export default {
     },
     isChatMoreAvailable(chat) {
       if (!chat || typeof chat !== 'object') return false
-      return chat.mode === 'friend' && Number(chat.memberCount || 0) <= 2
+      return chat.mode === 'friend' || chat.mode === 'room'
     },
     closeAttachmentMenu() {
       this.showAttachmentMenu = false
     },
+    closeMessageContextMenu() {
+      this.messageContextMenu = {
+        visible: false,
+        x: 0,
+        y: 0,
+        messageId: null,
+        canRevoke: false,
+        label: '撤回消息'
+      }
+    },
+    handleGlobalKeydown(event) {
+      if (event?.key === 'Escape') {
+        this.closeMessageContextMenu()
+      }
+    },
+    openMessageContextMenu(event, message) {
+      if (!message || message.senderType !== 'user' || message.from !== 'me') {
+        this.closeMessageContextMenu()
+        return
+      }
+
+      const canRevoke = this.canRevokeMessage(message)
+      this.messageContextMenu = {
+        visible: true,
+        x: Number(event?.clientX || 0),
+        y: Number(event?.clientY || 0),
+        messageId: message.id,
+        canRevoke,
+        label: canRevoke ? '撤回消息' : (message.isRevoked ? '消息已撤回' : '超过 1 分钟不可撤回')
+      }
+    },
+    async handleRevokeContextMessage() {
+      if (!this.messageContextMenu.visible || !this.messageContextMenu.canRevoke || !this.currentChat) {
+        this.closeMessageContextMenu()
+        return
+      }
+      const targetMessage = this.currentChat.messages.find((item) => String(item?.id || '') === String(this.messageContextMenu.messageId || '')) || null
+      this.closeMessageContextMenu()
+      await this.revokeMessage(targetMessage)
+    },
     toggleAttachmentMenu() {
       if (!this.currentChat || this.uploadingAttachment) return
+      this.closeMessageContextMenu()
       this.showChatMorePanel = false
       this.showCodePicker = false
       this.showDocumentPicker = false
@@ -1133,14 +1288,20 @@ export default {
       this.currentChatId = null
       this.showChatMorePanel = false
       this.activeChatMoreSection = ''
+      this.closeMessageContextMenu()
       this.currentCodePath = ''
       this.memoryPreviewItem = null
       this.codePanelError = ''
       this.codePanelLoading = false
 
       const preferredRoomId = this.parseRoomId(this.id)
+      const inviteCode = this.parseRoomInviteCode(this.$route?.query?.roomInvite || this.$route?.query?.invite || this.$route?.query?.code)
       if (preferredRoomId) {
-        await this.tryJoinRoom(preferredRoomId)
+        if (inviteCode) {
+          await this.tryRedeemRoomInvite(preferredRoomId, inviteCode)
+        } else {
+          await this.tryJoinRoom(preferredRoomId)
+        }
       }
 
       try {
@@ -1167,6 +1328,16 @@ export default {
         console.warn('尝试加入指定房间失败:', error)
       }
     },
+    async tryRedeemRoomInvite(roomId, inviteCode) {
+      try {
+        await apiCall(`/discussion/rooms/${roomId}/invite-links/redeem`, {
+          method: 'POST',
+          body: JSON.stringify({ code: inviteCode })
+        })
+      } catch (error) {
+        console.warn('尝试通过群邀请链接加入房间失败:', error)
+      }
+    },
     async selectChat(chatId, options = {}) {
       if (!chatId) return
       if (this.currentChatId) {
@@ -1177,6 +1348,7 @@ export default {
       this.activeChatMoreSection = ''
       this.memoryPreviewItem = null
       this.closeCodePicker()
+      this.closeMessageContextMenu()
       this.currentChatId = chatId
       this.markChatAsRead(chatId)
       this.syncSocketSubscriptions()
@@ -1195,6 +1367,9 @@ export default {
       if (this.currentChatSupportsMorePanel) {
         loadingTasks.push(this.fetchRoomSettings(chatId))
         loadingTasks.push(this.fetchRoomMemory(chatId))
+        if (chat.mode === 'room') {
+          loadingTasks.push(this.fetchRoomDetail(chatId, { force: true }))
+        }
       }
       if (this.activeRightTab === 'code') {
         loadingTasks.push(this.syncCurrentRoomCode())

@@ -5,6 +5,7 @@ module.exports = {
   ...require('./discussion/memoryController'),
   ...require('./discussion/documentController'),
   ...require('./discussion/taskController'),
+  ...require('./discussion/groupRoomController'),
   ...require('./discussion/matchController'),
   ...require('./discussion/friendController')
 };

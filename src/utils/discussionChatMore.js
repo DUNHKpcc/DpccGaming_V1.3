@@ -1,10 +1,21 @@
-export const CHAT_MORE_MENU_ITEMS = [
+export const CHAT_MORE_DIRECT_MENU_ITEMS = [
   { key: 'game-code', label: '游戏代码选取' },
   { key: 'pull-ai', label: '拉取 AI' },
   { key: 'custom-name', label: '自定义对方昵称' },
-  { key: 'meeting-status', label: '会议/协作 状态' },
-  { key: 'personal-ai', label: '个性化AI' },
-  { key: 'role-preset', label: '角色预设' },
+  { key: 'meeting-status', label: '会议/协作状态' },
+  { key: 'personal-ai', label: '个性化 AI' },
+  { key: 'dual-ai-loop', label: '双 AI 轮询对话', accent: true }
+]
+
+export const CHAT_MORE_GROUP_MENU_ITEMS = [
+  { key: 'group-profile', label: '群聊信息' },
+  { key: 'group-members', label: '群成员详情' },
+  { key: 'group-invite', label: '邀请成员' },
+  { key: 'custom-name', label: '我在本群的昵称' },
+  { key: 'game-code', label: '游戏代码选取' },
+  { key: 'pull-ai', label: '拉取 AI' },
+  { key: 'meeting-status', label: '会议/协作状态' },
+  { key: 'personal-ai', label: '个性化 AI' },
   { key: 'dual-ai-loop', label: '双 AI 轮询对话', accent: true }
 ]
 
@@ -16,14 +27,9 @@ export const CHAT_MORE_COLLAB_STATUS_OPTIONS = [
   { value: 'client-sync', label: '客户沟通', headerLabel: '沟通中', tone: 'sync' }
 ]
 
-export const CHAT_MORE_ROLE_PRESET_OPTIONS = [
-  '初学者',
-  '产品经理',
-  '客户',
-  '策划',
-  '程序',
-  '美术',
-  '测试'
+export const CHAT_MORE_GROUP_INVITE_PERMISSION_OPTIONS = [
+  { value: 'host-only', label: '仅群主可邀请' },
+  { value: 'all-members', label: '所有成员可邀请' }
 ]
 
 export const CHAT_MORE_BUILTIN_MODELS = [
@@ -87,10 +93,14 @@ export const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
 export const createDefaultChatMoreSettings = () => ({
   sourceGameId: '',
   sourceGameTitle: '',
+  roomTitle: '',
+  roomAvatarUrl: '',
+  roomMaxMembers: 4,
+  invitePermission: CHAT_MORE_GROUP_INVITE_PERMISSION_OPTIONS[0].value,
   customNickname: '',
+  clearedBeforeMessageId: 0,
   collaborationStatus: CHAT_MORE_COLLAB_STATUS_OPTIONS[0].value,
   collaborationNote: '',
-  peerRolePreset: CHAT_MORE_ROLE_PRESET_OPTIONS[0],
   dualAiLoopEnabled: false,
   dualAiLoopPrompt: '围绕当前房间里的需求继续推进讨论，并给出下一步。',
   dualAiLoopTurnCount: 0,
@@ -131,15 +141,24 @@ export const normalizeChatMoreSettings = (rawSettings = {}) => {
     ...rawSettings,
     sourceGameId: String(rawSettings?.sourceGameId || '').trim(),
     sourceGameTitle: String(rawSettings?.sourceGameTitle || '').trim(),
+    roomTitle: String(rawSettings?.roomTitle || '').trim(),
+    roomAvatarUrl: String(rawSettings?.roomAvatarUrl || '').trim(),
+    roomMaxMembers: Math.max(2, Math.min(4, Number(rawSettings?.roomMaxMembers || fallback.roomMaxMembers) || fallback.roomMaxMembers)),
+    invitePermission: String(rawSettings?.invitePermission || fallback.invitePermission).trim() || fallback.invitePermission,
     customNickname: String(rawSettings?.customNickname || '').trim(),
+    clearedBeforeMessageId: Math.max(0, Number(rawSettings?.clearedBeforeMessageId || 0) || 0),
     collaborationStatus: String(rawSettings?.collaborationStatus || fallback.collaborationStatus).trim() || fallback.collaborationStatus,
     collaborationNote: String(rawSettings?.collaborationNote || '').trim(),
-    peerRolePreset: String(rawSettings?.peerRolePreset || fallback.peerRolePreset).trim() || fallback.peerRolePreset,
     dualAiLoopEnabled: Boolean(rawSettings?.dualAiLoopEnabled),
     dualAiLoopPrompt: String(rawSettings?.dualAiLoopPrompt || fallback.dualAiLoopPrompt).trim() || fallback.dualAiLoopPrompt,
     dualAiLoopTurnCount: Number(rawSettings?.dualAiLoopTurnCount || 0) || 0,
     aiSlots: [0, 1].map((index) => normalizeAiSlot(rawSlots[index], index))
   }
+}
+
+export const getChatMoreMenuItems = (chat = null) => {
+  if (chat?.mode === 'room') return CHAT_MORE_GROUP_MENU_ITEMS
+  return CHAT_MORE_DIRECT_MENU_ITEMS
 }
 
 export const getCollaborationStatusLabel = (statusValue = '') => {

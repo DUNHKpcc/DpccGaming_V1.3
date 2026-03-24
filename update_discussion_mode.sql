@@ -305,7 +305,45 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ===========================================
--- 5. 房间邀请表（好友邀请）
+-- 5. 房间成员个性化配置表
+-- ===========================================
+CREATE TABLE IF NOT EXISTS discussion_room_member_preferences (
+    room_id BIGINT NOT NULL,
+    user_id INT NOT NULL,
+    custom_nickname VARCHAR(40) NOT NULL DEFAULT '',
+    cleared_before_message_id BIGINT NOT NULL DEFAULT 0,
+    cleared_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_id, user_id)
+);
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+       AND TABLE_NAME = 'discussion_room_member_preferences'
+       AND INDEX_NAME = 'idx_discussion_room_member_preferences_user_updated') = 0,
+    'CREATE INDEX idx_discussion_room_member_preferences_user_updated ON discussion_room_member_preferences(user_id, updated_at)',
+    'SELECT "idx_discussion_room_member_preferences_user_updated exists" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+       AND TABLE_NAME = 'discussion_room_member_preferences'
+       AND INDEX_NAME = 'idx_discussion_room_member_preferences_room_cleared') = 0,
+    'CREATE INDEX idx_discussion_room_member_preferences_room_cleared ON discussion_room_member_preferences(room_id, cleared_before_message_id)',
+    'SELECT "idx_discussion_room_member_preferences_room_cleared exists" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ===========================================
+-- 6. 房间邀请表（好友邀请）
 -- ===========================================
 CREATE TABLE IF NOT EXISTS discussion_room_invites (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -379,7 +417,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ===========================================
--- 6. 匹配队列表（当前排队）
+-- 7. 匹配队列表（当前排队）
 -- ===========================================
 CREATE TABLE IF NOT EXISTS discussion_match_queue (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -434,6 +472,68 @@ SET @sql = IF(
        AND INDEX_NAME = 'idx_discussion_match_queue_game_time') = 0,
     'CREATE INDEX idx_discussion_match_queue_game_time ON discussion_match_queue(game_id, queued_at)',
     'SELECT "idx_discussion_match_queue_game_time exists" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ===========================================
+-- 8. 群聊邀请链接表
+-- ===========================================
+CREATE TABLE IF NOT EXISTS discussion_room_invite_links (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    room_id BIGINT NOT NULL,
+    link_code VARCHAR(96) NOT NULL,
+    creator_user_id INT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    status ENUM('active', 'expired', 'revoked') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+       AND TABLE_NAME = 'discussion_room_invite_links'
+       AND INDEX_NAME = 'uq_discussion_room_invite_links_code') = 0,
+    'CREATE UNIQUE INDEX uq_discussion_room_invite_links_code ON discussion_room_invite_links(link_code)',
+    'SELECT "uq_discussion_room_invite_links_code exists" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+       AND TABLE_NAME = 'discussion_room_invite_links'
+       AND INDEX_NAME = 'idx_discussion_room_invite_links_room_status') = 0,
+    'CREATE INDEX idx_discussion_room_invite_links_room_status ON discussion_room_invite_links(room_id, status)',
+    'SELECT "idx_discussion_room_invite_links_room_status exists" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+       AND TABLE_NAME = 'discussion_room_invite_links'
+       AND INDEX_NAME = 'idx_discussion_room_invite_links_creator_status') = 0,
+    'CREATE INDEX idx_discussion_room_invite_links_creator_status ON discussion_room_invite_links(creator_user_id, status)',
+    'SELECT "idx_discussion_room_invite_links_creator_status exists" AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+       AND TABLE_NAME = 'discussion_room_invite_links'
+       AND INDEX_NAME = 'idx_discussion_room_invite_links_expires') = 0,
+    'CREATE INDEX idx_discussion_room_invite_links_expires ON discussion_room_invite_links(expires_at)',
+    'SELECT "idx_discussion_room_invite_links_expires exists" AS message'
 );
 PREPARE stmt FROM @sql;
 EXECUTE stmt;

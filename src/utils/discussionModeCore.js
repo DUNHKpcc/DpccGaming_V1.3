@@ -59,6 +59,16 @@ export const parseDiscussionMetadata = (raw) => {
   return null
 }
 
+export const isDiscussionMessageRevoked = (metadata = null) => {
+  return Boolean(metadata?.revoked)
+}
+
+export const getDiscussionRevokedPlaceholder = (senderUserId, currentUserId) => {
+  return Number(senderUserId || 0) === Number(currentUserId || 0)
+    ? '你撤回了一条消息'
+    : '对方撤回了一条消息'
+}
+
 export const normalizeDiscussionAttachment = (attachment) => {
   if (!attachment || typeof attachment !== 'object') return null
   const url = String(attachment.url || '').trim()
@@ -257,14 +267,14 @@ export const buildDiscussionCodePreview = (file = {}) => {
   }
 }
 
-export const createDiscussionChatFromRoom = (room = {}) => {
+export const createDiscussionChatFromRoom = (room = {}, context = {}) => {
   const roomName = room.title?.trim() || `${room.game_title || '未命名游戏'} 讨论房`
   const isFriendRoom = room.mode === 'friend'
   const friendUserId = toDiscussionInt(room.friend_user_id)
   const hostUserId = toDiscussionInt(room.host_user_id)
   const friendName = String(room.friend_username || '').trim()
   const displayName = isFriendRoom && friendName ? friendName : roomName
-  const displayUserId = isFriendRoom ? friendUserId : hostUserId
+  const displayUserId = isFriendRoom ? friendUserId : null
   const avatarText = displayName.charAt(0).toUpperCase() || 'R'
   const avatarUrl = isFriendRoom ? resolveDiscussionRoomAvatarUrl(room.friend_avatar_url) : ''
   const memberCount = Number(room.joined_count || 0)
@@ -272,14 +282,27 @@ export const createDiscussionChatFromRoom = (room = {}) => {
   const modeLabel = MODE_LABELS[room.mode] || '房间'
   const statusLabel = STATUS_LABELS[room.status] || room.status || '未知状态'
   const baseStatus = `${modeLabel} · ${memberCount}/${maxMembers}`
-  const preview = (room.last_message_content || '暂无消息，发送第一条开始讨论').toString()
+  const lastMessageSummary = buildDiscussionChatSummary({
+    sender_type: room.last_message_sender_type || '',
+    sender_user_id: room.last_message_sender_user_id,
+    content: room.last_message_content || '',
+    metadata_json: room.last_message_metadata_json || null,
+    created_at: room.last_message_at || null
+  }, {
+    currentUserId: context.currentUserId
+  })
+  const preview = lastMessageSummary.preview || '暂无消息，发送第一条开始讨论'
+  const time = room.last_message_at
+    ? lastMessageSummary.time
+    : '--:--'
 
   return {
     id: Number(room.id),
     name: displayName,
     baseName: displayName,
+    defaultName: displayName,
     verified: room.mode === 'match',
-    time: formatDiscussionClock(room.last_message_at || room.updated_at || room.created_at),
+    time,
     preview,
     unread: 0,
     avatar: avatarText,
@@ -291,8 +314,11 @@ export const createDiscussionChatFromRoom = (room = {}) => {
     roomStatusLabel: statusLabel,
     roomCode: room.room_code,
     mode: room.mode,
+    modeLabel,
     visibility: room.visibility,
     displayUserId,
+    hostUserId,
+    isHost: String(room.self_role || '') === 'host' || hostUserId === context.currentUserId,
     gameId: room.game_id,
     gameTitle: room.game_title,
     displayRolePreset: '',
@@ -308,9 +334,10 @@ export const mapDiscussionMessage = (item, context = {}) => {
   const senderUserId = toDiscussionInt(item.sender_user_id)
   const isMine = senderType === 'user' && senderUserId === context.currentUserId
   const metadata = parseDiscussionMetadata(item.metadata_json)
-  const attachment = normalizeDiscussionAttachment(metadata?.attachment || null)
-  const codePreview = normalizeDiscussionCodePreview(metadata?.code_preview || null)
-  const documentPreview = normalizeDiscussionDocumentPreview(metadata?.document_preview || null)
+  const isRevoked = isDiscussionMessageRevoked(metadata)
+  const attachment = isRevoked ? null : normalizeDiscussionAttachment(metadata?.attachment || null)
+  const codePreview = isRevoked ? null : normalizeDiscussionCodePreview(metadata?.code_preview || null)
+  const documentPreview = isRevoked ? null : normalizeDiscussionDocumentPreview(metadata?.document_preview || null)
   const localAiName = String(metadata?.local_ai_name || '').trim()
   const localAiAvatarUrl = String(metadata?.local_ai_avatar_url || '').trim()
   const aiModelName = String(metadata?.ai_model || '').trim()
@@ -319,13 +346,15 @@ export const mapDiscussionMessage = (item, context = {}) => {
   const aiReplyCharLimit = Number.parseInt(metadata?.reply_char_limit, 10) || 0
   let text = (item.content || '').toString()
 
-  if (codePreview && /^代码预览[:：]/.test(text)) {
+  if (isRevoked) {
+    text = getDiscussionRevokedPlaceholder(senderUserId, context.currentUserId)
+  } else if (codePreview && /^代码预览[:：]/.test(text)) {
     text = ''
   }
-  if (documentPreview && /^文档预览[:：]/.test(text)) {
+  if (!isRevoked && documentPreview && /^文档预览[:：]/.test(text)) {
     text = ''
   }
-  if (attachment?.type === 'image') {
+  if (!isRevoked && attachment?.type === 'image') {
     text = ''
   }
 
@@ -352,6 +381,7 @@ export const mapDiscussionMessage = (item, context = {}) => {
     codePreview,
     documentPreview,
     text,
+    isRevoked,
     aiTargetLabel,
     aiReplyTokenCount,
     aiReplyCharLimit,
@@ -361,7 +391,7 @@ export const mapDiscussionMessage = (item, context = {}) => {
   }
 }
 
-export const buildDiscussionChatSummary = (rawMessage, context = {}) => {
+export function buildDiscussionChatSummary(rawMessage, context = {}) {
   if (!rawMessage) {
     return {
       preview: '',
@@ -371,6 +401,13 @@ export const buildDiscussionChatSummary = (rawMessage, context = {}) => {
 
   const senderType = rawMessage.sender_type || 'user'
   const senderUserId = toDiscussionInt(rawMessage.sender_user_id)
+  const metadata = parseDiscussionMetadata(rawMessage.metadata_json) || null
+  if (isDiscussionMessageRevoked(metadata)) {
+    return {
+      preview: getDiscussionRevokedPlaceholder(senderUserId, context.currentUserId),
+      time: formatDiscussionClock(rawMessage.created_at || new Date())
+    }
+  }
   const prefix = senderType === 'ai'
     ? 'AI: '
     : senderType === 'system'

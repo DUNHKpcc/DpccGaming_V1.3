@@ -306,6 +306,16 @@
   background: var(--account-upload-bg-hover);
 }
 
+.friend-add-open-btn.secondary {
+  background: transparent;
+  color: var(--account-text-soft);
+}
+
+.friend-add-open-btn.secondary:hover {
+  background: var(--account-recent-bg);
+  color: var(--account-text);
+}
+
 .avatar-wrap {
   width: 96px;
   height: 96px;
@@ -808,6 +818,78 @@
   color: var(--account-text-soft);
 }
 
+.group-modal {
+  width: min(760px, 96vw);
+}
+
+.group-modal-body {
+  grid-template-columns: 0.92fr 1.4fr;
+}
+
+.group-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.group-modal-field span {
+  font-size: 0.76rem;
+  color: var(--account-text-soft);
+}
+
+.group-modal-field input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--account-recent-border);
+  background: var(--account-card-bg);
+  color: var(--account-text);
+  padding: 0 0.65rem;
+  font-size: 0.82rem;
+}
+
+.group-modal-actions {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.group-friend-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.group-friend-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--account-recent-border);
+  background: var(--account-card-bg);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.group-friend-picker-item:hover {
+  background: color-mix(in srgb, var(--account-card-bg-hover) 88%, var(--account-icon-bg) 12%);
+}
+
+.group-friend-picker-item.active {
+  border-color: color-mix(in srgb, var(--account-icon-bg) 55%, var(--account-recent-border) 45%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--account-icon-bg) 20%, transparent);
+}
+
+.group-friend-picker-item input {
+  accent-color: var(--account-icon-text);
+}
+
 @media (max-width: 1280px) {
   .account-dashboard {
     grid-template-columns: 1fr 1fr;
@@ -836,6 +918,10 @@
 
   .friend-modal-body {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .group-modal-body {
+    grid-template-columns: 1fr;
   }
 }
 

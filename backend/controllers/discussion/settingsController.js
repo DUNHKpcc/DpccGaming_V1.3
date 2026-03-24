@@ -1,22 +1,34 @@
+const fs = require('fs').promises;
+const path = require('path');
+const sharp = require('sharp');
 const {
   getPool,
+  MAX_ROOM_MEMBERS,
   toInt,
   getJoinedMember,
   ensureRoomSettingsTable,
+  ensureRoomMemberPreferencesTable,
   emitRoomMessage,
-  emitRoomSettingsEvent,
+  emitRoomSettingsEventToUser,
   emitRoomMemoryEvent,
   emitRoomAiProgressEvent,
   refreshRoomMemoryArtifacts,
   requestRoomAiReplyBySlot,
   AI_REPLY_CHAR_LIMIT,
   AI_PROGRESS_STAGES,
+  buildUploadedFileUrl,
+  resolveUploadedFilePath,
+  getRoomMemberPreferences,
+  saveRoomMemberPreferences,
   acquireRoomAiExecutionLock,
   releaseRoomAiExecutionLock
 } = require('./shared');
 
 const AI_LOOP_DELAY_MS = 8000;
 const USER_LED_AI_LOOP_DELAY_MS = 250;
+const ROOM_AVATAR_OUTPUT_SIZE = Number(process.env.DISCUSSION_ROOM_AVATAR_SIZE || process.env.AVATAR_SIZE || 256);
+const ROOM_AVATAR_WEBP_QUALITY = Number(process.env.DISCUSSION_ROOM_AVATAR_WEBP_QUALITY || process.env.AVATAR_WEBP_QUALITY || 82);
+const ROOM_AVATAR_UPLOAD_PREFIX = '/uploads/discussion/avatar/';
 const roomAiLoopTimers = new Map();
 const buildAiRequestId = () => `ai-loop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -27,6 +39,7 @@ const COLLAB_STATUS_OPTIONS = new Set([
   'review',
   'client-sync'
 ]);
+const ROOM_INVITE_PERMISSION_OPTIONS = new Set(['host-only', 'all-members']);
 
 const DEFAULT_BUILTIN_MODEL = 'DouBaoSeed';
 const BUILTIN_MODEL_AVATAR_MAP = {
@@ -59,7 +72,10 @@ const createDefaultAiSlot = (id, fallbackName = 'AI 助手') => ({
 const createDefaultRoomSettings = () => ({
   sourceGameId: '',
   sourceGameTitle: '',
-  customNickname: '',
+  roomTitle: '',
+  roomAvatarUrl: '',
+  roomMaxMembers: MAX_ROOM_MEMBERS,
+  invitePermission: 'host-only',
   collaborationStatus: 'private-chat',
   collaborationNote: '',
   peerRolePreset: '初学者',
@@ -72,6 +88,11 @@ const createDefaultRoomSettings = () => ({
     createDefaultAiSlot('slot-1', '协作 AI 1'),
     createDefaultAiSlot('slot-2', '协作 AI 2')
   ]
+});
+
+const createDefaultRoomMemberSettings = () => ({
+  customNickname: '',
+  clearedBeforeMessageId: 0
 });
 
 const safeText = (value, maxLength = 255) => String(value || '').trim().slice(0, maxLength);
@@ -146,7 +167,10 @@ const normalizeRoomSettings = (rawSettings = {}, existingSettings = {}, userId =
   return {
     sourceGameId: safeText(base.sourceGameId || '', 120),
     sourceGameTitle: safeText(base.sourceGameTitle || '', 255),
-    customNickname: safeText(base.customNickname || '', 40),
+    roomTitle: safeText(base.roomTitle || '', 120),
+    roomAvatarUrl: safeText(base.roomAvatarUrl || '', 200000),
+    roomMaxMembers: Math.max(2, Math.min(MAX_ROOM_MEMBERS, Number(base.roomMaxMembers || fallback.roomMaxMembers) || fallback.roomMaxMembers)),
+    invitePermission: ROOM_INVITE_PERMISSION_OPTIONS.has(base.invitePermission) ? base.invitePermission : fallback.invitePermission,
     collaborationStatus: COLLAB_STATUS_OPTIONS.has(base.collaborationStatus) ? base.collaborationStatus : fallback.collaborationStatus,
     collaborationNote: safeLongText(base.collaborationNote || '', 1000),
     peerRolePreset: safeText(base.peerRolePreset || fallback.peerRolePreset, 40) || fallback.peerRolePreset,
@@ -159,16 +183,60 @@ const normalizeRoomSettings = (rawSettings = {}, existingSettings = {}, userId =
   };
 };
 
-const serializeRoomSettingsForClient = (settings = {}, userId = null) => {
+const serializeRoomSettingsForClient = (settings = {}, userId = null, memberSettings = {}) => {
   const normalized = normalizeRoomSettings(settings, settings, userId);
+  const normalizedMemberSettings = {
+    ...createDefaultRoomMemberSettings(),
+    ...(memberSettings && typeof memberSettings === 'object' ? memberSettings : {})
+  };
   return {
     ...normalized,
+    customNickname: safeText(normalizedMemberSettings.customNickname || '', 40),
+    clearedBeforeMessageId: Math.max(0, Number(normalizedMemberSettings.clearedBeforeMessageId || 0) || 0),
     aiSlots: normalized.aiSlots.map((slot) => ({
       ...slot,
       hasApiKey: Boolean(slot.apiKey),
       apiKey: Number(slot.ownerUserId || 0) === Number(userId || 0) ? slot.apiKey : ''
     }))
   };
+};
+
+const getRoomMemberSettings = async (pool, roomId, userId) => {
+  const stored = await getRoomMemberPreferences(pool, roomId, userId);
+  return {
+    ...createDefaultRoomMemberSettings(),
+    ...(stored && typeof stored === 'object' ? stored : {})
+  };
+};
+
+const saveRoomMemberSettings = async (pool, roomId, userId, nextSettings = {}) => {
+  const stored = await saveRoomMemberPreferences(pool, roomId, userId, nextSettings);
+  return {
+    ...createDefaultRoomMemberSettings(),
+    ...(stored && typeof stored === 'object' ? stored : {})
+  };
+};
+
+const emitRoomSettingsToJoinedMembers = async (pool, roomId, settings = {}, updatedByUserId = null) => {
+  const [members] = await pool.execute(
+    `SELECT user_id
+     FROM discussion_room_members
+     WHERE room_id = ? AND status = 'joined'
+     ORDER BY joined_at ASC`,
+    [roomId]
+  );
+
+  await Promise.all(
+    members.map(async (member) => {
+      const targetUserId = Number(member?.user_id || 0) || null;
+      if (!targetUserId) return;
+      const memberSettings = await getRoomMemberSettings(pool, roomId, targetUserId);
+      emitRoomSettingsEventToUser(targetUserId, roomId, {
+        settings: serializeRoomSettingsForClient(settings, targetUserId, memberSettings),
+        updatedByUserId
+      });
+    })
+  );
 };
 
 const buildAiProgressPayload = ({ requestId, slot = {}, stage, message, targetUsername = '', mode = 'dual-loop' }) => ({
@@ -218,7 +286,12 @@ const getRoomSettingsRow = async (pool, roomId) => {
 
 const getStoredRoomSettings = async (pool, roomId) => {
   const row = await getRoomSettingsRow(pool, roomId);
-  const parsed = normalizeRoomSettings(parseSettingsJson(row?.settings_json) || {});
+  const room = await getRoomContext(pool, roomId);
+  const parsed = normalizeRoomSettings({
+    ...(parseSettingsJson(row?.settings_json) || {}),
+    roomTitle: room?.title || '',
+    roomMaxMembers: room?.max_members || MAX_ROOM_MEMBERS
+  });
   return {
     settings: parsed,
     row
@@ -241,7 +314,7 @@ const saveRoomSettings = async (pool, roomId, settings, userId) => {
 
 const getRoomContext = async (pool, roomId) => {
   const [rows] = await pool.execute(
-    `SELECT r.id, r.mode, r.game_id, g.title AS game_title
+    `SELECT r.id, r.mode, r.game_id, r.host_user_id, r.title, r.max_members, g.title AS game_title
      FROM discussion_rooms r
      JOIN games g ON g.game_id = r.game_id
      WHERE r.id = ?
@@ -251,7 +324,7 @@ const getRoomContext = async (pool, roomId) => {
   return rows[0] || null;
 };
 
-const ensureDirectRoomMember = async (pool, roomId, userId) => {
+const ensureRoomMemberAccess = async (pool, roomId, userId) => {
   const member = await getJoinedMember(pool, roomId, userId, false);
   if (!member || member.status !== 'joined') {
     return { ok: false, error: '仅房间成员可操作该配置', status: 403 };
@@ -260,10 +333,56 @@ const ensureDirectRoomMember = async (pool, roomId, userId) => {
   if (!room) {
     return { ok: false, error: '房间不存在', status: 404 };
   }
-  if (room.mode !== 'friend') {
-    return { ok: false, error: '当前功能仅支持一对一私聊房间', status: 400 };
+  return { ok: true, room, member };
+};
+
+const safeUnlink = async (filePath) => {
+  if (!filePath) return;
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // ignore cleanup failures
   }
-  return { ok: true, room };
+};
+
+const isManagedRoomAvatarUrl = (avatarUrl = '') => {
+  const normalized = String(avatarUrl || '').trim();
+  return normalized.startsWith(ROOM_AVATAR_UPLOAD_PREFIX);
+};
+
+const cleanupPreviousRoomAvatar = async (previousAvatarUrl = '', nextAvatarUrl = '') => {
+  const previousUrl = String(previousAvatarUrl || '').trim();
+  const nextUrl = String(nextAvatarUrl || '').trim();
+  if (!previousUrl || previousUrl === nextUrl || !isManagedRoomAvatarUrl(previousUrl)) return;
+
+  const previousAvatarPath = resolveUploadedFilePath(previousUrl);
+  const nextAvatarPath = resolveUploadedFilePath(nextUrl);
+  if (!previousAvatarPath || previousAvatarPath === nextAvatarPath) return;
+  await safeUnlink(previousAvatarPath);
+};
+
+const processRoomAvatarImage = async (inputPath) => {
+  if (!inputPath) {
+    throw new Error('群头像文件路径无效');
+  }
+
+  const parsedPath = path.parse(inputPath);
+  const outputPath = path.join(parsedPath.dir, `${parsedPath.name}.webp`);
+
+  await sharp(inputPath)
+    .rotate()
+    .resize(ROOM_AVATAR_OUTPUT_SIZE, ROOM_AVATAR_OUTPUT_SIZE, { fit: 'cover', position: 'attention' })
+    .webp({ quality: ROOM_AVATAR_WEBP_QUALITY })
+    .toFile(outputPath);
+
+  if (outputPath !== inputPath) {
+    await safeUnlink(inputPath);
+  }
+
+  return {
+    outputPath,
+    outputFilename: path.basename(outputPath)
+  };
 };
 
 const insertAiLoopMessage = async (pool, roomId, triggerUserId, slot, replyResult, options = {}) => {
@@ -531,9 +650,12 @@ async function runRoomAiLoopTurn(roomId, options = {}) {
     const memoryPayload = await refreshRoomMemoryArtifacts(pool, parsedRoomId, { updatedByUserId: options.triggerUserId || 0 });
 
     emitRoomMessage(parsedRoomId, message);
-    emitRoomSettingsEvent(parsedRoomId, {
-      settings: serializeRoomSettingsForClient(latestSettings)
-    });
+    await emitRoomSettingsToJoinedMembers(
+      pool,
+      parsedRoomId,
+      latestSettings,
+      options.triggerUserId || null
+    );
     emitRoomMemoryEvent(parsedRoomId, {
       summary: memoryPayload.summary,
       memory: memoryPayload.memory,
@@ -602,15 +724,21 @@ const getRoomSettings = async (req, res) => {
     if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
 
     const pool = getPool();
-    const permission = await ensureDirectRoomMember(pool, roomId, userId);
+    const permission = await ensureRoomMemberAccess(pool, roomId, userId);
     if (!permission.ok) {
       return res.status(permission.status).json({ error: permission.error });
     }
 
     const { settings, row } = await getStoredRoomSettings(pool, roomId);
+    const memberSettings = await getRoomMemberSettings(pool, roomId, userId);
+    const settingsWithRoomContext = normalizeRoomSettings({
+      ...settings,
+      roomTitle: permission.room?.title || settings.roomTitle,
+      roomMaxMembers: permission.room?.max_members || settings.roomMaxMembers
+    }, settings, userId);
     await syncRoomAiLoop(roomId);
     res.json({
-      settings: serializeRoomSettingsForClient(settings, userId),
+      settings: serializeRoomSettingsForClient(settingsWithRoomContext, userId, memberSettings),
       updatedAt: row?.updated_at || null,
       updatedByUserId: row?.updated_by_user_id || null
     });
@@ -627,14 +755,60 @@ const updateRoomSettings = async (req, res) => {
     if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
 
     const pool = getPool();
-    const permission = await ensureDirectRoomMember(pool, roomId, userId);
+    const permission = await ensureRoomMemberAccess(pool, roomId, userId);
     if (!permission.ok) {
       return res.status(permission.status).json({ error: permission.error });
     }
 
+    await ensureRoomMemberPreferencesTable(pool);
+    const incomingSettings = req.body?.settings || req.body || {};
     const { settings: existingSettings } = await getStoredRoomSettings(pool, roomId);
-    const nextSettings = normalizeRoomSettings(req.body?.settings || req.body || {}, existingSettings, userId);
+    const mergedExistingSettings = normalizeRoomSettings({
+      ...existingSettings,
+      roomTitle: permission.room?.title || existingSettings.roomTitle,
+      roomMaxMembers: permission.room?.max_members || existingSettings.roomMaxMembers
+    }, existingSettings, userId);
+    const previousRoomAvatarUrl = safeText(mergedExistingSettings.roomAvatarUrl || '', 200000);
+    const touchesGroupMeta = ['roomTitle', 'roomAvatarUrl', 'roomMaxMembers', 'invitePermission']
+      .some((field) => Object.prototype.hasOwnProperty.call(incomingSettings, field));
+
+    if (permission.room?.mode === 'room' && touchesGroupMeta && Number(permission.room?.host_user_id || 0) !== Number(userId)) {
+      return res.status(403).json({ error: '仅群主可修改群聊资料、邀请权限和人数上限' });
+    }
+
+    const nextSettings = normalizeRoomSettings(incomingSettings, mergedExistingSettings, userId);
+
+    if (permission.room?.mode === 'room' && touchesGroupMeta) {
+      const nextMaxMembers = Math.max(2, Math.min(MAX_ROOM_MEMBERS, Number(nextSettings.roomMaxMembers || permission.room?.max_members || MAX_ROOM_MEMBERS) || MAX_ROOM_MEMBERS));
+      const [joinedRows] = await pool.execute(
+        `SELECT COUNT(*) AS joined_count
+         FROM discussion_room_members
+         WHERE room_id = ? AND status = 'joined'`,
+        [roomId]
+      );
+      const joinedCount = Math.max(0, Number(joinedRows[0]?.joined_count || 0) || 0);
+      if (nextMaxMembers < joinedCount) {
+        return res.status(400).json({ error: `当前群内已有 ${joinedCount} 人，人数上限不能低于当前人数` });
+      }
+
+      await pool.execute(
+        `UPDATE discussion_rooms
+         SET title = ?, max_members = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [safeText(nextSettings.roomTitle || permission.room?.title || '', 120) || null, nextMaxMembers, roomId]
+      );
+      nextSettings.roomMaxMembers = nextMaxMembers;
+    }
+
     await saveRoomSettings(pool, roomId, nextSettings, userId);
+    const nextMemberSettings = await saveRoomMemberSettings(
+      pool,
+      roomId,
+      userId,
+      Object.prototype.hasOwnProperty.call(incomingSettings, 'customNickname')
+        ? { customNickname: incomingSettings.customNickname }
+        : {}
+    );
     if (!shouldRunDualAiLoop(nextSettings)) {
       stopRoomAiLoop(roomId);
     }
@@ -643,23 +817,86 @@ const updateRoomSettings = async (req, res) => {
       updatedByUserId: userId,
       settings: nextSettings
     });
-    emitRoomSettingsEvent(roomId, {
-      settings: serializeRoomSettingsForClient(nextSettings),
-      updatedByUserId: userId
-    });
+    await emitRoomSettingsToJoinedMembers(pool, roomId, nextSettings, userId);
     emitRoomMemoryEvent(roomId, {
       summary: memoryPayload.summary,
       memory: memoryPayload.memory,
       updatedByUserId: userId
     });
+    if (Object.prototype.hasOwnProperty.call(incomingSettings, 'roomAvatarUrl')) {
+      await cleanupPreviousRoomAvatar(previousRoomAvatarUrl, nextSettings.roomAvatarUrl);
+    }
 
     res.json({
-      settings: serializeRoomSettingsForClient(nextSettings, userId),
+      settings: serializeRoomSettingsForClient(nextSettings, userId, nextMemberSettings),
       updatedByUserId: userId
     });
   } catch (error) {
     console.error('更新房间设置失败:', error);
     res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const uploadRoomAvatar = async (req, res) => {
+  let transientUploadPath = req.file?.path || '';
+  try {
+    const roomId = toInt(req.params.roomId);
+    const userId = req.user.userId;
+    if (!roomId) {
+      await safeUnlink(transientUploadPath);
+      return res.status(400).json({ error: '无效的 roomId' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '请上传群头像图片' });
+    }
+
+    const pool = getPool();
+    const permission = await ensureRoomMemberAccess(pool, roomId, userId);
+    if (!permission.ok) {
+      await safeUnlink(transientUploadPath);
+      return res.status(permission.status).json({ error: permission.error });
+    }
+    if (permission.room?.mode !== 'room') {
+      await safeUnlink(transientUploadPath);
+      return res.status(400).json({ error: '当前房间不支持群头像上传' });
+    }
+    if (Number(permission.room?.host_user_id || 0) !== Number(userId)) {
+      await safeUnlink(transientUploadPath);
+      return res.status(403).json({ error: '仅群主可修改群头像' });
+    }
+
+    const { settings: existingSettings } = await getStoredRoomSettings(pool, roomId);
+    const mergedExistingSettings = normalizeRoomSettings({
+      ...existingSettings,
+      roomTitle: permission.room?.title || existingSettings.roomTitle,
+      roomMaxMembers: permission.room?.max_members || existingSettings.roomMaxMembers
+    }, existingSettings, userId);
+    const previousRoomAvatarUrl = safeText(mergedExistingSettings.roomAvatarUrl || '', 200000);
+
+    const { outputPath, outputFilename } = await processRoomAvatarImage(req.file.path);
+    transientUploadPath = outputPath;
+    const nextRoomAvatarUrl = buildUploadedFileUrl(outputPath, `discussion/avatar/${outputFilename}`);
+    const nextSettings = normalizeRoomSettings({
+      ...mergedExistingSettings,
+      roomAvatarUrl: nextRoomAvatarUrl
+    }, mergedExistingSettings, userId);
+
+    await saveRoomSettings(pool, roomId, nextSettings, userId);
+    transientUploadPath = '';
+
+    const nextMemberSettings = await getRoomMemberSettings(pool, roomId, userId);
+    await emitRoomSettingsToJoinedMembers(pool, roomId, nextSettings, userId);
+    await cleanupPreviousRoomAvatar(previousRoomAvatarUrl, nextSettings.roomAvatarUrl);
+
+    return res.json({
+      avatarUrl: nextSettings.roomAvatarUrl,
+      settings: serializeRoomSettingsForClient(nextSettings, userId, nextMemberSettings),
+      updatedByUserId: userId
+    });
+  } catch (error) {
+    console.error('上传群头像失败:', error);
+    await safeUnlink(transientUploadPath);
+    return res.status(500).json({ error: '群头像上传失败' });
   }
 };
 
@@ -670,7 +907,7 @@ const triggerRoomAiLoopTurn = async (req, res) => {
     if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
 
     const pool = getPool();
-    const permission = await ensureDirectRoomMember(pool, roomId, userId);
+    const permission = await ensureRoomMemberAccess(pool, roomId, userId);
     if (!permission.ok) {
       return res.status(permission.status).json({ error: permission.error });
     }
@@ -693,6 +930,7 @@ const triggerRoomAiLoopTurn = async (req, res) => {
 module.exports = {
   getRoomSettings,
   updateRoomSettings,
+  uploadRoomAvatar,
   triggerRoomAiLoopTurn,
   primeRoomAiLoopForUserMessage
 };

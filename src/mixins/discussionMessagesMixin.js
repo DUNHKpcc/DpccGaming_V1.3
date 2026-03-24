@@ -148,17 +148,143 @@ export default {
       if (!targetId) return -1
       return chat.messages.findIndex((item) => this.normalizeMessageId(item?.id) === targetId)
     },
+    getRoomHistoryClearCutoff(roomId) {
+      return Math.max(0, Number(this.getRoomSettings(roomId)?.clearedBeforeMessageId || 0) || 0)
+    },
+    isMessageClearedForChat(chat, rawId) {
+      const cutoff = this.getRoomHistoryClearCutoff(chat?.id)
+      const messageId = Number(this.normalizeMessageId(rawId) || 0) || 0
+      return cutoff > 0 && messageId > 0 && messageId <= cutoff
+    },
     appendMessageIfNeeded(chat, rawMessage) {
-      if (!chat || !rawMessage) return false
+      if (!chat || !rawMessage) {
+        return {
+          action: 'ignored',
+          message: null
+        }
+      }
       const nextMessage = this.mapMessage(rawMessage)
       const index = this.findMessageIndexById(chat, rawMessage.id)
       this.clearPendingAiForRawMessage(chat.id, rawMessage)
+      if (index < 0 && this.isMessageClearedForChat(chat, rawMessage.id)) {
+        return {
+          action: 'ignored',
+          message: null
+        }
+      }
       if (index >= 0) {
         chat.messages.splice(index, 1, nextMessage)
-        return false
+        return {
+          action: 'updated',
+          message: nextMessage
+        }
       }
       chat.messages.push(nextMessage)
-      return true
+      return {
+        action: 'appended',
+        message: nextMessage
+      }
+    },
+    buildChatPreviewFromMessage(message) {
+      if (!message) {
+        return {
+          preview: '暂无消息，发送第一条开始讨论',
+          time: '--:--'
+        }
+      }
+
+      const prefix = message.senderType === 'ai'
+        ? 'AI: '
+        : message.senderType === 'system'
+          ? '系统: '
+          : message.from === 'me'
+            ? 'You: '
+            : ''
+
+      const content = message.isRevoked
+        ? (message.text || '消息已撤回')
+        : message.text
+          || (message.attachment?.type === 'image'
+            ? '[图片]'
+            : message.attachment?.type === 'video'
+              ? '[视频]'
+              : message.attachment?.name
+                ? `[附件] ${message.attachment.name}`
+                : message.codePreview?.path
+                  ? `代码预览：${message.codePreview.path}`
+                  : message.documentPreview?.name
+                    ? `文档预览：${message.documentPreview.name}`
+                    : '')
+
+      const preview = `${prefix}${content}`.slice(0, 120)
+      return {
+        preview: preview || '暂无消息，发送第一条开始讨论',
+        time: message.time || '--:--'
+      }
+    },
+    refreshChatSummaryFromMessages(chat) {
+      if (!chat) return
+      const latestMessage = Array.isArray(chat.messages) ? chat.messages[chat.messages.length - 1] || null : null
+      const nextSummary = this.buildChatPreviewFromMessage(latestMessage)
+      chat.preview = nextSummary.preview
+      chat.time = nextSummary.time
+    },
+    applyRoomHistoryClear(roomId, clearedBeforeMessageId, options = {}) {
+      const normalizedRoomId = Number(roomId || 0)
+      if (!normalizedRoomId) return
+
+      const nextCutoff = Math.max(0, Number(clearedBeforeMessageId || 0) || 0)
+      if (options.updateSettings !== false) {
+        const settings = this.getRoomSettings(normalizedRoomId)
+        this.setRoomSettings(normalizedRoomId, {
+          ...settings,
+          clearedBeforeMessageId: nextCutoff
+        })
+      }
+
+      const chat = this.chats.find((item) => Number(item?.id) === normalizedRoomId)
+      if (!chat) return
+      chat.messages = Array.isArray(chat.messages)
+        ? chat.messages.filter((item) => Number(item?.id || 0) > nextCutoff)
+        : []
+      chat.messagesLoaded = true
+      chat.unread = 0
+      this.removePendingAiMessage(normalizedRoomId)
+      this.refreshChatSummaryFromMessages(chat)
+      if (Number(this.currentChatId) === normalizedRoomId) {
+        this.$nextTick(() => this.scrollMessagesToBottom())
+      }
+    },
+    canRevokeMessage(message = null) {
+      if (!message || message.from !== 'me' || message.senderType !== 'user' || message.isPendingAi || message.isRevoked) {
+        return false
+      }
+      const sentAt = new Date(message.rawTime || '').getTime()
+      if (!sentAt || Number.isNaN(sentAt)) return false
+      return Date.now() - sentAt <= 60 * 1000
+    },
+    async revokeMessage(message = null) {
+      const roomId = Number(this.currentChat?.id || 0)
+      const messageId = Number(message?.id || 0)
+      if (!roomId || !messageId || !this.canRevokeMessage(message)) return
+
+      this.errorText = ''
+      try {
+        const response = await apiCall(`/discussion/rooms/${roomId}/messages/${messageId}/revoke`, {
+          method: 'POST'
+        })
+        const rawMessage = response?.message || null
+        const result = this.appendMessageIfNeeded(this.currentChat, rawMessage)
+        if (result.action === 'updated' || result.action === 'appended') {
+          if (Number(rawMessage?.id || 0) === this.getLastMessageId(this.currentChat)) {
+            this.updateChatSummary(this.currentChat, rawMessage)
+          } else {
+            this.refreshChatSummaryFromMessages(this.currentChat)
+          }
+        }
+      } catch (error) {
+        this.errorText = error.message || '撤回消息失败'
+      }
     },
     getAttachmentAccept(kind) {
       if (kind === 'image') return 'image/*'

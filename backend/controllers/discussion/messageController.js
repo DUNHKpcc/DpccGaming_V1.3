@@ -8,17 +8,59 @@ const {
   sanitizeMessageMetadata,
   notifyRoomMembers,
   removeUploadedFile,
+  resolveUploadedFilePath,
   buildUploadedFileUrl,
   getRuntimeRoomSettings,
   refreshRoomMemoryArtifacts,
   emitRoomMemoryEvent,
   requestRoomAiReplyBySlot,
   emitRoomAiProgressEvent,
+  emitRoomHistoryClearedEventToUser,
+  ensureRoomMemberPreferencesTable,
+  getRoomMemberPreferences,
+  saveRoomMemberPreferences,
   AI_REPLY_CHAR_LIMIT,
   AI_PROGRESS_STAGES,
   acquireRoomAiExecutionLock,
   releaseRoomAiExecutionLock
 } = require('./shared');
+
+const MESSAGE_REVOKE_WINDOW_MS = 60 * 1000;
+
+const parseMessageMetadata = (rawValue) => {
+  if (!rawValue) return null;
+  if (typeof rawValue === 'object') return rawValue;
+  if (typeof rawValue !== 'string') return null;
+  try {
+    return JSON.parse(rawValue);
+  } catch {
+    return null;
+  }
+};
+
+const executeViewerMessageQuery = async (connection, currentUserId, sqlTail, params = []) => {
+  const [rows] = await connection.execute(
+    `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at,
+            CASE
+              WHEN r.mode = 'room' THEN COALESCE(NULLIF(sender_pref.custom_nickname, ''), u.username)
+              WHEN m.sender_user_id <> ? THEN COALESCE(NULLIF(viewer_pref.custom_nickname, ''), u.username)
+              ELSE u.username
+            END AS username,
+            u.avatar_url
+     FROM discussion_messages m
+     JOIN discussion_rooms r ON r.id = m.room_id
+     LEFT JOIN users u ON u.id = m.sender_user_id
+     LEFT JOIN discussion_room_member_preferences sender_pref
+       ON sender_pref.room_id = m.room_id
+      AND sender_pref.user_id = m.sender_user_id
+     LEFT JOIN discussion_room_member_preferences viewer_pref
+       ON viewer_pref.room_id = m.room_id
+      AND viewer_pref.user_id = ?
+     ${sqlTail}`,
+    [currentUserId, currentUserId, ...params]
+  );
+  return rows;
+};
 
 const resolveSingleAiSlot = (settings = {}) => {
   const slots = Array.isArray(settings.aiSlots) ? settings.aiSlots : [];
@@ -141,6 +183,7 @@ const triggerMentionedAiReply = async ({
 
   try {
     const pool = getPool();
+    await ensureRoomMemberPreferencesTable(pool);
     const roomSettings = await getRuntimeRoomSettings(pool, roomId);
     const slot = extractMentionedAiSlot(roomSettings, sourceContent);
     if (!slot) return false;
@@ -166,11 +209,10 @@ const triggerMentionedAiReply = async ({
     );
     if (!roomRows.length) return false;
 
-    const [recentMessages] = await pool.execute(
-      `SELECT m.id, m.sender_type, m.sender_user_id, m.content, m.metadata_json, m.created_at, u.username
-       FROM discussion_messages m
-       LEFT JOIN users u ON u.id = m.sender_user_id
-       WHERE m.room_id = ?
+    const recentMessages = await executeViewerMessageQuery(
+      pool,
+      triggerUserId,
+      `WHERE m.room_id = ?
        ORDER BY m.id DESC
        LIMIT 20`,
       [roomId]
@@ -269,29 +311,33 @@ const listRoomMessages = async (req, res) => {
       return res.status(403).json({ error: '仅房间成员可查看消息' });
     }
 
+    await ensureRoomMemberPreferencesTable(pool);
+    const memberPreferences = await getRoomMemberPreferences(pool, roomId, userId);
+    const clearedBeforeMessageId = Math.max(0, Number(memberPreferences.clearedBeforeMessageId || 0) || 0);
+
     if (afterId) {
-      const [messages] = await pool.execute(
-        `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
-         FROM discussion_messages m
-         LEFT JOIN users u ON u.id = m.sender_user_id
-         WHERE m.room_id = ?
+      const effectiveAfterId = Math.max(afterId, clearedBeforeMessageId);
+      const messages = await executeViewerMessageQuery(
+        pool,
+        userId,
+        `WHERE m.room_id = ?
            AND m.id > ?
          ORDER BY m.id ASC
          LIMIT ${limit}`,
-        [roomId, afterId]
+        [roomId, effectiveAfterId]
       );
       return res.json({ messages });
     }
 
-    const [messages] = await pool.execute(
-      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
-       FROM discussion_messages m
-       LEFT JOIN users u ON u.id = m.sender_user_id
-       WHERE m.room_id = ?
+    const messages = await executeViewerMessageQuery(
+      pool,
+      userId,
+      `WHERE m.room_id = ?
+         AND m.id > ?
        ${beforeId ? 'AND m.id < ?' : ''}
        ORDER BY m.id DESC
        LIMIT ${limit}`,
-      beforeId ? [roomId, beforeId] : [roomId]
+      beforeId ? [roomId, clearedBeforeMessageId, beforeId] : [roomId, clearedBeforeMessageId]
     );
 
     return res.json({ messages: messages.reverse() });
@@ -317,6 +363,7 @@ const sendRoomMessage = async (req, res) => {
     if (!content) return res.status(400).json({ error: '消息内容不能为空' });
 
     const pool = getPool();
+    await ensureRoomMemberPreferencesTable(pool);
     const member = await getJoinedMember(pool, roomId, userId, false);
     if (!member || member.status !== 'joined') {
       return res.status(403).json({ error: '仅房间成员可发送消息' });
@@ -329,11 +376,10 @@ const sendRoomMessage = async (req, res) => {
       [roomId, userId, content, metadata ? JSON.stringify(metadata) : null]
     );
 
-    const [rows] = await pool.execute(
-      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
-       FROM discussion_messages m
-      LEFT JOIN users u ON u.id = m.sender_user_id
-       WHERE m.id = ?
+    const rows = await executeViewerMessageQuery(
+      pool,
+      userId,
+      `WHERE m.id = ?
        LIMIT 1`,
       [result.insertId]
     );
@@ -387,6 +433,138 @@ const sendRoomMessage = async (req, res) => {
   }
 };
 
+const clearRoomMessages = async (req, res) => {
+  try {
+    const roomId = toInt(req.params.roomId);
+    const userId = req.user.userId;
+    if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
+
+    const pool = getPool();
+    await ensureRoomMemberPreferencesTable(pool);
+    const member = await getJoinedMember(pool, roomId, userId, false);
+    if (!member || member.status !== 'joined') {
+      return res.status(403).json({ error: '仅房间成员可清空聊天记录' });
+    }
+
+    const [latestRows] = await pool.execute(
+      `SELECT MAX(id) AS latest_message_id
+       FROM discussion_messages
+       WHERE room_id = ?`,
+      [roomId]
+    );
+
+    const latestMessageId = Math.max(0, Number(latestRows[0]?.latest_message_id || 0) || 0);
+    const memberPreferences = await saveRoomMemberPreferences(pool, roomId, userId, {
+      clearedBeforeMessageId: latestMessageId,
+      clearedAt: latestMessageId ? new Date() : null
+    });
+
+    emitRoomHistoryClearedEventToUser(userId, roomId, {
+      clearedBeforeMessageId: memberPreferences.clearedBeforeMessageId
+    });
+
+    return res.json({
+      roomId,
+      clearedBeforeMessageId: memberPreferences.clearedBeforeMessageId
+    });
+  } catch (error) {
+    console.error('清空聊天记录失败:', error);
+    return res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
+const revokeRoomMessage = async (req, res) => {
+  let attachmentFilePath = '';
+  try {
+    const roomId = toInt(req.params.roomId);
+    const messageId = toInt(req.params.messageId);
+    const userId = req.user.userId;
+    if (!roomId) return res.status(400).json({ error: '无效的 roomId' });
+    if (!messageId) return res.status(400).json({ error: '无效的 messageId' });
+
+    const pool = getPool();
+    await ensureRoomMemberPreferencesTable(pool);
+    const member = await getJoinedMember(pool, roomId, userId, false);
+    if (!member || member.status !== 'joined') {
+      return res.status(403).json({ error: '仅房间成员可撤回消息' });
+    }
+
+    const [messageRows] = await pool.execute(
+      `SELECT id, room_id, sender_type, sender_user_id, message_type, content, metadata_json, created_at
+       FROM discussion_messages
+       WHERE id = ? AND room_id = ?
+       LIMIT 1`,
+      [messageId, roomId]
+    );
+    const message = messageRows[0] || null;
+    if (!message) {
+      return res.status(404).json({ error: '消息不存在' });
+    }
+    if (String(message.sender_type || '').trim() !== 'user' || Number(message.sender_user_id || 0) !== Number(userId)) {
+      return res.status(403).json({ error: '只能撤回自己发送的消息' });
+    }
+
+    const createdAtMs = new Date(message.created_at).getTime();
+    if (!createdAtMs || Number.isNaN(createdAtMs)) {
+      return res.status(400).json({ error: '消息时间无效，暂时无法撤回' });
+    }
+    if (Date.now() - createdAtMs > MESSAGE_REVOKE_WINDOW_MS) {
+      return res.status(400).json({ error: '消息发送超过 1 分钟，无法撤回' });
+    }
+
+    const metadata = parseMessageMetadata(message.metadata_json) || {};
+    if (metadata?.revoked) {
+      return res.status(409).json({ error: '该消息已撤回' });
+    }
+
+    const attachmentUrl = String(metadata?.attachment?.url || '').trim();
+    attachmentFilePath = resolveUploadedFilePath(attachmentUrl);
+
+    const revokedMetadata = {
+      revoked: true,
+      revoked_by_user_id: userId,
+      revoked_at: new Date().toISOString()
+    };
+
+    await pool.execute(
+      `UPDATE discussion_messages
+       SET content = '',
+           metadata_json = ?
+       WHERE id = ? AND room_id = ?`,
+      [JSON.stringify(revokedMetadata), messageId, roomId]
+    );
+
+    const updatedRows = await executeViewerMessageQuery(
+      pool,
+      userId,
+      `WHERE m.id = ?
+       LIMIT 1`,
+      [messageId]
+    );
+    const updatedMessage = updatedRows[0] || null;
+    if (!updatedMessage) {
+      return res.status(500).json({ error: '撤回后的消息读取失败' });
+    }
+
+    if (attachmentFilePath) {
+      await removeUploadedFile(attachmentFilePath);
+    }
+
+    const memoryPayload = await refreshRoomMemoryArtifacts(pool, roomId, { updatedByUserId: userId });
+    emitRoomMessage(roomId, updatedMessage);
+    emitRoomMemoryEvent(roomId, {
+      summary: memoryPayload.summary,
+      memory: memoryPayload.memory,
+      updatedByUserId: userId
+    });
+
+    return res.json({ message: updatedMessage });
+  } catch (error) {
+    console.error('撤回消息失败:', error);
+    return res.status(500).json({ error: '服务器内部错误' });
+  }
+};
+
 const uploadRoomAttachment = async (req, res) => {
   const uploadedPath = req.file?.path || '';
   try {
@@ -404,6 +582,7 @@ const uploadRoomAttachment = async (req, res) => {
     if (!req.file) return res.status(400).json({ error: '请上传文件' });
 
     const pool = getPool();
+    await ensureRoomMemberPreferencesTable(pool);
     const member = await getJoinedMember(pool, roomId, userId, false);
     if (!member || member.status !== 'joined') {
       await removeUploadedFile(uploadedPath);
@@ -447,11 +626,10 @@ const uploadRoomAttachment = async (req, res) => {
       [roomId, userId, content, metadataJson]
     );
 
-    const [rows] = await pool.execute(
-      `SELECT m.id, m.room_id, m.sender_type, m.sender_user_id, m.message_type, m.content, m.metadata_json, m.created_at, u.username, u.avatar_url
-       FROM discussion_messages m
-       LEFT JOIN users u ON u.id = m.sender_user_id
-       WHERE m.id = ?
+    const rows = await executeViewerMessageQuery(
+      pool,
+      userId,
+      `WHERE m.id = ?
        LIMIT 1`,
       [result.insertId]
     );
@@ -526,11 +704,10 @@ const sendAiRoomMessage = async (req, res) => {
     );
     if (!roomRows.length) return res.status(404).json({ error: '房间不存在' });
 
-    const [recentMessages] = await pool.execute(
-      `SELECT m.id, m.sender_type, m.sender_user_id, m.content, m.metadata_json, m.created_at, u.username
-       FROM discussion_messages m
-       LEFT JOIN users u ON u.id = m.sender_user_id
-       WHERE m.room_id = ?
+    const recentMessages = await executeViewerMessageQuery(
+      pool,
+      userId,
+      `WHERE m.room_id = ?
        ORDER BY m.id DESC
        LIMIT 20`,
       [roomId]
@@ -632,6 +809,8 @@ const sendAiRoomMessage = async (req, res) => {
 module.exports = {
   listRoomMessages,
   sendRoomMessage,
+  clearRoomMessages,
+  revokeRoomMessage,
   uploadRoomAttachment,
   sendAiRoomMessage
 };

@@ -9,6 +9,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 const DISCUSSION_ATTACHMENT_DIR = path.join(process.env.UPLOADS_PATH || path.join(process.cwd(), 'uploads'), 'discussion');
 const DISCUSSION_DOCUMENT_DIR = path.join(DISCUSSION_ATTACHMENT_DIR, 'document');
+const DISCUSSION_AVATAR_DIR = path.join(DISCUSSION_ATTACHMENT_DIR, 'avatar');
 
 const ensureDir = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -151,6 +152,40 @@ const uploadDiscussionDocument = (req, res, next) => {
   });
 };
 
+const createDiscussionAvatarUploader = () => {
+  ensureDir(DISCUSSION_AVATAR_DIR);
+
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, DISCUSSION_AVATAR_DIR),
+      filename: (req, file, cb) => {
+        const roomId = String(req.params?.roomId || 'room').replace(/[^a-zA-Z0-9_-]/g, '') || 'room';
+        const suffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, `room-avatar-${roomId}-${suffix}${path.extname(file.originalname || '').toLowerCase()}`);
+      }
+    }),
+    limits: { fileSize: 6 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const mime = String(file.mimetype || '').toLowerCase();
+      if (mime.startsWith('image/')) return cb(null, true);
+      return cb(new Error('仅支持上传图片文件'));
+    }
+  }).single('avatar');
+};
+
+const uploadDiscussionAvatar = (req, res, next) => {
+  const uploader = createDiscussionAvatarUploader();
+  uploader(req, res, (error) => {
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: '头像文件大小超出限制（最大 6MB）' });
+    }
+    if (error) {
+      return res.status(400).json({ error: error.message || '群头像上传失败' });
+    }
+    next();
+  });
+};
+
 // 房间（按游戏查看公开房间）
 router.get('/games/:gameId/rooms', authenticateToken, discussionController.listPublicRoomsByGame);
 
@@ -160,10 +195,16 @@ router.get('/rooms/mine', authenticateToken, discussionController.listMyRooms);
 router.get('/rooms/:roomId', authenticateToken, discussionController.getRoomDetail);
 router.post('/rooms/:roomId/join', authenticateToken, discussionController.joinRoom);
 router.post('/rooms/:roomId/leave', authenticateToken, discussionController.leaveRoom);
+router.post('/rooms/:roomId/members/invite', authenticateToken, discussionController.inviteFriendToRoom);
+router.post('/rooms/:roomId/invite-links', authenticateToken, discussionController.createRoomInviteLink);
+router.post('/rooms/:roomId/invite-links/redeem', authenticateToken, discussionController.redeemRoomInviteLink);
+router.post('/rooms/:roomId/avatar', authenticateToken, uploadDiscussionAvatar, discussionController.uploadRoomAvatar);
 
 // 房间消息
 router.get('/rooms/:roomId/messages', authenticateToken, discussionController.listRoomMessages);
 router.post('/rooms/:roomId/messages', authenticateToken, discussionController.sendRoomMessage);
+router.delete('/rooms/:roomId/messages/history', authenticateToken, discussionController.clearRoomMessages);
+router.post('/rooms/:roomId/messages/:messageId/revoke', authenticateToken, discussionController.revokeRoomMessage);
 router.get('/rooms/:roomId/settings', authenticateToken, discussionController.getRoomSettings);
 router.patch('/rooms/:roomId/settings', authenticateToken, discussionController.updateRoomSettings);
 router.get('/rooms/:roomId/memory', authenticateToken, discussionController.getRoomMemory);
