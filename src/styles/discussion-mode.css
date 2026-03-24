@@ -1287,6 +1287,14 @@ body {
   padding: 14px;
   border-radius: 16px;
   background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-more-group-invite-card-scroll {
+  max-height: 340px;
+  overflow: hidden;
 }
 
 .chat-more-editor-head-compact {
@@ -1296,52 +1304,75 @@ body {
 .chat-more-invite-friend-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 264px;
+  gap: 6px;
+  min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 2px;
+}
+
+.chat-more-group-invite-card-scroll .chat-more-invite-friend-list {
+  flex: 1;
+  max-height: none;
 }
 
 .chat-more-invite-friend-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: #ffffff;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .chat-more-invite-friend-user {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: 1;
+}
+
+.chat-more-invite-friend-row .chat-more-member-avatar,
+.chat-more-invite-friend-row .chat-more-member-avatar-fallback {
+  width: 36px;
+  height: 36px;
+}
+
+.chat-more-invite-friend-row .chat-more-member-avatar-fallback {
+  font-size: 14px;
 }
 
 .chat-more-invite-friend-meta {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
 }
 
 .chat-more-invite-friend-meta strong,
-.chat-more-invite-friend-meta small {
+.chat-more-invite-friend-detail {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .chat-more-invite-friend-meta strong {
-  font-size: 13px;
+  flex-shrink: 0;
+  max-width: 132px;
+  font-size: 12.5px;
   color: #111827;
 }
 
-.chat-more-invite-friend-meta small {
+.chat-more-invite-friend-detail {
+  min-width: 0;
   font-size: 11px;
   color: #6b7280;
+}
+
+.chat-more-invite-friend-action {
+  flex-shrink: 0;
 }
 
 .chat-more-upload-tile,
@@ -1408,6 +1439,10 @@ body {
   .chat-more-member-grid,
   .chat-more-group-invite-shell {
     grid-template-columns: 1fr;
+  }
+
+  .chat-more-group-invite-card-scroll {
+    max-height: 300px;
   }
 }
 

@@ -824,6 +824,7 @@
 
 .group-modal-body {
   grid-template-columns: 0.92fr 1.4fr;
+  align-items: start;
 }
 
 .group-modal-field {
@@ -860,17 +861,20 @@
 .group-friend-picker-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.38rem;
   min-height: 0;
+  max-height: 360px;
   overflow: auto;
+  padding-right: 0.2rem;
 }
 
 .group-friend-picker-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.55rem;
-  padding: 0.55rem 0.6rem;
-  border-radius: 8px;
+  padding: 0.48rem 0.6rem;
+  border-radius: 7px;
   border: 1px solid var(--account-recent-border);
   background: var(--account-card-bg);
   cursor: pointer;
@@ -886,7 +890,56 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--account-icon-bg) 20%, transparent);
 }
 
+.group-friend-picker-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1;
+}
+
+.group-friend-picker-item .friend-avatar,
+.group-friend-picker-item .friend-avatar-img {
+  width: 32px;
+  height: 32px;
+}
+
+.group-friend-picker-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+}
+
+.group-friend-picker-summary {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.group-friend-picker-summary strong,
+.group-friend-picker-meta small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-friend-picker-summary strong {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.84rem;
+}
+
+.group-friend-picker-meta small {
+  color: var(--account-text-soft);
+  font-size: 0.72rem;
+}
+
 .group-friend-picker-item input {
+  margin-left: auto;
+  flex-shrink: 0;
   accent-color: var(--account-icon-text);
 }
 
@@ -922,6 +975,10 @@
 
   .group-modal-body {
     grid-template-columns: 1fr;
+  }
+
+  .group-friend-picker-list {
+    max-height: 300px;
   }
 }
 

@@ -301,16 +301,17 @@ export default {
     handleSocketRoomSettings(payload) {
       const roomId = Number(payload?.roomId)
       if (!roomId) return
-      if (this.hasPendingRoomSettingsEdits(roomId)) {
-        return
-      }
       const previousSettings = this.getRoomSettings(roomId)
       const previousCutoff = Math.max(0, Number(previousSettings?.clearedBeforeMessageId || 0) || 0)
-      const nextSettings = normalizeChatMoreSettings(payload?.settings || {})
+      const hasPendingEdits = this.hasPendingRoomSettingsEdits(roomId)
+      const nextSettings = this.mergeIncomingRoomSettings(roomId, normalizeChatMoreSettings(payload?.settings || {}))
       const previousGameId = String(previousSettings?.sourceGameId || '').trim()
       const nextGameId = String(nextSettings?.sourceGameId || '').trim()
       this.setRoomSettings(roomId, nextSettings)
-      this.markRoomSettingsSynced(roomId, this.getRoomSettingsLocalRevision(roomId))
+      if (!hasPendingEdits) {
+        this.markRoomSettingsSynced(roomId, this.getRoomSettingsLocalRevision(roomId))
+        this.clearRoomSettingsDirtyFields(roomId)
+      }
       this.applyRoomSettingsToLoadedChats()
       if (nextSettings.clearedBeforeMessageId > previousCutoff) {
         this.applyRoomHistoryClear(roomId, nextSettings.clearedBeforeMessageId, { updateSettings: false })

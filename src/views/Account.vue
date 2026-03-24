@@ -487,28 +487,30 @@
                         class="group-friend-picker-item"
                         :class="{ active: selectedGroupFriendIds.includes(friend.id) }"
                       >
+                        <div class="group-friend-picker-main">
+                          <img
+                            v-if="friend.avatar_url"
+                            :src="getAvatarUrl(friend.avatar_url)"
+                            :alt="friend.username"
+                            class="friend-avatar-img"
+                            @error="handleAvatarError"
+                          />
+                          <div v-else class="friend-avatar">
+                            {{ (friend.username || '?').charAt(0).toUpperCase() }}
+                          </div>
+                          <div class="group-friend-picker-meta">
+                            <div class="group-friend-picker-summary">
+                              <strong :title="friend.username">{{ friend.username }}</strong>
+                              <UserLevelBadge :user-id="friend.id" />
+                            </div>
+                            <small :title="friend.email || '未设置邮箱'">{{ friend.email || '未设置邮箱' }}</small>
+                          </div>
+                        </div>
                         <input
                           type="checkbox"
                           :checked="selectedGroupFriendIds.includes(friend.id)"
                           @change="toggleGroupFriend(friend.id)"
                         />
-                        <img
-                          v-if="friend.avatar_url"
-                          :src="getAvatarUrl(friend.avatar_url)"
-                          :alt="friend.username"
-                          class="friend-avatar-img"
-                          @error="handleAvatarError"
-                        />
-                        <div v-else class="friend-avatar">
-                          {{ (friend.username || '?').charAt(0).toUpperCase() }}
-                        </div>
-                        <div class="friend-meta">
-                          <div class="username-level-row">
-                            <strong>{{ friend.username }}</strong>
-                            <UserLevelBadge :user-id="friend.id" />
-                          </div>
-                          <small>{{ friend.email || '未设置邮箱' }}</small>
-                        </div>
                       </label>
                     </div>
                   </section>

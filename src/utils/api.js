@@ -12,6 +12,32 @@ const normalizeApiBase = (rawBase = '') => {
 
 export const API_BASE_URL = normalizeApiBase(envApiBase || '/api')
 
+const AUTH_ERROR_PATTERNS = [
+  '登录已过期',
+  '请重新登录',
+  '无效的访问令牌',
+  '访问令牌缺失',
+  '未认证',
+  'unauthorized',
+  'invalid token',
+  'token expired',
+]
+
+const isAuthFailureResponse = (response, data = {}) => {
+  if (response.status === 401) return true
+  if (response.status !== 403) return false
+
+  const combinedText = [
+    data?.error,
+    data?.message
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return AUTH_ERROR_PATTERNS.some((pattern) => combinedText.includes(String(pattern).toLowerCase()))
+}
+
 export async function apiCall(endpoint, options = {}) {
   const authStore = useAuthStore()
   const url = `${API_BASE_URL}${endpoint}`
@@ -49,10 +75,13 @@ export async function apiCall(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, finalOptions)
-    const data = await response.json()
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase()
+    const data = contentType.includes('application/json')
+      ? await response.json()
+      : {}
 
     // 处理认证错误
-    if (response.status === 401 || response.status === 403) {
+    if (isAuthFailureResponse(response, data)) {
       // 清除无效token
       localStorage.removeItem('token')
       authStore.logout()
@@ -60,7 +89,10 @@ export async function apiCall(endpoint, options = {}) {
     }
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || '请求失败')
+      const error = new Error(data.error || data.message || '请求失败')
+      error.status = response.status
+      error.payload = data
+      throw error
     }
 
     return data

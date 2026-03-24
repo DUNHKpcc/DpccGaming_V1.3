@@ -391,6 +391,7 @@ const createRoomMemoryToolkit = ({
           provider: slot.provider,
           model: slot.provider === 'custom' ? slot.customModel : slot.builtinModel,
           name: slot.name,
+          context: safeLongText(slot.context || '', 2000),
           memoryEnabled: slot.memoryEnabled !== false
         }))
       }, null, 2),

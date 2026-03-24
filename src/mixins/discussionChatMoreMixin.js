@@ -25,6 +25,7 @@ export default {
       chatMoreGroupInvitePermissionOptions: CHAT_MORE_GROUP_INVITE_PERMISSION_OPTIONS,
       activeChatMoreSection: '',
       chatMoreSettingsByRoom: {},
+      roomSettingsDirtyFieldsByRoom: {},
       roomSettingsLocalRevisionByRoom: {},
       roomSettingsSyncedRevisionByRoom: {},
       roomSettingsRequestSeqByRoom: {},
@@ -91,6 +92,31 @@ export default {
       if (!roomKey) return 0
       return Number(this.roomSettingsSyncedRevisionByRoom[roomKey] || 0) || 0
     },
+    getRoomSettingsDirtyFieldMap(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return {}
+      const dirtyFields = this.roomSettingsDirtyFieldsByRoom[roomKey]
+      return dirtyFields && typeof dirtyFields === 'object' ? dirtyFields : {}
+    },
+    markRoomSettingsDirtyField(roomId, fieldPath = '') {
+      const roomKey = String(roomId || '').trim()
+      const normalizedFieldPath = String(fieldPath || '').trim()
+      if (!roomKey || !normalizedFieldPath) return
+      this.roomSettingsDirtyFieldsByRoom = {
+        ...this.roomSettingsDirtyFieldsByRoom,
+        [roomKey]: {
+          ...this.getRoomSettingsDirtyFieldMap(roomKey),
+          [normalizedFieldPath]: true
+        }
+      }
+    },
+    clearRoomSettingsDirtyFields(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey || !this.roomSettingsDirtyFieldsByRoom[roomKey]) return
+      const nextDirtyFields = { ...this.roomSettingsDirtyFieldsByRoom }
+      delete nextDirtyFields[roomKey]
+      this.roomSettingsDirtyFieldsByRoom = nextDirtyFields
+    },
     markRoomSettingsLocalEdit(roomId) {
       const roomKey = String(roomId || '').trim()
       if (!roomKey) return 0
@@ -141,6 +167,60 @@ export default {
         ...this.chatMoreSettingsByRoom,
         [roomKey]: normalizeChatMoreSettings(nextSettings)
       }
+    },
+    buildRoomSettingsPatch(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return null
+      const dirtyKeys = Object.keys(this.getRoomSettingsDirtyFieldMap(roomKey)).filter(Boolean)
+      if (!dirtyKeys.length) return null
+      const settings = normalizeChatMoreSettings(this.getRoomSettings(roomKey))
+      const patch = {}
+
+      dirtyKeys.forEach((dirtyKey) => {
+        if (!dirtyKey.startsWith('aiSlots.')) {
+          patch[dirtyKey] = settings[dirtyKey]
+          return
+        }
+
+        const [, rawIndex, slotField] = dirtyKey.split('.')
+        const slotIndex = Number.parseInt(rawIndex, 10)
+        if (!Number.isInteger(slotIndex) || slotIndex < 0 || !slotField) return
+        const slot = settings.aiSlots?.[slotIndex]
+        if (!slot) return
+        if (!Array.isArray(patch.aiSlots)) {
+          patch.aiSlots = []
+        }
+        patch.aiSlots[slotIndex] = {
+          ...(patch.aiSlots[slotIndex] || {}),
+          id: slot.id,
+          [slotField]: slot[slotField]
+        }
+      })
+
+      return patch
+    },
+    mergeIncomingRoomSettings(roomId, incomingSettings = {}) {
+      const roomKey = String(roomId || '').trim()
+      const nextSettings = normalizeChatMoreSettings(incomingSettings)
+      if (!roomKey) return nextSettings
+      const dirtyKeys = Object.keys(this.getRoomSettingsDirtyFieldMap(roomKey)).filter(Boolean)
+      if (!dirtyKeys.length) return nextSettings
+      const localSettings = normalizeChatMoreSettings(this.getRoomSettings(roomKey))
+
+      dirtyKeys.forEach((dirtyKey) => {
+        if (!dirtyKey.startsWith('aiSlots.')) {
+          nextSettings[dirtyKey] = localSettings[dirtyKey]
+          return
+        }
+
+        const [, rawIndex, slotField] = dirtyKey.split('.')
+        const slotIndex = Number.parseInt(rawIndex, 10)
+        if (!Number.isInteger(slotIndex) || slotIndex < 0 || !slotField) return
+        if (!nextSettings.aiSlots?.[slotIndex] || !localSettings.aiSlots?.[slotIndex]) return
+        nextSettings.aiSlots[slotIndex][slotField] = localSettings.aiSlots[slotIndex][slotField]
+      })
+
+      return nextSettings
     },
     getRoomDetail(roomId) {
       const roomKey = String(roomId || '').trim()
@@ -213,12 +293,13 @@ export default {
       const roomKey = String(roomId || '').trim()
       if (!roomKey) return createDefaultChatMoreSettings()
       const data = await apiCall(`/discussion/rooms/${roomKey}/settings`)
-      const settings = normalizeChatMoreSettings(data?.settings || {})
-      if (this.hasPendingRoomSettingsEdits(roomKey)) {
-        return settings
-      }
+      const hasPendingEdits = this.hasPendingRoomSettingsEdits(roomKey)
+      const settings = this.mergeIncomingRoomSettings(roomKey, data?.settings || {})
       this.setRoomSettings(roomKey, settings)
-      this.markRoomSettingsSynced(roomKey, this.getRoomSettingsLocalRevision(roomKey))
+      if (!hasPendingEdits) {
+        this.markRoomSettingsSynced(roomKey, this.getRoomSettingsLocalRevision(roomKey))
+        this.clearRoomSettingsDirtyFields(roomKey)
+      }
       this.applyRoomSettingsToLoadedChats()
       return settings
     },
@@ -318,21 +399,26 @@ export default {
         delete nextTimers[roomKey]
         this.roomSettingsSaveTimers = nextTimers
       }
-      const settings = normalizeChatMoreSettings(this.getRoomSettings(roomKey))
+      const settingsPatch = this.buildRoomSettingsPatch(roomKey)
+      if (!settingsPatch) {
+        this.markRoomSettingsSynced(roomKey, this.getRoomSettingsLocalRevision(roomKey))
+        return
+      }
       const requestSeq = this.nextRoomSettingsRequestSeq(roomKey)
       const sentRevision = this.getRoomSettingsLocalRevision(roomKey)
       try {
         const data = await apiCall(`/discussion/rooms/${roomKey}/settings`, {
           method: 'PATCH',
-          body: JSON.stringify({ settings })
+          body: JSON.stringify({ settings: settingsPatch })
         })
         const latestRequestSeq = this.getLatestRoomSettingsRequestSeq(roomKey)
         const currentRevision = this.getRoomSettingsLocalRevision(roomKey)
         if (requestSeq !== latestRequestSeq || currentRevision !== sentRevision) {
           return
         }
-        this.setRoomSettings(roomKey, data?.settings || settings)
+        this.setRoomSettings(roomKey, data?.settings || this.getRoomSettings(roomKey))
         this.markRoomSettingsSynced(roomKey, sentRevision)
+        this.clearRoomSettingsDirtyFields(roomKey)
         this.applyRoomSettingsToLoadedChats()
         if (String(this.currentChatId) === roomKey && this.activeRightTab === 'code') {
           this.syncCurrentRoomCode({ force: true })
@@ -456,6 +542,7 @@ export default {
       const roomId = this.currentChat?.id
       const settings = this.getRoomSettings(roomId)
       settings[field] = typeof value === 'string' ? value.trimStart() : value
+      this.markRoomSettingsDirtyField(roomId, field)
       this.markRoomSettingsLocalEdit(roomId)
       if (['customNickname', 'collaborationStatus', 'roomTitle', 'roomAvatarUrl', 'roomMaxMembers'].includes(field)) {
         this.applyRoomSettingsToLoadedChats()
@@ -487,14 +574,17 @@ export default {
     updateAiSlotField(slotId, field, value) {
       const roomId = this.currentChat?.id
       const settings = this.getRoomSettings(roomId)
-      const slot = settings.aiSlots.find((item) => item.id === slotId)
+      const slotIndex = settings.aiSlots.findIndex((item) => item.id === slotId)
+      const slot = slotIndex >= 0 ? settings.aiSlots[slotIndex] : null
       if (!slot) return
       slot[field] = value
+      this.markRoomSettingsDirtyField(roomId, `aiSlots.${slotIndex}.${field}`)
       this.markRoomSettingsLocalEdit(roomId)
       if (field === 'enabled') {
         const enabledCount = settings.aiSlots.filter((item) => item?.enabled).length
         if (enabledCount < 2 && settings.dualAiLoopEnabled) {
           settings.dualAiLoopEnabled = false
+          this.markRoomSettingsDirtyField(roomId, 'dualAiLoopEnabled')
         }
         this.flushRoomSettingsSave(roomId)
         return
@@ -504,12 +594,15 @@ export default {
     async onAiAvatarFileChange(slotId, event) {
       const file = event?.target?.files?.[0]
       if (!file) return
+      const notificationStore = useNotificationStore()
       try {
         const avatarUrl = await compressImageToWebpDataUrl(file)
         this.updateAiSlotField(slotId, 'avatarUrl', avatarUrl)
         this.updateAiSlotField(slotId, 'avatarUpdatedAt', Date.now())
       } catch (error) {
-        this.errorText = error.message || 'AI 头像处理失败'
+        const message = error.message || 'AI 头像处理失败'
+        this.errorText = message
+        notificationStore.error('AI 头像处理失败', message)
       } finally {
         if (event?.target) event.target.value = ''
       }
@@ -519,6 +612,7 @@ export default {
       const file = event?.target?.files?.[0]
       if (!roomId || !file) return
       const roomKey = String(roomId)
+      const notificationStore = useNotificationStore()
       this.roomAvatarUploadingByRoom = {
         ...this.roomAvatarUploadingByRoom,
         [roomKey]: true
@@ -537,7 +631,9 @@ export default {
         })
         this.applyRoomSettingsToLoadedChats()
       } catch (error) {
-        this.errorText = error.message || '群聊头像处理失败'
+        const message = error.message || '群聊头像处理失败'
+        this.errorText = message
+        notificationStore.error('群聊头像上传失败', message)
       } finally {
         this.roomAvatarUploadingByRoom = {
           ...this.roomAvatarUploadingByRoom,

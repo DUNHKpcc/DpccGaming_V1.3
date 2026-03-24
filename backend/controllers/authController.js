@@ -197,7 +197,10 @@ async function processAvatarImage(inputPath) {
   }
 
   const parsedPath = path.parse(inputPath);
-  const outputPath = path.join(parsedPath.dir, `${parsedPath.name}.webp`);
+  const outputFilename = String(parsedPath.ext || '').toLowerCase() === '.webp'
+    ? `${parsedPath.name}-processed.webp`
+    : `${parsedPath.name}.webp`;
+  const outputPath = path.join(parsedPath.dir, outputFilename);
 
   await sharp(inputPath)
     .rotate()
@@ -221,7 +224,10 @@ async function processCoverImage(inputPath) {
   }
 
   const parsedPath = path.parse(inputPath);
-  const outputPath = path.join(parsedPath.dir, `${parsedPath.name}.webp`);
+  const outputFilename = String(parsedPath.ext || '').toLowerCase() === '.webp'
+    ? `${parsedPath.name}-processed.webp`
+    : `${parsedPath.name}.webp`;
+  const outputPath = path.join(parsedPath.dir, outputFilename);
 
   await sharp(inputPath)
     .rotate()

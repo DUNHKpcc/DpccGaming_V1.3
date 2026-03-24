@@ -367,7 +367,10 @@ const processRoomAvatarImage = async (inputPath) => {
   }
 
   const parsedPath = path.parse(inputPath);
-  const outputPath = path.join(parsedPath.dir, `${parsedPath.name}.webp`);
+  const outputFileName = String(parsedPath.ext || '').toLowerCase() === '.webp'
+    ? `${parsedPath.name}-processed.webp`
+    : `${parsedPath.name}.webp`;
+  const outputPath = path.join(parsedPath.dir, outputFileName);
 
   await sharp(inputPath)
     .rotate()

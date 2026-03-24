@@ -222,7 +222,7 @@ const triggerMentionedAiReply = async ({
       requestId,
       slot,
       stage: AI_PROGRESS_STAGES.memory,
-      message: '正在读取共享记忆、相关源码片段和文档内容…',
+      message: '正在整理最近对话上下文…',
       targetUsername: triggerUsername,
       mode: 'mention'
     }));
@@ -731,7 +731,7 @@ const sendAiRoomMessage = async (req, res) => {
       requestId,
       slot,
       stage: AI_PROGRESS_STAGES.memory,
-      message: '正在检索共享记忆、相关源码片段和文档内容…',
+      message: '正在整理最近对话上下文…',
       targetUsername: targetUsername || '',
       mode: 'single'
     }));

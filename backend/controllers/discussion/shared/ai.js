@@ -14,6 +14,19 @@ const DEFAULT_ARK_API_KEY = ARK_CONFIG.defaultApiKey;
 const DEFAULT_QWEN_CODEMAX_ENDPOINT = 'https://coding.dashscope.aliyuncs.com/v1';
 const DEFAULT_QWEN_CODEMAX_API_KEY = 'sk-sp-9a16d7d7aa4740b7aeffccaeb07a80ce';
 const DEFAULT_QWEN_CODEMAX_MODEL = 'qwen3.5-plus';
+const RESOURCE_READ_VERBS = [
+  '看', '看看', '读', '读取', '阅读', '查看', '分析', '检查', '审查', '参考', '结合', '打开', '浏览',
+  'read', 'review', 'inspect', 'check', 'open', 'load', 'use'
+];
+const CODE_RESOURCE_TERMS = [
+  '源码', '代码', 'code', 'repo', '仓库', '脚本', '.js', '.ts', '.tsx', '.vue', '.py', '.java', '.cpp', '.cs'
+];
+const DOCUMENT_RESOURCE_TERMS = [
+  '文档', '说明', 'readme', '需求', '方案', '设计', '手册', 'pdf', '.md', '.txt', '附件'
+];
+const LINKED_RESOURCE_TERMS = [
+  '附件', '文件', '这份', '这个', '这段', '刚发', '刚刚发', '刚上传', '上面', '上一条', '刚才'
+];
 
 const parseTextMessageContent = (content) => {
   if (!content) return '';
@@ -79,6 +92,71 @@ const formatRoomMessageForAi = (message = {}) => {
   return `[${senderType}] ${senderLabel}${detailParts.length ? `（${detailParts.join('，')}）` : ''}：${content}`;
 };
 
+const normalizeIntentText = (value = '') => String(value || '').toLowerCase();
+const textIncludesAny = (text = '', terms = []) => terms.some((term) => text.includes(String(term || '').toLowerCase()));
+
+const getMessageResourceMetadata = (message = {}) => {
+  const metadata = parseJsonObject(message.metadata_json) || {};
+  const codePreview = metadata.code_preview && typeof metadata.code_preview === 'object' ? metadata.code_preview : null;
+  const documentPreview = metadata.document_preview && typeof metadata.document_preview === 'object' ? metadata.document_preview : null;
+  const attachment = metadata.attachment && typeof metadata.attachment === 'object' ? metadata.attachment : null;
+  return {
+    codePreview,
+    documentPreview,
+    attachment
+  };
+};
+
+const inferLatestLinkedResourceKind = (recentMessages = []) => {
+  for (let index = recentMessages.length - 1; index >= 0; index -= 1) {
+    const resourceMeta = getMessageResourceMetadata(recentMessages[index]);
+    if (resourceMeta.codePreview?.path) return 'code';
+    if (resourceMeta.documentPreview?.name || resourceMeta.documentPreview?.document_id) return 'document';
+  }
+  return '';
+};
+
+const resolveAiResourceContextPolicy = ({
+  prompt = '',
+  loopPrompt = '',
+  recentMessages = []
+}) => {
+  const recentUserTexts = recentMessages
+    .filter((message) => safeText(message.sender_type || 'user', 20) === 'user')
+    .slice(-4)
+    .map((message) => {
+      const resourceMeta = getMessageResourceMetadata(message);
+      return [
+        safeLongText(message.content || '', 600),
+        safeText(resourceMeta.codePreview?.path || '', 220),
+        safeText(resourceMeta.documentPreview?.name || '', 220),
+        safeText(resourceMeta.attachment?.name || '', 220)
+      ].filter(Boolean).join('\n');
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  const decisionText = [prompt, loopPrompt, recentUserTexts]
+    .map((item) => normalizeIntentText(item))
+    .filter(Boolean)
+    .join('\n');
+
+  const hasReadVerb = textIncludesAny(decisionText, RESOURCE_READ_VERBS);
+  const asksCode = hasReadVerb && textIncludesAny(decisionText, CODE_RESOURCE_TERMS);
+  const asksDocument = hasReadVerb && textIncludesAny(decisionText, DOCUMENT_RESOURCE_TERMS);
+  const asksLinkedResource = hasReadVerb && textIncludesAny(decisionText, LINKED_RESOURCE_TERMS);
+  const latestLinkedKind = inferLatestLinkedResourceKind(recentMessages);
+
+  const includeCode = asksCode || (!asksCode && !asksDocument && asksLinkedResource && latestLinkedKind === 'code');
+  const includeDocument = asksDocument || (!asksCode && !asksDocument && asksLinkedResource && latestLinkedKind === 'document');
+
+  return {
+    includeCode,
+    includeDocument,
+    usesExternalContext: includeCode || includeDocument
+  };
+};
+
 const buildPromptFromAiContext = ({
   prompt,
   gameTitle,
@@ -131,7 +209,7 @@ const requestArkAiReply = async ({ prompt, gameTitle, roomMessages, roomSummary,
         content: [
           {
             type: 'text',
-            text: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。请结合房间消息、共享记忆、文档和代码内容，自然、清晰地回应当前讨论。'
+            text: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息回复；只有在当前请求明确要求时，才使用附带的文档或源码上下文。'
           }
         ]
       },
@@ -194,7 +272,7 @@ const requestQwenCodeMaxReply = async ({ prompt, gameTitle, roomMessages, roomSu
       messages: [
         {
           role: 'system',
-          content: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。请结合房间消息、共享记忆、文档和代码内容，给出清晰、自然、可执行的中文回复。'
+          content: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息回复；只有在当前请求明确要求时，才使用附带的文档或源码上下文。'
         },
         {
           role: 'user',
@@ -237,17 +315,24 @@ const buildRoomScopedAiPrompt = ({
   prompt = '',
   targetUserName = '',
   roomSummary = null,
-  recentMessages = []
+  recentMessages = [],
+  contextPolicy = {}
 }) => {
   const effectivePrompt = safeLongText(loopPrompt || prompt || '请结合当前讨论继续推进并给出下一步建议。', 1600);
   return [
     `当前 AI 名称：${safeText(slot.name || 'AI 助手', 80)}`,
-    slot.context ? `AI 上下文：${safeLongText(slot.context, 1200)}` : '',
+    slot.context ? `以下是该 AI 在当前房间内必须长期遵守的固定上下文与职责，请优先按它执行：\n${safeLongText(slot.context, 1200)}` : '',
     targetUserName ? `本次优先回复对象：${safeText(targetUserName, 80)}` : '',
     prompt ? `调用指令：${safeLongText(prompt, 1200)}` : '',
     loopPrompt ? `轮询目标：${safeLongText(loopPrompt, 1200)}` : '',
     roomSummary?.summaryText ? `已有摘要：\n${safeLongText(roomSummary.summaryText, 1800)}` : '',
-    recentMessages.length ? '请基于当前房间成员最近的真实对话、共享文档和源码记忆接续发言。' : '',
+    recentMessages.length
+      ? (
+        contextPolicy.usesExternalContext
+          ? '请基于最近消息接续发言；仅参考本次请求明确要求读取的源码或文档上下文。'
+          : '请只根据当前房间成员最近的真实对话接续发言；除非用户明确要求，否则不要主动读取源码、文档或附件内容。'
+      )
+      : '',
     targetUserName && prompt ? '请优先围绕这位用户最近一次消息展开协作，不要脱离用户问题让 AI 之间无限互相追问。' : '',
     '最终回复必须使用简体中文，并严格控制在 80 字以内。',
     effectivePrompt
@@ -273,7 +358,7 @@ const requestCustomAiReply = async ({ slot, prompt }) => {
       messages: [
         {
           role: 'system',
-          content: '你是多人协作聊天中的 AI 成员，请结合房间记忆、文件和历史对话，自然接续上下文发言。'
+          content: '你是多人协作聊天中的 AI 成员。默认只根据历史消息接续发言；只有当前请求明确要求时，才使用附带的文档或源码上下文。如果用户消息里附带了“AI 上下文/固定职责”，必须优先服从，不要忽略。'
         },
         {
           role: 'user',
@@ -313,24 +398,35 @@ const createRequestRoomAiReplyBySlot = ({
   loopPrompt = '',
   recentMessages = [],
   targetUserName = ''
-}) => {
+  }) => {
     const parsedRoomId = Number(roomId || 0);
     if (!parsedRoomId) throw new Error('无效的 roomId');
     const roomContext = room || (await getRoomNotificationContext(pool, parsedRoomId));
     if (!roomContext) throw new Error('房间不存在');
-
-    const roomMemory = await refreshRoomMemoryArtifacts(pool, parsedRoomId);
-    const summary = roomMemory.summary || await getRoomSummary(pool, parsedRoomId);
     const useMemory = slot.memoryEnabled !== false;
-    const relevantEntries = useMemory
-      ? retrieveRelevantMemoryEntries(roomMemory.memory || [], `${prompt}\n${loopPrompt}`, summary?.summaryText || '')
-      : [];
-    const linkedEntries = useMemory
-      ? findRecentMessageLinkedMemoryEntries(roomMemory.memory || [], recentMessages)
-      : [];
-    const memoryEntries = [...new Map(
-      [...linkedEntries, ...relevantEntries].map((entry) => [entry.sourceKey || entry.id, entry])
-    ).values()].slice(0, Math.max(roomMemoryContextLimit, linkedEntries.length));
+    const contextPolicy = resolveAiResourceContextPolicy({
+      prompt,
+      loopPrompt,
+      recentMessages
+    });
+    let summary = null;
+    let memoryEntries = [];
+
+    if (useMemory && contextPolicy.usesExternalContext) {
+      const roomMemory = await refreshRoomMemoryArtifacts(pool, parsedRoomId);
+      const filteredEntries = (roomMemory.memory || []).filter((entry) => {
+        const memoryType = safeText(entry?.memoryType || '', 32);
+        if (memoryType === 'code') return contextPolicy.includeCode;
+        if (memoryType === 'document') return contextPolicy.includeDocument;
+        return false;
+      });
+      const relevantEntries = retrieveRelevantMemoryEntries(filteredEntries, `${prompt}\n${loopPrompt}`, '');
+      const linkedEntries = findRecentMessageLinkedMemoryEntries(filteredEntries, recentMessages);
+      memoryEntries = [...new Map(
+        [...linkedEntries, ...relevantEntries].map((entry) => [entry.sourceKey || entry.id, entry])
+      ).values()].slice(0, Math.max(roomMemoryContextLimit, linkedEntries.length));
+      summary = null;
+    }
     const scopedPrompt = buildRoomScopedAiPrompt({
       slot,
       room: roomContext,
@@ -338,7 +434,8 @@ const createRequestRoomAiReplyBySlot = ({
       prompt,
       targetUserName,
       roomSummary: summary,
-      recentMessages
+      recentMessages,
+      contextPolicy
     });
 
     let rawReply = '';
@@ -351,7 +448,7 @@ const createRequestRoomAiReplyBySlot = ({
           recentMessages,
           roomSummary: summary,
           memoryEntries,
-          systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手，请结合房间记忆、文档与代码记忆，用简体中文自然接续发言。最终回复严格控制在80字以内。'
+          systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手。默认只根据成员消息回复；只有当前请求明确要求时，才使用附带的文档或源码上下文。最终回复严格控制在80字以内。'
         })
       });
     } else {
@@ -362,7 +459,7 @@ const createRequestRoomAiReplyBySlot = ({
         builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
         roomSummary: summary,
         memoryEntries,
-        systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。你会看到成员消息、文件发送信息、房间摘要和共享记忆。请明确区分是谁发了什么，并基于当前讨论自然、可执行地回复。最终回复严格控制在80字以内。'
+        systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息和当前提问回复；只有当前请求明确要求时，才使用附带的文档或源码上下文。请明确区分是谁发了什么，并自然、可执行地回复。最终回复严格控制在80字以内。'
       });
     }
 

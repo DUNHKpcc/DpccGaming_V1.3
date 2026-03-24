@@ -188,7 +188,7 @@
                   </label>
                 </div>
 
-                <div class="chat-more-group-invite-card">
+                <div class="chat-more-group-invite-card chat-more-group-invite-card-scroll">
                   <div class="chat-more-editor-head chat-more-editor-head-compact">
                     <strong>好友直邀</strong>
                     <span class="chat-more-inline-tip">{{ inviteFriends.length }} 位可邀请好友</span>
@@ -214,16 +214,21 @@
                         </div>
                         <div class="chat-more-invite-friend-meta">
                           <strong :title="friend.username">{{ friend.username }}</strong>
-                          <small :title="friend.email">{{ friend.email || '未设置邮箱' }}</small>
+                          <span
+                            class="chat-more-invite-friend-detail"
+                            :title="friend.email || '未设置邮箱'"
+                          >
+                            {{ friend.email || '未设置邮箱' }}
+                          </span>
                         </div>
                       </div>
                       <button
                         type="button"
-                        class="chat-more-secondary-btn"
+                        class="chat-more-secondary-btn chat-more-secondary-btn-compact chat-more-invite-friend-action"
                         :disabled="!canInviteCurrentGroupMembers || isFriendInviteLoading(friend)"
                         @click="$emit('invite-room-friend', friend)"
                       >
-                        {{ isFriendInviteLoading(friend) ? '邀请中...' : '邀请入群' }}
+                        {{ isFriendInviteLoading(friend) ? '邀请中...' : '邀请' }}
                       </button>
                     </div>
                   </div>

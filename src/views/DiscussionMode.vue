@@ -1356,8 +1356,18 @@ export default {
       const chat = this.chats.find(item => item.id === chatId)
       if (!chat) return
       if (chat.messagesLoaded && !options.force) {
+        const syncTasks = []
+        if (this.currentChatSupportsMorePanel) {
+          syncTasks.push(this.fetchRoomSettings(chatId))
+          if (chat.mode === 'room') {
+            syncTasks.push(this.fetchRoomDetail(chatId, { force: true }))
+          }
+        }
         if (this.activeRightTab === 'code') {
-          await this.syncCurrentRoomCode()
+          syncTasks.push(this.syncCurrentRoomCode())
+        }
+        if (syncTasks.length) {
+          await Promise.all(syncTasks)
         }
         this.$nextTick(() => this.scrollMessagesToBottom())
         return
