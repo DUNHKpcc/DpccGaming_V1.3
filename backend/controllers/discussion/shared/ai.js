@@ -398,7 +398,7 @@ const createRequestRoomAiReplyBySlot = ({
   loopPrompt = '',
   recentMessages = [],
   targetUserName = ''
-  }) => {
+}) => {
     const parsedRoomId = Number(roomId || 0);
     if (!parsedRoomId) throw new Error('无效的 roomId');
     const roomContext = room || (await getRoomNotificationContext(pool, parsedRoomId));
@@ -448,7 +448,7 @@ const createRequestRoomAiReplyBySlot = ({
           recentMessages,
           roomSummary: summary,
           memoryEntries,
-          systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手。默认只根据成员消息回复；只有当前请求明确要求时，才使用附带的文档或源码上下文。最终回复严格控制在80字以内。'
+          systemDirective: '你是 DpccGaming 讨论房间内的自定义 AI 助手。默认只根据成员消息回复；只有当前请求明确要求你查寻或使用源码和文档时，才使用附带的文档或源码上下文。最终回复严格控制在80字以内。'
         })
       });
     } else {
@@ -459,7 +459,7 @@ const createRequestRoomAiReplyBySlot = ({
         builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
         roomSummary: summary,
         memoryEntries,
-        systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息和当前提问回复；只有当前请求明确要求时，才使用附带的文档或源码上下文。请明确区分是谁发了什么，并自然、可执行地回复。最终回复严格控制在80字以内。'
+        systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息和当前提问回复；只有当前请求明确要求你查寻或使用源码和文档时，才使用附带的文档或源码上下文。请明确区分是谁发了什么，并自然、可执行地回复。最终回复严格控制在80字以内。'
       });
     }
 

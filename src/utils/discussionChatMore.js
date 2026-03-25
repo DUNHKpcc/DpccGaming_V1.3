@@ -1,3 +1,5 @@
+import { compressImageToWebpDataUrl } from './image'
+
 export const CHAT_MORE_DIRECT_MENU_ITEMS = [
   { key: 'game-code', label: '游戏代码选取' },
   { key: 'pull-ai', label: '拉取 AI' },
@@ -184,36 +186,4 @@ export const getBuiltinModelAvatarUrl = (modelName = '') => {
   return getBuiltinModelMeta(modelName).logo
 }
 
-export const compressImageToWebpDataUrl = (file) => new Promise((resolve, reject) => {
-  const reader = new FileReader()
-  reader.onload = () => {
-    const image = new Image()
-    image.onload = () => {
-      const canvas = document.createElement('canvas')
-      const maxSize = 320
-      const scale = Math.min(1, maxSize / Math.max(image.width, image.height))
-      canvas.width = Math.max(1, Math.round(image.width * scale))
-      canvas.height = Math.max(1, Math.round(image.height * scale))
-      const context = canvas.getContext('2d')
-      if (!context) {
-        reject(new Error('当前浏览器不支持图片压缩'))
-        return
-      }
-      context.drawImage(image, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('图片压缩失败'))
-          return
-        }
-        const blobReader = new FileReader()
-        blobReader.onload = () => resolve(String(blobReader.result || ''))
-        blobReader.onerror = () => reject(new Error('图片读取失败'))
-        blobReader.readAsDataURL(blob)
-      }, 'image/webp', 0.82)
-    }
-    image.onerror = () => reject(new Error('图片加载失败'))
-    image.src = String(reader.result || '')
-  }
-  reader.onerror = () => reject(new Error('图片读取失败'))
-  reader.readAsDataURL(file)
-})
+export { compressImageToWebpDataUrl }

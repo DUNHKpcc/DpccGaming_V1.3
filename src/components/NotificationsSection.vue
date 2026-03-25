@@ -581,6 +581,10 @@ onBeforeUnmount(() => {
   border-radius: inherit;
   padding: 1rem;
   height: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .section-header {
@@ -589,21 +593,27 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   margin-bottom: 1rem;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .notifications-content {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .notifications-stack {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .notifications-section.compact .notifications-content {
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 0.2rem;
 }
 
@@ -656,6 +666,15 @@ onBeforeUnmount(() => {
   transition: all 0.3s ease;
   min-height: 88px;
   box-sizing: border-box;
+}
+
+.notification-item,
+.notification-item > * {
+  min-width: 0;
+}
+
+.notifications-section.compact .notification-item {
+  min-height: unset;
 }
 
 .notification-item:hover {
@@ -712,6 +731,9 @@ onBeforeUnmount(() => {
 .notification-content {
   flex: 1;
   min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .notification-header {
@@ -721,6 +743,7 @@ onBeforeUnmount(() => {
   margin-bottom: 0.5rem;
   gap: 0.75rem;
   min-width: 0;
+  width: 100%;
 }
 
 .notification-title {
@@ -754,12 +777,14 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .friend-request-actions {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  flex-shrink: 0;
 }
 
 .unread-indicator {
@@ -787,6 +812,7 @@ onBeforeUnmount(() => {
   background: var(--notify-action-bg);
   color: var(--notify-action-text);
   border: 1px solid var(--notify-item-border);
+  white-space: nowrap;
 }
 
 .notification-action-btn:hover {

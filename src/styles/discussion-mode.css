@@ -701,6 +701,7 @@ body {
 
 .chat-more-action-row {
   margin-top: 14px;
+  margin-bottom: 14px;
   display: flex;
   align-items: center;
   gap: 10px;

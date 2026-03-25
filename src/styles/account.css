@@ -250,6 +250,9 @@
   padding: 0;
   align-self: start;
   height: clamp(240px, 35vh, 360px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .middle-panels {
@@ -633,6 +636,9 @@
 .widget-notifications :deep(.notifications-section) {
   height: 100%;
   border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 

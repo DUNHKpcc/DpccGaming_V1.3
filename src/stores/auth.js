@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiCall } from '../utils/api'
 import { DEFAULT_AVATAR_URL } from '../utils/avatar'
+import { compressImageToBlob } from '../utils/image'
 
 export const useAuthStore = defineStore('auth', () => {
   const normalizeUser = (user) => {
@@ -128,16 +129,23 @@ export const useAuthStore = defineStore('auth', () => {
       return { success: false, message: '请选择头像文件' }
     }
 
-    const formData = new FormData()
-    formData.append('avatar', file)
-
-    const token = localStorage.getItem('token') || authToken.value
-    const headers = {}
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
+    if (!file.type.startsWith('image/')) {
+      return { success: false, message: '请上传图片文件' }
     }
 
     try {
+      // 压缩头像：最大边长 320px，WebP 格式
+      const { blob } = await compressImageToBlob(file, { maxSize: 320, quality: 0.82 })
+
+      const formData = new FormData()
+      formData.append('avatar', blob, 'avatar.webp')
+
+      const token = localStorage.getItem('token') || authToken.value
+      const headers = {}
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/user/avatar', {
         method: 'POST',
         credentials: 'include',
@@ -166,16 +174,23 @@ export const useAuthStore = defineStore('auth', () => {
       return { success: false, message: '请选择封面文件' }
     }
 
-    const formData = new FormData()
-    formData.append('cover', file)
-
-    const token = localStorage.getItem('token') || authToken.value
-    const headers = {}
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
+    if (!file.type.startsWith('image/')) {
+      return { success: false, message: '请上传图片文件' }
     }
 
     try {
+      // 压缩封面：最大边长 1920px，WebP 格式
+      const { blob } = await compressImageToBlob(file, { maxSize: 1920, quality: 0.84 })
+
+      const formData = new FormData()
+      formData.append('cover', blob, 'cover.webp')
+
+      const token = localStorage.getItem('token') || authToken.value
+      const headers = {}
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/user/cover', {
         method: 'POST',
         credentials: 'include',

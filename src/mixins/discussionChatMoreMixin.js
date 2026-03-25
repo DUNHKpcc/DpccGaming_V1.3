@@ -10,6 +10,7 @@ import {
   getCollaborationStatusMeta,
   compressImageToWebpDataUrl
 } from '../utils/discussionChatMore'
+import { compressImageToBlob } from '../utils/image'
 import {
   normalizeDiscussionRoomSummary,
   normalizeDiscussionRoomMemoryItem
@@ -618,8 +619,9 @@ export default {
         [roomKey]: true
       }
       try {
+        const { blob } = await compressImageToBlob(file, { maxSize: 320, quality: 0.82 })
         const formData = new FormData()
-        formData.append('avatar', file)
+        formData.append('avatar', blob, 'avatar.webp')
         const data = await apiCall(`/discussion/rooms/${roomId}/avatar`, {
           method: 'POST',
           body: formData

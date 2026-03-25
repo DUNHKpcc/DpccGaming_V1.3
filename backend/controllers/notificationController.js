@@ -1,12 +1,11 @@
 const { getPool } = require('../config/database');
 
-// 获取用户通知列表
+
 const getNotifications = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
 
-    // 获取数据库连接池
     const pool = getPool();
 
     const [notifications] = await pool.execute(`
@@ -18,7 +17,7 @@ const getNotifications = async (req, res) => {
       LIMIT ? OFFSET ?
     `, [req.user.userId, parseInt(limit), parseInt(offset)]);
 
-    // 获取总数
+
     const [countResult] = await pool.execute(`
       SELECT COUNT(*) as total FROM notifications WHERE user_id = ?
     `, [req.user.userId]);
@@ -41,7 +40,7 @@ const getNotifications = async (req, res) => {
   }
 };
 
-// 获取未读通知状态
+
 const getUnreadStatus = async (req, res) => {
   try {
     const pool = getPool();
@@ -62,12 +61,11 @@ const getUnreadStatus = async (req, res) => {
   }
 };
 
-// 标记通知为已读
+
 const markNotificationAsRead = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 获取数据库连接池
     const pool = getPool();
 
     await pool.execute(`
@@ -83,10 +81,9 @@ const markNotificationAsRead = async (req, res) => {
   }
 };
 
-// 全部标记为已读
 const markAllNotificationsAsRead = async (req, res) => {
   try {
-    // 获取数据库连接池
+
     const pool = getPool();
 
     await pool.execute(`
