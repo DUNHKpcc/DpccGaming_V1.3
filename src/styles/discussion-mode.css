@@ -1730,7 +1730,7 @@ body {
   align-items: center;
   min-height: 22px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgba(15, 23, 42, 0.06);
   color: #475569;
   font-size: 11px;
@@ -2429,4 +2429,60 @@ body {
   .right-panel-switch-leave-active {
     transition: none;
   }
+}
+
+.chat-more-ai-save-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 8px;
+}
+
+.chat-more-save-btn {
+  padding: 8px 16px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.chat-more-save-btn:hover {
+  background: #1d4ed8;
+}
+
+.chat-more-save-btn:active {
+  background: #1e40af;
+}
+
+.chat-more-save-tile {
+  width: 60px;
+  min-width: 60px;
+  min-height: 60px;
+  height: 60px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid #d7dde5;
+  background: #f8fafc;
+  color: #6b7280;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.chat-more-save-tile:hover {
+  background: #f1f5f9;
 }

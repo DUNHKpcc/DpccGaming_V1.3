@@ -228,7 +228,7 @@ export default {
   height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #111827;
+  background: #ff0000;
   color: #fff;
   font-size: 12px;
   display: inline-flex;

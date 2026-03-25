@@ -375,6 +375,7 @@
             @open-memory-file="openMemoryFileInCodePanel"
             @toggle-dual-ai-loop="toggleDualAiLoop"
             @generate-dual-ai-loop-round="generateDualAiLoopRound"
+            @save-ai-slot="handleSaveAiSlot"
           />
 
           <div
@@ -1404,6 +1405,9 @@ export default {
       if (!input || typeof input.focus !== 'function') return
       input.focus({ preventScroll: true })
     },
+    handleSaveAiSlot(slotId) {
+      this.saveAiSlot(slotId)
+    }
   }
 }
 </script>

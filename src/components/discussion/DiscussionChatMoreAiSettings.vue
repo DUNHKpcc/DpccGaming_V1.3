@@ -132,6 +132,13 @@
             />
             <span v-else>{{ (slot.name || `A${slotIndex + 1}`).slice(0, 2) }}</span>
           </div>
+          <button
+            type="button"
+            class="chat-more-save-tile"
+            @click="$emit('save-ai-slot', slot.id)"
+          >
+            保存修改
+          </button>
           <label class="chat-more-upload-btn chat-more-upload-tile">
             <input
               type="file"
@@ -223,7 +230,7 @@ export default {
       default: ''
     }
   },
-  emits: ['update-slot-field', 'avatar-file-change', 'refresh-room-memory', 'open-memory-file'],
+  emits: ['update-slot-field', 'avatar-file-change', 'refresh-room-memory', 'open-memory-file', 'save-ai-slot'],
   methods: {
     resolveAiSlotModelLabel(slot = {}) {
       if (slot.provider === 'custom') {

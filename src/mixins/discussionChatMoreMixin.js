@@ -590,7 +590,13 @@ export default {
         this.flushRoomSettingsSave(roomId)
         return
       }
-      this.queueRoomSettingsSave(roomId, field === 'apiKey' ? 360 : 280)
+      // 取消自动保存，改为等待用户手动保存
+      // this.queueRoomSettingsSave(roomId, field === 'apiKey' ? 360 : 280)
+    },
+    saveAiSlot(slotId) {
+      const roomId = this.currentChat?.id
+      if (!roomId) return
+      this.flushRoomSettingsSave(roomId)
     },
     async onAiAvatarFileChange(slotId, event) {
       const file = event?.target?.files?.[0]
