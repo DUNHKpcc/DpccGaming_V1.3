@@ -204,7 +204,7 @@ const redeemRoomInviteLink = async (req, res) => {
     }
 
     const joinedCount = await getJoinedMemberCount(connection, roomId);
-    if (!existingMember && joinedCount >= Number(room.max_members || 0)) {
+    if ((!existingMember || existingMember.status !== 'joined') && joinedCount >= Number(room.max_members || 0)) {
       await rollbackTransaction(connection);
       connection = null;
       return res.status(409).json({ error: '群聊人数已满' });
@@ -308,7 +308,7 @@ const inviteFriendToRoom = async (req, res) => {
     }
 
     const joinedCount = await getJoinedMemberCount(connection, roomId);
-    if (!existingMember && joinedCount >= Number(permission.room.max_members || 0)) {
+    if ((!existingMember || existingMember.status !== 'joined') && joinedCount >= Number(permission.room.max_members || 0)) {
       await rollbackTransaction(connection);
       connection = null;
       return res.status(409).json({ error: '群聊人数已满，无法继续邀请' });

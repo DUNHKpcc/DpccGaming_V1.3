@@ -8,3 +8,9 @@ public/Blog
 public/docsPhoto
 dist/
 public/
+output/
+.playwright-cli/
+.env.example
+nginx.conf
+test/
+index.html

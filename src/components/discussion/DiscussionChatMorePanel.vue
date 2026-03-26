@@ -359,10 +359,12 @@
                   :room-memory-items="roomMemoryItems"
                   :memory-loading="roomMemoryLoading"
                   :memory-error="roomMemoryError"
+                  :ai-slot-save-states="aiSlotSaveStates"
                   @update-slot-field="handleUpdateAiSlotField"
                   @avatar-file-change="handleAvatarFileChange"
                   @refresh-room-memory="$emit('refresh-room-memory')"
                   @open-memory-file="$emit('open-memory-file', $event)"
+                  @save-ai-slot="handleSaveAiSlot"
                 />
               </div>
             </div>
@@ -633,6 +635,10 @@ export default {
       type: String,
       default: ''
     },
+    aiSlotSaveStates: {
+      type: Object,
+      default: () => ({})
+    },
     gameLibraryLoading: {
       type: Boolean,
       default: false
@@ -685,7 +691,8 @@ export default {
     'refresh-room-memory',
     'open-memory-file',
     'toggle-dual-ai-loop',
-    'generate-dual-ai-loop-round'
+    'generate-dual-ai-loop-round',
+    'save-ai-slot'
   ],
   computed: {
     isGroupRoom() {
@@ -708,6 +715,9 @@ export default {
     },
     handleAvatarFileChange(slotId, event) {
       this.$emit('avatar-file-change', slotId, event)
+    },
+    handleSaveAiSlot(slotId) {
+      this.$emit('save-ai-slot', slotId)
     },
     getLibraryGameKey(game = {}) {
       return game?.game_id || game?.id || ''

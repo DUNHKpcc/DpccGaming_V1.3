@@ -14,7 +14,11 @@
       </div>
     </div>
 
-    <div class="notifications-content">
+    <div
+      :key="notificationsContentVersion"
+      ref="notificationsContentRef"
+      class="notifications-content"
+    >
       <div v-if="notifications.length === 0" class="text-center py-8 text-white/80">
         <i class="fa fa-bell text-4xl mb-4"></i>
         <p>暂无通知</p>
@@ -26,7 +30,7 @@
           :key="notification.id"
           :class="[
             'notification-item',
-            notification.is_read ? 'read' : 'unread'
+            notification.is_read ? 'is-read' : 'is-unread'
           ]"
           @click="markAsRead(notification)"
         >
@@ -44,7 +48,8 @@
             <div v-if="shouldShowPrimaryAction(notification) || hasFriendRequestActions(notification)" class="notification-actions">
               <button
                 v-if="shouldShowPrimaryAction(notification)"
-                @click.stop="handleNotificationClick(notification)"
+                type="button"
+                @click.stop="handleNotificationClick(notification, $event)"
                 class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors"
               >
                 <i :class="getNotificationActionIcon(notification)" class="mr-1"></i>
@@ -53,6 +58,7 @@
 
               <div v-if="hasFriendRequestActions(notification)" class="friend-request-actions">
                 <button
+                  type="button"
                   @click.stop="respondFriendRequest(notification, 'accept')"
                   class="notification-action-btn px-3 py-1 rounded-md text-sm font-medium transition-colors"
                   :disabled="isFriendActionLoading(notification, 'accept') || isFriendActionLoading(notification, 'reject')"
@@ -60,6 +66,7 @@
                   {{ isFriendActionLoading(notification, 'accept') ? '处理中...' : '同意' }}
                 </button>
                 <button
+                  type="button"
                   @click.stop="respondFriendRequest(notification, 'reject')"
                   class="notification-secondary-btn px-3 py-1 rounded-md text-sm font-medium transition-colors"
                   :disabled="isFriendActionLoading(notification, 'accept') || isFriendActionLoading(notification, 'reject')"
@@ -98,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { io } from 'socket.io-client'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -131,6 +138,9 @@ const friendRequestActionLoading = reactive({})
 const handledFriendRequestStatus = reactive({})
 const socket = ref(null)
 const refreshTimer = ref(null)
+const notificationsContentRef = ref(null)
+const notificationsContentVersion = ref(0)
+const scrollResetTimers = []
 
 const displayedNotifications = computed(() => {
   if (props.compact) return notifications.value
@@ -191,6 +201,55 @@ const scheduleNotificationsRefresh = () => {
   }, 180)
 }
 
+const clearScrollResetTimers = () => {
+  while (scrollResetTimers.length) {
+    window.clearTimeout(scrollResetTimers.pop())
+  }
+}
+
+const blurNotificationFocus = (event) => {
+  const eventTarget = event?.currentTarget
+  if (eventTarget && typeof eventTarget.blur === 'function') {
+    eventTarget.blur()
+  }
+
+  const activeElement = document.activeElement
+  if (!activeElement || typeof activeElement.blur !== 'function') return
+  const container = notificationsContentRef.value
+  if (!container || container.contains(activeElement)) {
+    activeElement.blur()
+  }
+}
+
+const applyNotificationsScrollTop = () => {
+  const container = notificationsContentRef.value
+  if (!container) return
+  container.scrollTop = 0
+}
+
+const stabilizeNotificationsScroll = async ({ rebuild = false } = {}) => {
+  clearScrollResetTimers()
+  if (rebuild) {
+    notificationsContentVersion.value += 1
+  }
+
+  await nextTick()
+  blurNotificationFocus()
+  applyNotificationsScrollTop()
+  window.requestAnimationFrame(() => {
+    blurNotificationFocus()
+    applyNotificationsScrollTop()
+  })
+
+  ;[60, 160, 320].forEach((delay) => {
+    const timer = window.setTimeout(() => {
+      blurNotificationFocus()
+      applyNotificationsScrollTop()
+    }, delay)
+    scrollResetTimers.push(timer)
+  })
+}
+
 const setupNotificationSocket = () => {
   if (socket.value || !authStore.isLoggedIn) return
   const token = getAuthToken()
@@ -245,6 +304,7 @@ const fetchNotifications = async (page = 1, reset = false) => {
 
       if (reset) {
         notifications.value = nextList
+        stabilizeNotificationsScroll({ rebuild: true })
       } else {
         notifications.value.push(...nextList)
       }
@@ -429,7 +489,8 @@ const respondFriendRequest = async (notification, action) => {
   }
 }
 
-const handleNotificationClick = async (notification) => {
+const handleNotificationClick = async (notification, event) => {
+  blurNotificationFocus(event)
   if (isFriendRequestNotification(notification)) return
   await markAsRead(notification)
 
@@ -528,11 +589,13 @@ const formatTime = (dateString) => {
 }
 
 onMounted(() => {
+  stabilizeNotificationsScroll({ rebuild: true })
   fetchNotifications(1, true)
   setupNotificationSocket()
 })
 
 onBeforeUnmount(() => {
+  clearScrollResetTimers()
   teardownNotificationSocket()
 })
 </script>
@@ -602,6 +665,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
 }
 
 .notifications-stack {
@@ -609,12 +675,14 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0.75rem;
   flex-shrink: 0;
+  overflow-anchor: none;
 }
 
 .notifications-section.compact .notifications-content {
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.2rem;
+  overflow-anchor: none;
 }
 
 [data-theme='light'] .notifications-section {
@@ -658,6 +726,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
+  flex: 0 0 auto;
   gap: 1rem;
   padding: 1rem;
   background: var(--notify-item-bg);
@@ -682,7 +751,7 @@ onBeforeUnmount(() => {
   border-color: var(--notify-item-border);
 }
 
-.notification-item.unread {
+.notification-item.is-unread {
   background: var(--notify-unread-bg);
   padding-right: 2rem;
 }
@@ -841,7 +910,7 @@ onBeforeUnmount(() => {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .notification-item.unread {
+  .notification-item.is-unread {
     padding-right: 1.5rem;
   }
 

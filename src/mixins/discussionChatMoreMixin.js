@@ -34,6 +34,8 @@ export default {
       roomSummaryByRoom: {},
       roomMemoryByRoom: {},
       roomSettingsSaveTimers: {},
+      aiSlotSaveStateByRoom: {},
+      aiSlotSaveStateResetTimers: {},
       gameLibraryLoading: false,
       gameLibraryError: '',
       gameLibraryGames: [],
@@ -255,6 +257,42 @@ export default {
       if (!roomKey) return ''
       return String(this.roomInviteLinksByRoom[roomKey] || '')
     },
+    getAiSlotSaveStateMap(roomId) {
+      const roomKey = String(roomId || '').trim()
+      if (!roomKey) return {}
+      const saveStateMap = this.aiSlotSaveStateByRoom[roomKey]
+      return saveStateMap && typeof saveStateMap === 'object' ? saveStateMap : {}
+    },
+    setAiSlotSaveState(roomId, slotId, state = 'idle') {
+      const roomKey = String(roomId || '').trim()
+      const normalizedSlotId = String(slotId || '').trim()
+      if (!roomKey || !normalizedSlotId) return
+      this.aiSlotSaveStateByRoom = {
+        ...this.aiSlotSaveStateByRoom,
+        [roomKey]: {
+          ...this.getAiSlotSaveStateMap(roomKey),
+          [normalizedSlotId]: state
+        }
+      }
+    },
+    scheduleAiSlotSaveStateReset(roomId, slotId, delay = 1800) {
+      const roomKey = String(roomId || '').trim()
+      const normalizedSlotId = String(slotId || '').trim()
+      if (!roomKey || !normalizedSlotId) return
+      const timerKey = `${roomKey}:${normalizedSlotId}`
+      if (this.aiSlotSaveStateResetTimers[timerKey]) {
+        window.clearTimeout(this.aiSlotSaveStateResetTimers[timerKey])
+      }
+      this.aiSlotSaveStateResetTimers = {
+        ...this.aiSlotSaveStateResetTimers,
+        [timerKey]: window.setTimeout(() => {
+          this.setAiSlotSaveState(roomKey, normalizedSlotId, 'idle')
+          const nextTimers = { ...this.aiSlotSaveStateResetTimers }
+          delete nextTimers[timerKey]
+          this.aiSlotSaveStateResetTimers = nextTimers
+        }, delay)
+      }
+    },
     isRoomAvatarUploading(roomId) {
       const roomKey = String(roomId || '').trim()
       if (!roomKey) return false
@@ -393,7 +431,7 @@ export default {
     },
     async flushRoomSettingsSave(roomId) {
       const roomKey = String(roomId || '').trim()
-      if (!roomKey) return
+      if (!roomKey) return false
       if (this.roomSettingsSaveTimers[roomKey]) {
         window.clearTimeout(this.roomSettingsSaveTimers[roomKey])
         const nextTimers = { ...this.roomSettingsSaveTimers }
@@ -403,7 +441,7 @@ export default {
       const settingsPatch = this.buildRoomSettingsPatch(roomKey)
       if (!settingsPatch) {
         this.markRoomSettingsSynced(roomKey, this.getRoomSettingsLocalRevision(roomKey))
-        return
+        return true
       }
       const requestSeq = this.nextRoomSettingsRequestSeq(roomKey)
       const sentRevision = this.getRoomSettingsLocalRevision(roomKey)
@@ -424,8 +462,10 @@ export default {
         if (String(this.currentChatId) === roomKey && this.activeRightTab === 'code') {
           this.syncCurrentRoomCode({ force: true })
         }
+        return true
       } catch (error) {
         this.errorText = error.message || '保存房间设置失败'
+        return false
       }
     },
     getCollaborationStatusLabel(statusValue = '') {
@@ -579,6 +619,7 @@ export default {
       const slot = slotIndex >= 0 ? settings.aiSlots[slotIndex] : null
       if (!slot) return
       slot[field] = value
+      this.setAiSlotSaveState(roomId, slotId, 'idle')
       this.markRoomSettingsDirtyField(roomId, `aiSlots.${slotIndex}.${field}`)
       this.markRoomSettingsLocalEdit(roomId)
       if (field === 'enabled') {
@@ -590,13 +631,21 @@ export default {
         this.flushRoomSettingsSave(roomId)
         return
       }
-      // 取消自动保存，改为等待用户手动保存
-      // this.queueRoomSettingsSave(roomId, field === 'apiKey' ? 360 : 280)
     },
-    saveAiSlot(slotId) {
+    async saveAiSlot(slotId) {
       const roomId = this.currentChat?.id
       if (!roomId) return
-      this.flushRoomSettingsSave(roomId)
+      const notificationStore = useNotificationStore()
+      this.setAiSlotSaveState(roomId, slotId, 'saving')
+      const saved = await this.flushRoomSettingsSave(roomId)
+      if (saved) {
+        this.setAiSlotSaveState(roomId, slotId, 'saved')
+        this.scheduleAiSlotSaveStateReset(roomId, slotId)
+        notificationStore.success('保存成功', 'AI 名称、上下文和头像设置已更新。')
+        return
+      }
+      this.setAiSlotSaveState(roomId, slotId, 'idle')
+      notificationStore.error('保存失败', this.errorText || 'AI 设置保存失败，请稍后重试。')
     },
     async onAiAvatarFileChange(slotId, event) {
       const file = event?.target?.files?.[0]

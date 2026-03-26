@@ -132,13 +132,6 @@
             />
             <span v-else>{{ (slot.name || `A${slotIndex + 1}`).slice(0, 2) }}</span>
           </div>
-          <button
-            type="button"
-            class="chat-more-save-tile"
-            @click="$emit('save-ai-slot', slot.id)"
-          >
-            保存修改
-          </button>
           <label class="chat-more-upload-btn chat-more-upload-tile">
             <input
               type="file"
@@ -147,6 +140,15 @@
             />
             上传头像
           </label>
+          <button
+            type="button"
+            class="chat-more-save-tile"
+            :class="{ active: aiSlotSaveStates[String(slot.id || '')] === 'saved' }"
+            :disabled="aiSlotSaveStates[String(slot.id || '')] === 'saving'"
+            @click="$emit('save-ai-slot', slot.id)"
+          >
+            {{ resolveAiSlotSaveLabel(slot.id) }}
+          </button>
           <button
             type="button"
             class="chat-more-memory-toggle-tile"
@@ -228,6 +230,10 @@ export default {
     memoryError: {
       type: String,
       default: ''
+    },
+    aiSlotSaveStates: {
+      type: Object,
+      default: () => ({})
     }
   },
   emits: ['update-slot-field', 'avatar-file-change', 'refresh-room-memory', 'open-memory-file', 'save-ai-slot'],
@@ -248,6 +254,12 @@ export default {
         return getBuiltinModelAvatarUrl(slot.builtinModel || this.builtinModels[0] || '')
       }
       return ''
+    },
+    resolveAiSlotSaveLabel(slotId = '') {
+      const saveState = this.aiSlotSaveStates[String(slotId || '')] || 'idle'
+      if (saveState === 'saving') return '保存中'
+      if (saveState === 'saved') return '已保存'
+      return '保存修改'
     },
     formatMemoryTime(value) {
       if (!value) return ''

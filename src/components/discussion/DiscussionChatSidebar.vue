@@ -1,6 +1,15 @@
 <template>
   <aside class="chat-list">
     <div class="chat-list-search">
+      <button
+        type="button"
+        class="chat-list-back-btn"
+        aria-label="返回上一级"
+        title="返回上一级"
+        @click="$emit('back')"
+      >
+        <i class="fa fa-arrow-left" aria-hidden="true"></i>
+      </button>
       <div class="search-box">
         <input
           :value="searchKeyword"
@@ -77,7 +86,7 @@ export default {
       default: 0
     }
   },
-  emits: ['update:search-keyword', 'select-chat', 'room-avatar-error'],
+  emits: ['update:search-keyword', 'select-chat', 'room-avatar-error', 'back'],
   methods: {
     handleSearchInput(event) {
       this.$emit('update:search-keyword', event.target.value)
@@ -106,6 +115,34 @@ export default {
   font-size: 15px;
 }
 
+.chat-list-back-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #f3f4f6;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.chat-list-back-btn:hover {
+  background: #e5e7eb;
+}
+
+.chat-list-back-btn:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.chat-list-back-btn:active {
+  transform: translateY(1px);
+}
+
 .chat-list {
   width: 100%;
   max-width: 100%;
@@ -122,6 +159,7 @@ export default {
   height: 64px;
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 0 10px;
   background: #ffffff;
   border-bottom: 1px solid #d1d5db;

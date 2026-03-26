@@ -52,7 +52,7 @@
         </p>
       </section>
 
-      <section class="player-section player-prefs">
+      <div class="player-prefs">
         <article
           class="pref-card pref-card-editable player-editable-surface"
           :class="{ 'is-disabled': profileSaving }"
@@ -111,7 +111,7 @@
             <span>{{ preferredEngine }}</span>
           </strong>
         </article>
-      </section>
+      </div>
 
       <section class="player-section player-activity">
         <div class="player-section-title">最近动态</div>
@@ -558,9 +558,9 @@ const recentActivities = computed(() => {
 }
 
 .pref-card {
-  border: 1px solid var(--account-upload-border);
+  border: 1px solid var(--account-recent-border);
   border-radius: 9px;
-  background: var(--account-card-bg);
+  background: var(--account-recent-bg);
   padding: 0.62rem;
   display: flex;
   flex-direction: column;

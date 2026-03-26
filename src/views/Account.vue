@@ -101,7 +101,7 @@
                     <button
                       type="button"
                       title="绑定 GitHub"
-                      class="google-bind-btn"
+                      class="github-bind-btn"
                     >
                       <i class="fa-brands fa-github oauth-font-icon"></i>
                     </button>
@@ -189,6 +189,14 @@
                     </button>
                     <button
                       type="button"
+                      class="friend-add-open-btn secondary"
+                      @click="openGroupInviteModal"
+                    >
+                      <i class="fa fa-link"></i>
+                      <span>群邀请</span>
+                    </button>
+                    <button
+                      type="button"
                       class="friend-add-open-btn"
                       @click="openFriendModal"
                     >
@@ -213,23 +221,14 @@
                       @keyup.enter="openFriendDiscussion(friend)"
                       @keyup.space.prevent="openFriendDiscussion(friend)"
                     >
-                      <img
-                        v-if="friend.avatar_url"
-                        :src="getAvatarUrl(friend.avatar_url)"
-                        :alt="friend.username"
-                        class="friend-avatar-img"
-                        @error="handleAvatarError"
+                      <AccountUserIdentity
+                        :avatar-url="getAvatarUrl(friend.avatar_url)"
+                        :avatar-alt="friend.username"
+                        :name="friend.username"
+                        :subtitle="friend.email || '未设置邮箱'"
+                        :user-id="friend.id"
+                        @avatar-error="handleAvatarError"
                       />
-                      <div v-else class="friend-avatar">
-                        {{ (friend.username || '?').charAt(0).toUpperCase() }}
-                      </div>
-                      <div class="friend-meta">
-                        <div class="username-level-row">
-                          <strong>{{ friend.username }}</strong>
-                          <UserLevelBadge :user-id="friend.id" />
-                        </div>
-                        <small>{{ friend.email || '未设置邮箱' }}</small>
-                      </div>
                       <div class="friend-chat-indicator" :title="isOpeningFriendChat(friend.id) ? '正在打开协作聊天' : '进入协作聊天'">
                         <i class="fa" :class="isOpeningFriendChat(friend.id) ? 'fa-spinner fa-spin' : 'fa-comments'"></i>
                       </div>
@@ -251,20 +250,11 @@
               />
             </section>
 
-            <div
+            <AccountModalShell
               v-if="friendModalVisible"
-              class="friend-modal-mask"
-              @click.self="closeFriendModal"
+              title="添加好友"
+              @close="closeFriendModal"
             >
-              <div class="friend-modal">
-                <div class="friend-modal-header">
-                  <h3>添加好友</h3>
-                  <button type="button" class="friend-modal-close" @click="closeFriendModal">
-                    <i class="fa fa-times"></i>
-                  </button>
-                </div>
-
-                <div class="friend-modal-body">
                   <section class="friend-modal-section">
                     <div class="friend-modal-title-row">
                       <h4>搜索用户名</h4>
@@ -292,25 +282,15 @@
                         :key="`friend-search-${user.id}`"
                         class="friend-result-row"
                       >
-                        <div class="friend-result-user">
-                          <img
-                            v-if="user.avatar_url"
-                            :src="getAvatarUrl(user.avatar_url)"
-                            :alt="user.username"
-                            class="friend-avatar-img"
-                            @error="handleAvatarError"
-                          />
-                          <div v-else class="friend-avatar">
-                            {{ (user.username || '?').charAt(0).toUpperCase() }}
-                          </div>
-                          <div class="friend-meta">
-                            <div class="username-level-row">
-                              <strong>{{ user.username }}</strong>
-                              <UserLevelBadge :user-id="user.id" />
-                            </div>
-                            <small>{{ user.email || '未设置邮箱' }}</small>
-                          </div>
-                        </div>
+                        <AccountUserIdentity
+                          class="friend-result-user"
+                          :avatar-url="getAvatarUrl(user.avatar_url)"
+                          :avatar-alt="user.username"
+                          :name="user.username"
+                          :subtitle="user.email || '未设置邮箱'"
+                          :user-id="user.id"
+                          @avatar-error="handleAvatarError"
+                        />
                         <div class="friend-result-actions">
                           <button
                             v-if="user.friend_status === 'none'"
@@ -393,25 +373,15 @@
                         :key="`incoming-${request.id}`"
                         class="friend-request-row"
                       >
-                        <div class="friend-result-user">
-                          <img
-                            v-if="request.requester_avatar_url"
-                            :src="getAvatarUrl(request.requester_avatar_url)"
-                            :alt="request.requester_name"
-                            class="friend-avatar-img"
-                            @error="handleAvatarError"
-                          />
-                          <div v-else class="friend-avatar">
-                            {{ (request.requester_name || '?').charAt(0).toUpperCase() }}
-                          </div>
-                          <div class="friend-meta">
-                            <div class="username-level-row">
-                              <strong>{{ request.requester_name }}</strong>
-                              <UserLevelBadge :user-id="request.requester_id" />
-                            </div>
-                            <small>{{ formatSavedDate(request.created_at) }}</small>
-                          </div>
-                        </div>
+                        <AccountUserIdentity
+                          class="friend-result-user"
+                          :avatar-url="getAvatarUrl(request.requester_avatar_url)"
+                          :avatar-alt="request.requester_name"
+                          :name="request.requester_name"
+                          :subtitle="formatSavedDate(request.created_at)"
+                          :user-id="request.requester_id"
+                          @avatar-error="handleAvatarError"
+                        />
                         <div class="friend-request-actions">
                           <button type="button" class="friend-primary-btn small" @click="respondFriendRequest(request.id, 'accept')">同意</button>
                           <button type="button" class="friend-secondary-btn small" @click="respondFriendRequest(request.id, 'reject')">拒绝</button>
@@ -419,24 +389,48 @@
                       </div>
                     </div>
                   </section>
-                </div>
-              </div>
-            </div>
+            </AccountModalShell>
 
-            <div
-              v-if="groupModalVisible"
-              class="friend-modal-mask"
-              @click.self="closeGroupModal"
+            <AccountModalShell
+              v-if="groupInviteModalVisible"
+              title="填写群邀请链接"
+              modal-class="group-invite-modal"
+              body-class="group-invite-modal-body"
+              @close="closeGroupInviteModal"
             >
-              <div class="friend-modal group-modal">
-                <div class="friend-modal-header">
-                  <h3>创建多人群聊</h3>
-                  <button type="button" class="friend-modal-close" @click="closeGroupModal">
-                    <i class="fa fa-times"></i>
+              <section class="friend-modal-section">
+                <div class="friend-modal-title-row">
+                  <h4>加入群聊</h4>
+                </div>
+                <div class="friend-muted-text">
+                  粘贴完整的群邀请链接后即可加入，对应房间会在验证成功后自动打开。
+                </div>
+                <div class="friend-redeem-row group-invite-redeem-row">
+                  <input
+                    v-model.trim="groupInviteInput"
+                    type="text"
+                    placeholder="输入完整群邀请链接"
+                    @keyup.enter="redeemGroupInvite"
+                  />
+                  <button
+                    type="button"
+                    class="friend-primary-btn"
+                    :disabled="groupInviteRedeeming"
+                    @click="redeemGroupInvite"
+                  >
+                    {{ groupInviteRedeeming ? '加入中...' : '加入群聊' }}
                   </button>
                 </div>
+              </section>
+            </AccountModalShell>
 
-                <div class="friend-modal-body group-modal-body">
+            <AccountModalShell
+              v-if="groupModalVisible"
+              title="创建多人群聊"
+              modal-class="group-modal"
+              body-class="group-modal-body"
+              @close="closeGroupModal"
+            >
                   <section class="friend-modal-section">
                     <div class="friend-modal-title-row">
                       <h4>群聊信息</h4>
@@ -488,23 +482,15 @@
                         :class="{ active: selectedGroupFriendIds.includes(friend.id) }"
                       >
                         <div class="group-friend-picker-main">
-                          <img
-                            v-if="friend.avatar_url"
-                            :src="getAvatarUrl(friend.avatar_url)"
-                            :alt="friend.username"
-                            class="friend-avatar-img"
-                            @error="handleAvatarError"
+                          <AccountUserIdentity
+                            size="sm"
+                            :avatar-url="getAvatarUrl(friend.avatar_url)"
+                            :avatar-alt="friend.username"
+                            :name="friend.username"
+                            :subtitle="friend.email || '未设置邮箱'"
+                            :user-id="friend.id"
+                            @avatar-error="handleAvatarError"
                           />
-                          <div v-else class="friend-avatar">
-                            {{ (friend.username || '?').charAt(0).toUpperCase() }}
-                          </div>
-                          <div class="group-friend-picker-meta">
-                            <div class="group-friend-picker-summary">
-                              <strong :title="friend.username">{{ friend.username }}</strong>
-                              <UserLevelBadge :user-id="friend.id" />
-                            </div>
-                            <small :title="friend.email || '未设置邮箱'">{{ friend.email || '未设置邮箱' }}</small>
-                          </div>
                         </div>
                         <input
                           type="checkbox"
@@ -514,9 +500,7 @@
                       </label>
                     </div>
                   </section>
-                </div>
-              </div>
-            </div>
+            </AccountModalShell>
           </div>
         </div>
 
@@ -535,6 +519,8 @@ import { useNotificationStore } from '../stores/notification'
 import NotificationsSection from '../components/NotificationsSection.vue'
 import PlayerDataPanel from '../components/PlayerDataPanel.vue'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
+import AccountModalShell from '../components/account/AccountModalShell.vue'
+import AccountUserIdentity from '../components/account/AccountUserIdentity.vue'
 import { categoryToZh } from '../utils/category'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 import { API_BASE_URL, apiCall } from '../utils/api'
@@ -567,6 +553,7 @@ const googleBound = ref(false)
 const googleBoundLabel = ref('')
 const friendModalVisible = ref(false)
 const groupModalVisible = ref(false)
+const groupInviteModalVisible = ref(false)
 const groupTitle = ref('')
 const selectedGroupFriendIds = ref([])
 const friendSearchKeyword = ref('')
@@ -578,6 +565,8 @@ const inviteGenerating = ref(false)
 const generatedInviteLink = ref('')
 const inviteCodeInput = ref('')
 const inviteRedeeming = ref(false)
+const groupInviteInput = ref('')
+const groupInviteRedeeming = ref(false)
 const friendRequestsLoading = ref(false)
 const incomingRequests = ref([])
 const outgoingRequests = ref([])
@@ -773,6 +762,19 @@ const closeFriendModal = () => {
   friendSearchResults.value = []
 }
 
+const openGroupInviteModal = () => {
+  if (!isLoggedIn.value) {
+    openLoginModal()
+    return
+  }
+  groupInviteModalVisible.value = true
+}
+
+const closeGroupInviteModal = () => {
+  groupInviteModalVisible.value = false
+  groupInviteInput.value = ''
+}
+
 const openGroupModal = async () => {
   if (!isLoggedIn.value) {
     openLoginModal()
@@ -884,6 +886,77 @@ const copyInviteLink = async () => {
     notificationStore.success('复制成功', '邀请链接已复制到剪贴板')
   } catch (error) {
     notificationStore.warning('复制失败', '请手动复制邀请链接')
+  }
+}
+
+const parseGroupInvitePayload = (rawValue = '') => {
+  const raw = String(rawValue || '').trim()
+  if (!raw) return null
+
+  let roomId = null
+  let inviteCode = ''
+
+  const parseFromUrl = (value) => {
+    try {
+      const parsed = new URL(value, window.location.origin)
+      const matchedRoomId = parsed.pathname.match(/\/discussion\/(\d+)/i)
+      const nextRoomId = Number.parseInt(matchedRoomId?.[1] || '', 10)
+      const nextInviteCode = String(
+        parsed.searchParams.get('roomInvite') ||
+        parsed.searchParams.get('invite') ||
+        parsed.searchParams.get('code') ||
+        ''
+      ).trim()
+      return {
+        roomId: Number.isInteger(nextRoomId) && nextRoomId > 0 ? nextRoomId : null,
+        inviteCode: nextInviteCode
+      }
+    } catch {
+      return { roomId: null, inviteCode: '' }
+    }
+  }
+
+  const parsedFromUrl = parseFromUrl(raw)
+  roomId = parsedFromUrl.roomId
+  inviteCode = parsedFromUrl.inviteCode
+
+  if (!roomId) {
+    const roomMatch = raw.match(/\/discussion\/(\d+)/i)
+    const nextRoomId = Number.parseInt(roomMatch?.[1] || '', 10)
+    if (Number.isInteger(nextRoomId) && nextRoomId > 0) {
+      roomId = nextRoomId
+    }
+  }
+
+  if (!inviteCode) {
+    const inviteMatch = raw.match(/[?&](?:roomInvite|invite|code)=([^&#]+)/i)
+    inviteCode = inviteMatch?.[1] ? decodeURIComponent(inviteMatch[1]) : ''
+  }
+
+  if (!roomId || !inviteCode) return null
+  return { roomId, inviteCode }
+}
+
+const redeemGroupInvite = async () => {
+  const parsed = parseGroupInvitePayload(groupInviteInput.value)
+  if (!parsed) {
+    notificationStore.warning('链接无效', '请填写完整且有效的群邀请链接')
+    return
+  }
+
+  groupInviteRedeeming.value = true
+  try {
+    const data = await apiCall(`/discussion/rooms/${parsed.roomId}/invite-links/redeem`, {
+      method: 'POST',
+      body: JSON.stringify({ code: parsed.inviteCode })
+    })
+    closeGroupInviteModal()
+    notificationStore.success('加入成功', data?.message || '已加入群聊')
+    router.push({ name: 'DiscussionMode', params: { id: String(parsed.roomId) } })
+  } catch (error) {
+    notificationStore.error('加入失败', error.message || '请确认邀请链接有效后重试')
+  } finally {
+    groupInviteRedeeming.value = false
   }
 }
 
@@ -1211,6 +1284,7 @@ watch(isLoggedIn, (loggedIn) => {
     clearLogoutConfirmState()
     libraryGames.value = []
     libraryLoading.value = false
+    groupInviteModalVisible.value = false
     closeGroupModal()
     wechatBinding.value = false
     wechatBound.value = false
@@ -1227,6 +1301,8 @@ watch(isLoggedIn, (loggedIn) => {
     incomingRequests.value = []
     outgoingRequests.value = []
     friendModalVisible.value = false
+    groupInviteInput.value = ''
+    groupInviteRedeeming.value = false
     return
   }
 

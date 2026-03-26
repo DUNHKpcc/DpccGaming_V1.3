@@ -8,6 +8,7 @@
           :current-chat-id="currentChatId"
           :loading-rooms="loadingRooms"
           :chats-length="chats.length"
+          @back="goBack"
           @update:search-keyword="searchKeyword = $event"
           @select-chat="selectChat"
           @room-avatar-error="handleRoomAvatarError"
@@ -345,6 +346,7 @@
             :room-memory-items="currentRoomMemoryItems"
             :room-memory-loading="roomMemoryLoading"
             :room-memory-error="roomMemoryError"
+            :ai-slot-save-states="currentAiSlotSaveStates"
             :game-library-loading="gameLibraryLoading"
             :game-library-error="gameLibraryError"
             :game-library-games="gameLibraryGames"
@@ -659,6 +661,9 @@ export default {
     currentRoomMemoryItems() {
       return this.getRoomMemory(this.currentChat?.id)
     },
+    currentAiSlotSaveStates() {
+      return this.getAiSlotSaveStateMap(this.currentChat?.id)
+    },
     enabledAiSlots() {
       const slots = Array.isArray(this.currentChatMoreSettings?.aiSlots) ? this.currentChatMoreSettings.aiSlots : []
       return slots.filter((slot) => slot && slot.enabled)
@@ -913,6 +918,14 @@ export default {
     this.teardownSocket()
   },
   methods: {
+    goBack() {
+      const hasHistory = typeof window !== 'undefined' && window.history.length > 1
+      if (hasHistory) {
+        this.$router.back()
+        return
+      }
+      this.$router.push('/')
+    },
     readCurrentUserId() {
       try {
         const user = JSON.parse(localStorage.getItem('currentUser') || 'null')
