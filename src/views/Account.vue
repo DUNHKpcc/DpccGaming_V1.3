@@ -162,7 +162,23 @@
                         <strong>{{ game.title }}</strong>
                         <small>{{ categoryToZh(game.category || 'action') }} · {{ game.play_count || 0 }} 次</small>
                       </div>
-                      <span class="library-time">{{ formatSavedDate(game.saved_at) }}</span>
+                      <div
+                        v-if="getGameCodeTypeIcon(game) || getGameEngineIcon(game)"
+                        class="library-icons"
+                      >
+                        <img
+                          v-if="getGameCodeTypeIcon(game)"
+                          :src="getGameCodeTypeIcon(game)"
+                          alt="游戏代码类型"
+                          class="library-meta-icon"
+                        />
+                        <img
+                          v-if="getGameEngineIcon(game)"
+                          :src="getGameEngineIcon(game)"
+                          alt="游戏引擎"
+                          class="library-meta-icon"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -525,6 +541,7 @@ import { useAccountFriends } from '../composables/useAccountFriends'
 import { useAccountProfile } from '../composables/useAccountProfile'
 import { categoryToZh } from '../utils/category'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import { getGameCodeTypeIcon, getGameEngineIcon } from '../utils/gameMetadata.js'
 
 const authStore = useAuthStore()
 const gameStore = useGameStore()

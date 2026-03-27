@@ -58,6 +58,16 @@
                  <p class="main-card-description mb-4">
                    骑士挥舞刺刀击败骷髅的像素风格动作游戏
                  </p>
+                 <div class="flex items-center gap-4 text-sm main-card-meta mb-4">
+                   <span class="inline-flex items-center gap-2">
+                     <img src="/engineType/cocos.webp" alt="游戏引擎" class="w-4 h-4 object-contain" />
+                     <span>Cocos</span>
+                   </span>
+                   <span class="inline-flex items-center gap-2">
+                     <img src="/codeType/typescript.jpg" alt="游戏代码" class="w-4 h-4 object-contain" />
+                     <span>TypeScript</span>
+                   </span>
+                 </div>
                  <div class="flex items-center justify-between">
                    <span class="text-sm main-card-meta">
                      <i class="fa fa-gamepad mr-1"></i>
@@ -152,17 +162,20 @@ const glassCards = ref([
 ])
 
 // ?????
+const featuredGame = {
+  id: 'web-mobile-001',
+  game_id: 'web-mobile-001',
+  title: '像素逃生',
+  description: '骑士挥舞刺刀击败骷髅的像素风格动作游戏',
+  average_rating: '4.8',
+  play_count: 0,
+  category: '动作',
+  engine: 'Cocos',
+  code_type: 'TypeScript'
+}
+
 const openMainGame = () => {
-  const game = {
-    id: 'web-mobile-001',
-    game_id: 'web-mobile-001',
-    title: '像素逃生',
-    description: '骑士挥舞刺刀击败骷髅的像素风格动作游戏',
-    average_rating: '4.8',
-    play_count: 0,
-    category: '动作'
-  }
-  modalStore.openGameModal(game)
+  modalStore.openGameModal(featuredGame)
 }
 
 

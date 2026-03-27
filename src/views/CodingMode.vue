@@ -281,6 +281,12 @@ import { useNotificationStore } from '../stores/notification'
 import { resolveMediaUrl } from '../utils/media'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 import { escapeCodeHtml, highlightCodeAsync, warmupCodeHighlighter } from '../utils/asyncCodeHighlighter'
+import {
+  getGameCodeTypeIcon,
+  getGameCodeTypeLabel,
+  getGameEngineIcon,
+  getGameEngineLabel
+} from '../utils/gameMetadata.js'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
 
 const route = useRoute()
@@ -321,55 +327,10 @@ const selectedModelOption = computed(() =>
 )
 const assistantAvatarUrl = computed(() => selectedModelOption.value?.image || DEFAULT_ASSISTANT_AVATAR)
 const assistantName = computed(() => `AI · ${selectedModelOption.value?.label || '助手'}`)
-const getEngine = (game) =>
-  (game?.engine || game?.game_engine || game?.gameEngine || '')
-    .toString()
-    .trim()
-const getCodeType = (game) =>
-  (game?.code_type || game?.codeType || game?.code_category || '')
-    .toString()
-    .trim()
-const normalizeEngine = (val) => {
-  const v = (val || '').toString().trim().toLowerCase()
-  if (!v) return ''
-  if (['godot'].includes(v)) return 'godot'
-  if (['unity'].includes(v)) return 'unity'
-  if (['cocos', 'cocos2d', 'cocos-creator', 'cocos creator'].includes(v)) {
-    return 'cocos'
-  }
-  if (['other', 'others', '其他'].includes(v)) return 'other'
-  return v
-}
-const normalizeCodeType = (val) => {
-  const v = (val || '').toString().trim().toLowerCase()
-  if (!v) return ''
-  if (['typescript', 'ts'].includes(v)) return 'typescript'
-  if (['javascript', 'js'].includes(v)) return 'javascript'
-  if (['c#', 'csharp', 'cs'].includes(v)) return 'c#'
-  if (['other', 'others', '其他'].includes(v)) return 'other'
-  return v
-}
-const codeTypeIconMap = {
-  typescript: '/codeType/typescript.jpg',
-  javascript: '/codeType/js.webp',
-  'c#': '/codeType/csharp.webp'
-}
-const engineIconMap = {
-  godot: '/engineType/godot.webp',
-  unity: '/engineType/unity.webp',
-  cocos: '/engineType/cocos.webp',
-  other: '/engineType/cocos.webp'
-}
-const engineLabel = computed(() => getEngine(codingGame.value) || '未知')
-const codeTypeLabel = computed(() => getCodeType(codingGame.value) || '未知')
-const engineIcon = computed(() => {
-  const normalized = normalizeEngine(engineLabel.value)
-  return normalized ? engineIconMap[normalized] || '' : ''
-})
-const codeTypeIcon = computed(() => {
-  const normalized = normalizeCodeType(codeTypeLabel.value)
-  return normalized ? codeTypeIconMap[normalized] || '' : ''
-})
+const engineLabel = computed(() => getGameEngineLabel(codingGame.value) || '未知')
+const codeTypeLabel = computed(() => getGameCodeTypeLabel(codingGame.value) || '未知')
+const engineIcon = computed(() => getGameEngineIcon(codingGame.value))
+const codeTypeIcon = computed(() => getGameCodeTypeIcon(codingGame.value))
 const creatorName = computed(() =>
   (codingGame.value?.uploaded_by_username
     || codingGame.value?.uploadedByUsername

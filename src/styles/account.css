@@ -520,10 +520,20 @@
   font-size: 0.75rem;
 }
 
-.library-time {
+.library-icons {
   flex-shrink: 0;
-  font-size: 0.7rem;
-  color: var(--account-text-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  min-width: 2.65rem;
+}
+
+.library-meta-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  object-fit: contain;
+  display: block;
 }
 
 .friends-grid {

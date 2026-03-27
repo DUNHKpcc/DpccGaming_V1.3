@@ -58,15 +58,25 @@
             </div>
             <p class="text-neutral text-sm mb-4">{{ game.description }}</p>
           
-            <!-- 添加游戏引擎信息 -->
             <div class="flex items-center text-sm text-secondary mb-2">
-              <i class="fa fa-cogs mr-2"></i>
-              <span>游戏引擎: {{ game.engine || '未知' }}</span>
+              <img
+                v-if="getEngineLogo(game)"
+                :src="getEngineLogo(game)"
+                alt="游戏引擎"
+                class="w-4 h-4 object-contain mr-2"
+              />
+              <i v-else class="fa fa-cogs mr-2"></i>
+              <span>游戏引擎: {{ game.engine || game.game_engine || '未知' }}</span>
             </div>
-            <!-- 添加游戏代码信息 -->
             <div class="flex items-center text-sm text-tertiary mb-2">
-              <i class="fa fa-code mr-2"></i>
-              <span>游戏代码: {{ game.code_type || '未知' }}</span>
+              <img
+                v-if="getCodeLogo(game)"
+                :src="getCodeLogo(game)"
+                alt="游戏代码"
+                class="w-4 h-4 object-contain mr-2"
+              />
+              <i v-else class="fa fa-code mr-2"></i>
+              <span>游戏代码: {{ game.code_type || game.codeType || '未知' }}</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-sm text-neutral">
@@ -109,6 +119,22 @@ const hoveredVideoId = ref(null)
 const videoStates = reactive({})
 const videoRefs = new Map()
 const initializedVideos = new Set()
+
+const getEngineLogo = (game) => {
+  const engine = String(game?.engine || game?.game_engine || '').trim().toLowerCase()
+  if (engine.includes('cocos')) return '/engineType/cocos.webp'
+  if (engine.includes('unity')) return '/engineType/unity.webp'
+  if (engine.includes('godot')) return '/engineType/godot.webp'
+  return ''
+}
+
+const getCodeLogo = (game) => {
+  const codeType = String(game?.code_type || game?.codeType || '').trim().toLowerCase()
+  if (codeType === 'typescript' || codeType === 'ts') return '/codeType/typescript.jpg'
+  if (codeType === 'javascript' || codeType === 'js') return '/codeType/js.webp'
+  if (codeType === 'c#' || codeType === 'csharp' || codeType === 'cs') return '/codeType/csharp.webp'
+  return ''
+}
 
 const loadGames = async () => {
   try {

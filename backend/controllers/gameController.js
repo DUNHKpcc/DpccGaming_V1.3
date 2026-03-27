@@ -670,7 +670,8 @@ const getMyLibrary = async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT l.game_id, l.created_at AS saved_at,
-              g.title, g.category, g.thumbnail_url, g.video_url, g.play_count, g.game_url
+              g.title, g.category, g.engine, g.code_type,
+              g.thumbnail_url, g.video_url, g.play_count, g.game_url
        FROM user_game_library l
        JOIN games g ON g.game_id = l.game_id
        WHERE l.user_id = ? AND g.status = 'approved'

@@ -7,7 +7,22 @@
       class="relative game-modal-surface rounded-2xl shadow-2xl w-full md:w-[96vw] lg:w-[85vw] max-w-none h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] mt-[90px] mb-[20px] flex flex-col transform scale-100 transition-transform duration-300 overflow-hidden"
       @click.stop>
       <div class="flex justify-between items-center p-6 game-modal-header">
-        <h3 class="text-2xl font-bold text-white">{{ currentGame?.title || '游戏标题' }}</h3>
+        <div class="min-w-0">
+          <h3 class="text-2xl font-bold text-white">{{ currentGame?.title || '游戏标题' }}</h3>
+          <div
+            v-if="currentGame && (getEngineLogo(currentGame) || getCodeLogo(currentGame))"
+            class="flex items-center gap-4 mt-2 text-sm text-white/80"
+          >
+            <span v-if="getEngineLogo(currentGame)" class="inline-flex items-center gap-2">
+              <img :src="getEngineLogo(currentGame)" alt="游戏引擎" class="w-4 h-4 object-contain" />
+              <span>{{ currentGame.engine || currentGame.game_engine || '未知引擎' }}</span>
+            </span>
+            <span v-if="getCodeLogo(currentGame)" class="inline-flex items-center gap-2">
+              <img :src="getCodeLogo(currentGame)" alt="游戏代码" class="w-4 h-4 object-contain" />
+              <span>{{ currentGame.code_type || currentGame.codeType || '未知代码' }}</span>
+            </span>
+          </div>
+        </div>
         <div class="flex items-center gap-3">
           <button @click="enterFullscreen" 
                   class="bg-white/20 backdrop-blur-sm hover:bg-white/30 border border-white/30 text-white px-4 py-2 rounded-xl text-sm transition-all duration-300 flex items-center gap-2"
@@ -253,6 +268,22 @@ const isOpen = computed(() => modalStore.activeModal === 'game')
 const currentGame = computed(() => modalStore.currentGame)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const comments = computed(() => gameStore.comments)
+const getEngineLogo = (game) => {
+  const engine = String(game?.engine || game?.game_engine || '').trim().toLowerCase()
+  if (engine.includes('cocos')) return '/engineType/cocos.webp'
+  if (engine.includes('unity')) return '/engineType/unity.webp'
+  if (engine.includes('godot')) return '/engineType/godot.webp'
+  return ''
+}
+
+const getCodeLogo = (game) => {
+  const codeType = String(game?.code_type || game?.codeType || '').trim().toLowerCase()
+  if (codeType === 'typescript' || codeType === 'ts') return '/codeType/typescript.jpg'
+  if (codeType === 'javascript' || codeType === 'js') return '/codeType/js.webp'
+  if (codeType === 'c#' || codeType === 'csharp' || codeType === 'cs') return '/codeType/csharp.webp'
+  return ''
+}
+
 const gameLaunchUrl = computed(() => {
   if (!currentGame.value) return ''
   const rawUrl =

@@ -219,17 +219,17 @@
                   <i class="fa fa-tag mr-2"></i>
                   <span>游戏类别: {{ categoryToZh(game.category || 'action') }}</span>
                   <img
-                    :src="getEngineIcon(game)"
+                    :src="getGameEngineIcon(game)"
                     alt="游戏引擎"
                     class="engine-type-icon ml-4 mr-2"
                   />
-                  <span>游戏引擎: {{ getEngine(game) || 'Cocos' }}</span>
+                  <span>游戏引擎: {{ getGameEngineLabel(game) || 'Cocos' }}</span>
                   <img
-                    :src="getCodeTypeIcon(game)"
+                    :src="getGameCodeTypeIcon(game)"
                     alt="编程语言"
                     class="code-type-icon ml-4 mr-2"
                   />
-                  <span>编程语言: {{ getCodeType(game) || 'TypeScript' }}</span>
+                  <span>编程语言: {{ getGameCodeTypeLabel(game) || 'TypeScript' }}</span>
                 </div>
                 <div class="game-card-actions flex justify-between items-center">
                   <span class="text-sm text-white/80">
@@ -272,6 +272,16 @@ import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 import { apiCall } from '../utils/api'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
+import {
+  getGameCodeTypeIcon,
+  getGameCodeTypeIconByValue,
+  getGameCodeTypeLabel,
+  getGameEngineIcon,
+  getGameEngineIconByValue,
+  getGameEngineLabel,
+  normalizeGameCodeType,
+  normalizeGameEngine
+} from '../utils/gameMetadata.js'
 import AvatarFriendAction from '../components/AvatarFriendAction.vue'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
 
@@ -339,95 +349,38 @@ const onSliderSelect = opt => {
   sliderVisible.value = false
 }
 
-// Helpers for engine / code fields
-const getEngine = game =>
-  (game.engine || game.game_engine || '').toString().trim()
-
-const getCodeType = game =>
-  (game.code_type || game.codeType || game.code_category || '')
-    .toString()
-    .trim()
-
-// Normalization helpers
-const normalizeEngine = val => {
-  const v = (val || '').toString().trim().toLowerCase()
-  if (!v) return ''
-  if (['godot'].includes(v)) return 'godot'
-  if (['unity'].includes(v)) return 'unity'
-  if (['cocos', 'cocos2d', 'cocos-creator', 'cocos creator'].includes(v)) {
-    return 'cocos'
-  }
-  if (['other', 'others', '其他'].includes(v)) return 'other'
-  return v
-}
-
-const normalizeCodeType = val => {
-  const v = (val || '').toString().trim().toLowerCase()
-  if (!v) return ''
-  if (['typescript', 'ts'].includes(v)) return 'typescript'
-  if (['javascript', 'js'].includes(v)) return 'javascript'
-  if (['c#', 'csharp', 'cs'].includes(v)) return 'c#'
-  if (['other', 'others', '其他'].includes(v)) return 'other'
-  return v
-}
-
-const codeTypeIconMap = {
-  typescript: '/codeType/typescript.jpg',
-  javascript: '/codeType/js.webp',
-  'c#': '/codeType/csharp.webp'
-}
-
-const engineIconMap = {
-  godot: '/engineType/godot.webp',
-  unity: '/engineType/unity.webp',
-  cocos: '/engineType/cocos.webp',
-  other: '/engineType/cocos.webp'
-}
-
-const getCodeTypeIcon = game => {
-  const normalized = normalizeCodeType(getCodeType(game)) || 'typescript'
-  return codeTypeIconMap[normalized] || codeTypeIconMap.typescript
-}
-
-const getEngineIcon = game => {
-  const normalized = normalizeEngine(getEngine(game)) || 'cocos'
-  return engineIconMap[normalized] || engineIconMap.cocos
-}
-
 const getEngineFilterIcon = () => {
   if (selectedEngine.value === 'all') return ''
-  const normalized = normalizeEngine(selectedEngine.value)
+  const normalized = normalizeGameEngine(selectedEngine.value)
   if (normalized === 'other') return ''
-  return engineIconMap[normalized] || ''
+  return getGameEngineIconByValue(selectedEngine.value)
 }
 
 const getCodeFilterIcon = () => {
   if (selectedCodeType.value === 'all') return ''
-  const normalized = normalizeCodeType(selectedCodeType.value)
+  const normalized = normalizeGameCodeType(selectedCodeType.value)
   if (normalized === 'other') return ''
-  return codeTypeIconMap[normalized] || ''
+  return getGameCodeTypeIconByValue(selectedCodeType.value)
 }
 
 const getEngineOptionIcon = opt => {
   if (opt === '全部' || opt === '其他') return ''
-  const normalized = normalizeEngine(opt)
-  return engineIconMap[normalized]
+  return getGameEngineIconByValue(opt)
 }
 
 const getCodeOptionIcon = opt => {
   if (opt === '全部' || opt === '其他') return ''
-  const normalized = normalizeCodeType(opt)
-  return codeTypeIconMap[normalized]
+  return getGameCodeTypeIconByValue(opt)
 }
 
 // Apply filters to games
 const applyFilters = () => {
-  const selEngine = normalizeEngine(selectedEngine.value)
-  const selCode = normalizeCodeType(selectedCodeType.value)
+  const selEngine = normalizeGameEngine(selectedEngine.value)
+  const selCode = normalizeGameCodeType(selectedCodeType.value)
 
   filteredGames.value = games.value.filter(game => {
-    const engine = normalizeEngine(getEngine(game))
-    const code = normalizeCodeType(getCodeType(game))
+    const engine = normalizeGameEngine(getGameEngineLabel(game))
+    const code = normalizeGameCodeType(getGameCodeTypeLabel(game))
 
     const engineMatch = selEngine === 'all' || (engine && engine === selEngine)
     const codeMatch = selCode === 'all' || (code && code === selCode)

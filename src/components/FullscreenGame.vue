@@ -1,6 +1,19 @@
 <template>
   <div v-if="isFullscreen" class="fullscreen-game-container active">
     <div class="fullscreen-game-content">
+      <div
+        v-if="currentGame && (getEngineLogo(currentGame) || getCodeLogo(currentGame))"
+        class="absolute top-4 left-4 z-20 flex items-center gap-4 rounded-full bg-black/45 backdrop-blur-sm px-4 py-2 text-sm text-white"
+      >
+        <span v-if="getEngineLogo(currentGame)" class="inline-flex items-center gap-2">
+          <img :src="getEngineLogo(currentGame)" alt="游戏引擎" class="w-4 h-4 object-contain" />
+          <span>{{ currentGame.engine || currentGame.game_engine || '未知引擎' }}</span>
+        </span>
+        <span v-if="getCodeLogo(currentGame)" class="inline-flex items-center gap-2">
+          <img :src="getCodeLogo(currentGame)" alt="游戏代码" class="w-4 h-4 object-contain" />
+          <span>{{ currentGame.code_type || currentGame.codeType || '未知代码' }}</span>
+        </span>
+      </div>
       <iframe 
         ref="gameFrame"
         frameborder="0" 
@@ -226,6 +239,22 @@ const isFullscreen = computed(() => modalStore.isFullscreen)
 const currentGame = computed(() => modalStore.currentGame)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const comments = computed(() => gameStore.comments)
+const getEngineLogo = (game) => {
+  const engine = String(game?.engine || game?.game_engine || '').trim().toLowerCase()
+  if (engine.includes('cocos')) return '/engineType/cocos.webp'
+  if (engine.includes('unity')) return '/engineType/unity.webp'
+  if (engine.includes('godot')) return '/engineType/godot.webp'
+  return ''
+}
+
+const getCodeLogo = (game) => {
+  const codeType = String(game?.code_type || game?.codeType || '').trim().toLowerCase()
+  if (codeType === 'typescript' || codeType === 'ts') return '/codeType/typescript.jpg'
+  if (codeType === 'javascript' || codeType === 'js') return '/codeType/js.webp'
+  if (codeType === 'c#' || codeType === 'csharp' || codeType === 'cs') return '/codeType/csharp.webp'
+  return ''
+}
+
 const gameLaunchUrl = computed(() => {
   if (!currentGame.value) return ''
   const rawUrl =
