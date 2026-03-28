@@ -6,12 +6,11 @@ import { getGameCoverUrl } from '../../utils/gameLibraryPresentation'
 
 const props = defineProps({
   games: { type: Array, default: () => [] },
+  maxVisibleGames: { type: Number, default: 2 },
   seed: { type: String, default: '' },
   logs: { type: Array, default: () => [] },
   modelOptions: { type: Array, default: () => [] }
 })
-
-const emit = defineEmits(['action'])
 
 const libraryGames = computed(() =>
   props.games.map((game, index) => ({
@@ -24,9 +23,7 @@ const libraryGames = computed(() =>
   }))
 )
 
-const emitAction = (action, payload) => {
-  emit('action', { action, ...payload })
-}
+const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.maxVisibleGames))
 </script>
 
 <template>
@@ -37,20 +34,20 @@ const emitAction = (action, payload) => {
         <div class="bp-brand-title">DPCC GAMING</div>
         <div class="bp-brand-subtitle">BluePrint&amp;WorkFlow</div>
       </div>
-      <button type="button" class="bp-brand-square" @click="emitAction('toggle-window')">
+      <button type="button" class="bp-brand-square">
         <i class="fa-regular fa-window-restore"></i>
       </button>
     </header>
 
-    <button type="button" class="bp-side-action" @click="emitAction('export-json')">
+    <button type="button" class="bp-side-action">
       <i class="fa fa-download"></i>
       <span>导出 JSON</span>
     </button>
-    <button type="button" class="bp-side-action" @click="emitAction('import-workflow')">
+    <button type="button" class="bp-side-action">
       <i class="fa fa-upload"></i>
       <span>导入</span>
     </button>
-    <button type="button" class="bp-side-action" @click="emitAction('clear-workflow')">
+    <button type="button" class="bp-side-action">
       <i class="fa fa-trash"></i>
       <span>清空工作流</span>
     </button>
@@ -63,12 +60,11 @@ const emitAction = (action, payload) => {
           :key="model.name"
           type="button"
           class="bp-model-pill"
-          @click="emitAction('select-model', { model })"
         >
           <span>{{ model.name }}</span>
         </button>
       </div>
-      <button type="button" class="bp-side-wide-btn" @click="emitAction('import-model')">
+      <button type="button" class="bp-side-wide-btn">
         导入自己的模型
       </button>
     </section>
@@ -83,10 +79,9 @@ const emitAction = (action, payload) => {
       </div>
       <div class="bp-library-list">
         <article
-          v-for="game in libraryGames"
+          v-for="game in visibleLibraryGames"
           :key="game.id"
           class="bp-library-card"
-          @click="emitAction('select-game', { gameId: game.id })"
         >
           <img
             class="bp-library-thumb"
@@ -117,7 +112,7 @@ const emitAction = (action, payload) => {
       </div>
     </section>
 
-    <button type="button" class="bp-side-wide-btn bp-share-btn" @click="emitAction('share')">
+    <button type="button" class="bp-side-wide-btn bp-share-btn">
       分享
     </button>
   </aside>

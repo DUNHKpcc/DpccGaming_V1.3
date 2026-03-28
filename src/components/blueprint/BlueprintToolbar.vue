@@ -1,6 +1,4 @@
 <script setup>
-const emit = defineEmits(['action'])
-
 const buttons = [
   { key: 'add-node', icon: 'fa fa-plus', label: '添加节点' },
   { key: 'prompt-positive', icon: 'fa fa-wand-magic-sparkles', label: '正向提示词' },
@@ -11,10 +9,6 @@ const buttons = [
   { key: 'music', icon: 'fa fa-music', label: '游戏音乐' },
   { key: 'import-selected', icon: 'fa fa-arrow-down-to-line', label: '导入选中游戏' }
 ]
-
-const emitAction = (action) => {
-  emit('action', action)
-}
 </script>
 
 <template>
@@ -25,21 +19,20 @@ const emitAction = (action) => {
         :key="button.key"
         type="button"
         class="bp-toolbar-btn"
-        @click="emitAction(button.key)"
       >
         <i :class="button.icon"></i>
         <span>{{ button.label }}</span>
       </button>
-      <button type="button" class="bp-toolbar-square" @click="emitAction('add-shortcut')">
+      <button type="button" class="bp-toolbar-square">
         <i class="fa fa-plus"></i>
       </button>
     </div>
 
     <div class="bp-toolbar-side">
-      <button type="button" class="bp-toolbar-square" @click="emitAction('download')">
+      <button type="button" class="bp-toolbar-square">
         <i class="fa fa-download"></i>
       </button>
-      <button type="button" class="bp-toolbar-run" @click="emitAction('run')">
+      <button type="button" class="bp-toolbar-run">
         <i class="fa fa-play"></i>
       </button>
     </div>
