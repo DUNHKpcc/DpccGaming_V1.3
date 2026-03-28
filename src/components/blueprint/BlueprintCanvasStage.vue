@@ -47,14 +47,16 @@ onMounted(() => {
       </slot>
     </div>
 
-    <slot name="overlay">
-      <div class="bp-prompt-dock" data-no-pan>
-        <input class="bp-prompt-input" :placeholder="props.placeholder" data-no-pan />
-        <button type="button" class="bp-prompt-send" data-no-pan>
-          <i class="fa fa-paper-plane"></i>
-        </button>
-      </div>
-    </slot>
+    <div class="bp-stage-overlay" data-no-pan>
+      <slot name="overlay">
+        <div class="bp-prompt-dock" data-no-pan>
+          <input class="bp-prompt-input" :placeholder="props.placeholder" data-no-pan />
+          <button type="button" class="bp-prompt-send" data-no-pan>
+            <i class="fa fa-paper-plane"></i>
+          </button>
+        </div>
+      </slot>
+    </div>
   </section>
 </template>
 
@@ -76,7 +78,8 @@ onMounted(() => {
 }
 
 .bp-stage-grid,
-.bp-stage-world {
+.bp-stage-world,
+.bp-stage-overlay {
   position: absolute;
   inset: 0;
 }
