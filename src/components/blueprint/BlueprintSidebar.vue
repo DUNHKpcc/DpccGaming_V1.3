@@ -1,14 +1,32 @@
 <script setup>
+import { computed } from 'vue'
 import { categoryToZh } from '../../utils/category'
 import { getGameCodeTypeIcon, getGameEngineIcon } from '../../utils/gameMetadata'
 import { getGameCoverUrl } from '../../utils/gameLibraryPresentation'
 
-defineProps({
+const props = defineProps({
   games: { type: Array, default: () => [] },
   seed: { type: String, default: '' },
   logs: { type: Array, default: () => [] },
   modelOptions: { type: Array, default: () => [] }
 })
+
+const emit = defineEmits(['action'])
+
+const libraryGames = computed(() =>
+  props.games.map((game, index) => ({
+    id: game?.game_id || game?.id || `game-${index}`,
+    title: game?.title || game?.name || '像素逃生',
+    categoryLabel: categoryToZh(game?.category || 'action'),
+    coverUrl: getGameCoverUrl(game) || '/GameImg.jpg',
+    codeTypeIcon: getGameCodeTypeIcon(game),
+    engineIcon: getGameEngineIcon(game)
+  }))
+)
+
+const emitAction = (action, payload) => {
+  emit('action', { action, ...payload })
+}
 </script>
 
 <template>
@@ -19,20 +37,20 @@ defineProps({
         <div class="bp-brand-title">DPCC GAMING</div>
         <div class="bp-brand-subtitle">BluePrint&amp;WorkFlow</div>
       </div>
-      <button type="button" class="bp-brand-square">
+      <button type="button" class="bp-brand-square" @click="emitAction('toggle-window')">
         <i class="fa-regular fa-window-restore"></i>
       </button>
     </header>
 
-    <button type="button" class="bp-side-action">
+    <button type="button" class="bp-side-action" @click="emitAction('export-json')">
       <i class="fa fa-download"></i>
       <span>导出 JSON</span>
     </button>
-    <button type="button" class="bp-side-action">
+    <button type="button" class="bp-side-action" @click="emitAction('import-workflow')">
       <i class="fa fa-upload"></i>
       <span>导入</span>
     </button>
-    <button type="button" class="bp-side-action">
+    <button type="button" class="bp-side-action" @click="emitAction('clear-workflow')">
       <i class="fa fa-trash"></i>
       <span>清空工作流</span>
     </button>
@@ -40,11 +58,19 @@ defineProps({
     <section class="bp-sidebar-section">
       <h3>配置工作流</h3>
       <div class="bp-model-grid">
-        <button v-for="model in modelOptions" :key="model.name" type="button" class="bp-model-pill">
+        <button
+          v-for="model in modelOptions"
+          :key="model.name"
+          type="button"
+          class="bp-model-pill"
+          @click="emitAction('select-model', { model })"
+        >
           <span>{{ model.name }}</span>
         </button>
       </div>
-      <button type="button" class="bp-side-wide-btn">导入自己的模型</button>
+      <button type="button" class="bp-side-wide-btn" @click="emitAction('import-model')">
+        导入自己的模型
+      </button>
     </section>
 
     <section class="bp-sidebar-section">
@@ -57,22 +83,23 @@ defineProps({
       </div>
       <div class="bp-library-list">
         <article
-          v-for="game in games.slice(0, 2)"
-          :key="game.game_id || game.id"
+          v-for="game in libraryGames"
+          :key="game.id"
           class="bp-library-card"
+          @click="emitAction('select-game', { gameId: game.id })"
         >
           <img
             class="bp-library-thumb"
-            :src="getGameCoverUrl(game) || '/GameImg.jpg'"
-            :alt="game.title || game.name"
+            :src="game.coverUrl"
+            :alt="game.title"
           />
           <div class="bp-library-copy">
-            <strong>{{ game.title || game.name || '像素逃生' }}</strong>
-            <small>{{ categoryToZh(game.category || 'action') }}</small>
+            <strong>{{ game.title }}</strong>
+            <small>{{ game.categoryLabel }}</small>
           </div>
           <div class="bp-library-icons">
-            <img v-if="getGameCodeTypeIcon(game)" :src="getGameCodeTypeIcon(game)" alt="" />
-            <img v-if="getGameEngineIcon(game)" :src="getGameEngineIcon(game)" alt="" />
+            <img v-if="game.codeTypeIcon" :src="game.codeTypeIcon" alt="" />
+            <img v-if="game.engineIcon" :src="game.engineIcon" alt="" />
           </div>
         </article>
       </div>
@@ -80,17 +107,19 @@ defineProps({
 
     <section class="bp-sidebar-section">
       <h3>种子</h3>
-      <div class="bp-seed-box">{{ seed }}</div>
+      <div class="bp-seed-box">{{ props.seed }}</div>
     </section>
 
     <section class="bp-sidebar-section bp-log-section">
       <h3>生成日志</h3>
       <div class="bp-log-box">
-        <p v-for="(line, index) in logs" :key="index">{{ line }}</p>
+        <p v-for="(line, index) in props.logs" :key="index">{{ line }}</p>
       </div>
     </section>
 
-    <button type="button" class="bp-side-wide-btn bp-share-btn">分享</button>
+    <button type="button" class="bp-side-wide-btn bp-share-btn" @click="emitAction('share')">
+      分享
+    </button>
   </aside>
 </template>
 
