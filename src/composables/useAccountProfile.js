@@ -1,8 +1,6 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { API_BASE_URL, apiCall } from '../utils/api'
-import { resolveMediaUrl } from '../utils/media'
-
-const VIDEO_EXT_PATTERN = /\.(mp4|webm|ogg|m4v|mov)(\?.*)?$/i
+import { getGameCoverUrl, getGameVideoUrl, hasPlayableVideo } from '../utils/gameLibraryPresentation'
 const LOGOUT_CONFIRM_WINDOW_MS = 4500
 
 export const useAccountProfile = ({
@@ -312,19 +310,6 @@ export const useAccountProfile = ({
 
   const onPlayerProfileAutoSave = async (patch = {}) => {
     await saveProfileSettings(patch, { silent: true })
-  }
-
-  const getGameCoverUrl = (game = {}) => {
-    return resolveMediaUrl(game.thumbnail_url || game.thumbnail || '')
-  }
-
-  const getGameVideoUrl = (game = {}) => {
-    return resolveMediaUrl(game.video_url || '')
-  }
-
-  const hasPlayableVideo = (game = {}) => {
-    const rawUrl = String(game.video_url || '').trim()
-    return VIDEO_EXT_PATTERN.test(rawUrl)
   }
 
   const formatSavedDate = (value) => {
