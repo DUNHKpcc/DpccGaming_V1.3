@@ -20,7 +20,7 @@ const {
 } = useInfiniteCanvas()
 
 onMounted(() => {
-  centerOnWorld()
+  centerOnWorld({ xRatio: 0.54, yRatio: 0.41 })
 })
 </script>
 
@@ -40,7 +40,10 @@ onMounted(() => {
     <div class="bp-stage-world" :style="worldStyle">
       <slot name="world">
         <div class="bp-empty-state" :style="{ left: `${worldCenter.x}px`, top: `${worldCenter.y}px` }">
-          <div class="bp-empty-brand">BluePrint</div>
+          <div class="bp-empty-brand">
+            <span class="bp-empty-brand-mark"></span>
+            <span>BluePrint</span>
+          </div>
           <h1>独创游戏生成工作流</h1>
           <p>拖拽移动节点，滚轮缩放视图。每一个节点都是一次创意的进发。</p>
         </div>
@@ -66,9 +69,7 @@ onMounted(() => {
   width: 100%;
   min-height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top, rgba(76, 112, 163, 0.12), transparent 40%),
-    linear-gradient(180deg, #08111d 0%, #0b1521 100%);
+  background: var(--bp-canvas-bg);
   cursor: grab;
   touch-action: none;
 }
@@ -87,9 +88,10 @@ onMounted(() => {
 .bp-stage-grid {
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(161, 184, 214, 0.14) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(161, 184, 214, 0.14) 1px, transparent 1px);
+    linear-gradient(var(--bp-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px);
   background-repeat: repeat;
+  opacity: 0.82;
 }
 
 .bp-stage-world {
@@ -99,81 +101,93 @@ onMounted(() => {
 .bp-empty-state {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: min(480px, calc(100vw - 48px));
-  padding: 32px 36px;
-  border: 1px solid rgba(196, 214, 240, 0.14);
-  border-radius: 28px;
-  background: rgba(7, 17, 30, 0.82);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(18px);
-  color: #f4f8ff;
+  width: 290px;
+  color: var(--bp-text);
   text-align: center;
 }
 
 .bp-empty-brand {
-  margin-bottom: 14px;
-  color: #8db9ff;
-  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  margin-bottom: 16px;
+  padding: 0 15px;
+  border: 1px solid var(--bp-border);
+  border-radius: 11px;
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
+  color: var(--bp-accent);
+  font-size: 0.84rem;
   font-weight: 700;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
+}
+
+.bp-empty-brand-mark {
+  width: 22px;
+  height: 22px;
+  background:
+    linear-gradient(#101010 0 0) left 2px top 0 / 8px 22px no-repeat,
+    radial-gradient(circle at 72% 22%, #101010 0 3px, transparent 3.2px),
+    radial-gradient(circle at 73% 86%, #101010 0 9px, transparent 9.2px);
 }
 
 .bp-empty-state h1 {
   margin: 0 0 12px;
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  line-height: 1.05;
+  font-size: 1.06rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .bp-empty-state p {
-  margin: 0;
-  color: rgba(228, 238, 255, 0.76);
-  font-size: 0.98rem;
-  line-height: 1.7;
+  width: 172px;
+  margin: 0 auto;
+  color: var(--bp-muted);
+  font-size: 0.83rem;
+  line-height: 1.6;
 }
 
 .bp-prompt-dock {
   position: absolute;
   left: 50%;
-  bottom: 28px;
+  bottom: 64px;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: min(720px, calc(100% - 32px));
-  padding: 12px;
-  border: 1px solid rgba(196, 214, 240, 0.16);
-  border-radius: 999px;
-  background: rgba(5, 12, 22, 0.88);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(18px);
+  gap: 10px;
+  width: 495px;
   transform: translateX(-50%);
 }
 
 .bp-prompt-input {
   flex: 1;
   min-width: 0;
-  border: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--bp-border);
+  border-radius: 8px;
   outline: none;
-  background: transparent;
-  color: #f4f8ff;
-  font-size: 1rem;
-  padding: 0 8px;
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
+  color: var(--bp-text);
+  font-size: 0.94rem;
 }
 
 .bp-prompt-input::placeholder {
-  color: rgba(210, 223, 246, 0.48);
+  color: var(--bp-muted);
 }
 
 .bp-prompt-send {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 0;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #5ea2ff 0%, #7ed0ff 100%);
-  color: #04101d;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #181818;
+  border-radius: 8px;
+  background: #181818;
+  color: #ffffff;
+  box-shadow: var(--bp-shadow-sm);
+  cursor: pointer;
 }
 </style>

@@ -1,0 +1,40 @@
+/* Blueprint page shell */
+.bp-page {
+  --bp-canvas-bg: #fcfbf8;
+  --bp-sidebar-bg: #ffffff;
+  --bp-surface: #ffffff;
+  --bp-border: #e8e3db;
+  --bp-grid: rgba(40, 32, 18, 0.06);
+  --bp-text: #171513;
+  --bp-muted: #9a9388;
+  --bp-accent: #d2a02b;
+  --bp-shadow-sm: 0 2px 8px rgba(39, 30, 14, 0.06);
+  --bp-shadow-md: 0 8px 20px rgba(39, 30, 14, 0.08);
+  height: 100vh;
+  min-width: 1365px;
+  display: grid;
+  grid-template-columns: 310px 1fr;
+  background: var(--bp-canvas-bg);
+  color: var(--bp-text);
+  overflow: hidden;
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.bp-main {
+  position: relative;
+  min-width: 0;
+  background: var(--bp-canvas-bg);
+  overflow: hidden;
+}
+
+.bp-toolbar {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  right: 24px;
+  z-index: 8;
+}
+
+.bp-stage {
+  height: 100vh;
+}

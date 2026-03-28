@@ -122,16 +122,14 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
 .bp-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  width: min(320px, 100%);
+  gap: 11px;
+  width: min(308px, 100%);
   min-height: 100vh;
-  padding: 22px 18px 18px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    radial-gradient(circle at top left, rgba(84, 139, 255, 0.18), transparent 36%),
-    linear-gradient(180deg, #121b27 0%, #09111b 100%);
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
-  color: #f2f7ff;
+  padding: 16px 14px 10px;
+  border-right: 1px solid var(--bp-border);
+  background: var(--bp-sidebar-bg);
+  box-sizing: border-box;
+  color: var(--bp-text);
 }
 
 .bp-sidebar-brand,
@@ -140,10 +138,9 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
 .bp-model-pill,
 .bp-library-card,
 .bp-brand-square {
-  border: 1px solid rgba(207, 224, 250, 0.12);
-  background: rgba(10, 18, 29, 0.82);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(14px);
+  border: 1px solid var(--bp-border);
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
 }
 
 .bp-sidebar-brand {
@@ -151,107 +148,137 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  border-radius: 22px;
+  padding: 0 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .bp-brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 28px;
+  height: 28px;
   background:
-    linear-gradient(135deg, rgba(114, 197, 255, 0.95), rgba(49, 112, 255, 0.7)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent);
+    linear-gradient(#101010 0 0) left 1px top 0 / 10px 28px no-repeat,
+    radial-gradient(circle at 72% 22%, #101010 0 4px, transparent 4.2px),
+    radial-gradient(circle at 73% 86%, #101010 0 11px, transparent 11.2px);
   position: relative;
 }
 
-.bp-brand-mark::after {
-  content: '';
-  position: absolute;
-  inset: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  border-radius: 10px;
-}
-
 .bp-brand-title {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.01em;
 }
 
 .bp-brand-subtitle {
-  margin-top: 3px;
-  color: rgba(213, 225, 245, 0.62);
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
+  margin-top: 2px;
+  color: var(--bp-accent);
+  font-size: 0.69rem;
+  font-weight: 600;
 }
 
 .bp-brand-square {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  color: #dce8ff;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #3a352d;
 }
 
 .bp-sidebar button {
   appearance: none;
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.bp-sidebar button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--bp-shadow-md);
 }
 
 .bp-side-action,
 .bp-side-wide-btn {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
+  justify-content: center;
+  gap: 10px;
+  min-height: 36px;
   padding: 0 16px;
-  border-radius: 16px;
-  color: #edf4ff;
-  font-size: 0.95rem;
-  text-align: left;
+  border-radius: 8px;
+  color: var(--bp-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .bp-side-action i,
 .bp-side-wide-btn i {
-  width: 18px;
+  width: 16px;
   text-align: center;
-  color: #8eb8ff;
+  color: #2a2721;
 }
 
 .bp-sidebar-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid rgba(207, 224, 250, 0.08);
-  border-radius: 20px;
-  background: rgba(6, 11, 20, 0.58);
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.bp-sidebar-section + .bp-sidebar-section {
+  margin-top: 2px;
 }
 
 .bp-sidebar-section h3 {
   margin: 0;
-  font-size: 0.84rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--bp-muted);
 }
 
 .bp-model-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .bp-model-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  border-radius: 14px;
-  color: rgba(238, 244, 255, 0.88);
-  font-size: 0.84rem;
+  justify-content: flex-start;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--bp-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bp-model-pill::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff9b5c 0%, #f05d59 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.bp-model-pill:nth-child(2)::before {
+  background: linear-gradient(135deg, #49e8ff 0%, #7f64ff 100%);
+}
+
+.bp-model-pill:nth-child(3)::before {
+  background: linear-gradient(135deg, #ff9150 0%, #ff6b5f 100%);
+}
+
+.bp-model-pill:nth-child(4)::before {
+  background: linear-gradient(135deg, #5d74ff 0%, #3b49ff 100%);
 }
 
 .bp-section-head {
@@ -263,8 +290,21 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
 
 .bp-chevron-pair {
   display: inline-flex;
-  gap: 8px;
-  color: rgba(206, 222, 245, 0.62);
+  gap: 6px;
+  color: var(--bp-muted);
+}
+
+.bp-chevron-pair i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--bp-border);
+  border-radius: 999px;
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
+  font-size: 0.72rem;
 }
 
 .bp-library-list {
@@ -275,18 +315,20 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
 
 .bp-library-card {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border-radius: 18px;
+  gap: 10px;
+  min-height: 62px;
+  padding: 11px 12px;
+  border-radius: 8px;
 }
 
 .bp-library-thumb {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 38px;
+  height: 38px;
+  border-radius: 0;
   object-fit: cover;
+  background: #d1d1d1;
 }
 
 .bp-library-copy {
@@ -302,43 +344,50 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.92rem;
+  font-size: 0.86rem;
+  color: var(--bp-text);
+  font-weight: 600;
 }
 
 .bp-library-copy small {
-  margin-top: 4px;
-  color: rgba(212, 224, 244, 0.62);
-  font-size: 0.77rem;
+  margin-top: 5px;
+  color: #6f685d;
+  font-size: 0.72rem;
 }
 
 .bp-library-icons {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .bp-library-icons img {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
-  border-radius: 6px;
 }
 
 .bp-seed-box,
 .bp-log-box {
   padding: 12px 14px;
-  border: 1px solid rgba(207, 224, 250, 0.08);
-  border-radius: 16px;
-  background: rgba(4, 10, 17, 0.72);
-  color: rgba(236, 243, 255, 0.84);
+  border: 1px solid var(--bp-border);
+  border-radius: 8px;
+  background: var(--bp-surface);
+  color: var(--bp-muted);
+  box-shadow: var(--bp-shadow-sm);
 }
 
 .bp-seed-box {
-  min-height: 64px;
+  min-height: 34px;
+  justify-content: center;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.8rem;
-  line-height: 1.6;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--bp-text);
+  font-weight: 600;
+  letter-spacing: 0.01em;
   word-break: break-all;
+  text-align: center;
 }
 
 .bp-log-section {
@@ -348,7 +397,7 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
 
 .bp-log-box {
   flex: 1;
-  min-height: 140px;
+  min-height: 190px;
   overflow: auto;
 }
 
@@ -364,18 +413,8 @@ const visibleLibraryGames = computed(() => libraryGames.value.slice(0, props.max
 
 .bp-share-btn {
   justify-content: center;
-  min-height: 52px;
+  min-height: 34px;
   margin-top: auto;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(98, 169, 255, 0.22), rgba(16, 31, 50, 0.92));
-}
-
-@media (max-width: 960px) {
-  .bp-sidebar {
-    width: 100%;
-    min-height: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
+  border-radius: 8px;
 }
 </style>

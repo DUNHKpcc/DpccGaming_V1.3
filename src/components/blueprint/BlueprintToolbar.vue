@@ -44,16 +44,9 @@ const buttons = [
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid rgba(207, 224, 250, 0.1);
-  border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(15, 24, 38, 0.96), rgba(8, 14, 24, 0.92)),
-    radial-gradient(circle at top, rgba(87, 145, 255, 0.14), transparent 45%);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(18px);
+  padding: 0;
 }
 
 .bp-toolbar-main,
@@ -85,47 +78,43 @@ const buttons = [
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-height: 46px;
-  border: 1px solid rgba(207, 224, 250, 0.12);
-  background: rgba(9, 18, 31, 0.84);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
-  color: #edf4ff;
-  backdrop-filter: blur(14px);
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid var(--bp-border);
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
+  color: var(--bp-text);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .bp-toolbar-btn {
   flex: 0 0 auto;
   padding: 0 16px;
-  border-radius: 16px;
+  border-radius: 8px;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .bp-toolbar-btn i {
-  color: #8eb8ff;
+  color: #26231d;
+  font-size: 0.85rem;
 }
 
 .bp-toolbar-square,
 .bp-toolbar-run {
-  width: 46px;
-  border-radius: 16px;
+  width: 40px;
+  border-radius: 8px;
 }
 
 .bp-toolbar-run {
-  background: linear-gradient(135deg, #5ea2ff 0%, #7ed0ff 100%);
-  color: #04101d;
+  background: #181818;
+  color: #ffffff;
+  border-color: #181818;
 }
 
-@media (max-width: 960px) {
-  .bp-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .bp-toolbar-main,
-  .bp-toolbar-side {
-    justify-content: flex-start;
-  }
+.bp-toolbar button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--bp-shadow-md);
 }
 </style>

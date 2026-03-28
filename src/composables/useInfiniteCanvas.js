@@ -25,13 +25,13 @@ export const useInfiniteCanvas = () => {
     }
   })
 
-  const centerOnWorld = () => {
+  const centerOnWorld = ({ xRatio = 0.5, yRatio = 0.5 } = {}) => {
     const rect = stageRef.value?.getBoundingClientRect()
     if (!rect) return
 
     offset.value = {
-      x: rect.width / 2 - worldCenter.x * scale.value,
-      y: rect.height / 2 - worldCenter.y * scale.value
+      x: rect.width * xRatio - worldCenter.x * scale.value,
+      y: rect.height * yRatio - worldCenter.y * scale.value
     }
   }
 
