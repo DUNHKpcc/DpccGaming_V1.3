@@ -22,7 +22,9 @@
               :class="[
                 'nav-icon',
                 { 'nav-icon-active': $route.path === item.path }
-              ]">
+              ]"
+              @focus="handleNavItemIntent(item)"
+              @touchstart.passive="handleNavItemIntent(item)">
               <i :class="item.icon"></i>
               <span
                 v-if="shouldShowUnreadDot(item)"
@@ -83,6 +85,7 @@
                 'nav-item',
                 { 'nav-item-active': $route.path === item.path }
               ]"
+              @touchstart.passive="handleNavItemIntent(item)"
               @click="closeSidebar">
               <i :class="item.icon"></i>
               <span
@@ -136,6 +139,7 @@ import { useAuthStore } from '../stores/auth'
 import { useModalStore } from '../stores/modal'
 import { gsap } from 'gsap'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
+import { prefetchBlueprintMode } from '../utils/blueprintAsync'
 import UserLevelBadge from './UserLevelBadge.vue'
 
 const authStore = useAuthStore()
@@ -252,8 +256,15 @@ const handleNotificationsUpdated = () => {
   fetchUnreadStatus()
 }
 
+const handleNavItemIntent = (item) => {
+  if (item?.path === '/blueprint') {
+    prefetchBlueprintMode()
+  }
+}
+
 // GSAP动画函数
 const expandSidebar = (item, index) => {
+  handleNavItemIntent(item)
   currentDetails.value = item
   isExpanded.value = true
   

@@ -35,6 +35,16 @@ export const useInfiniteCanvas = () => {
     }
   }
 
+  const screenToWorldPoint = ({ x = 0, y = 0 } = {}) => {
+    const rect = stageRef.value?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+
+    return {
+      x: (x - rect.left - offset.value.x) / scale.value,
+      y: (y - rect.top - offset.value.y) / scale.value
+    }
+  }
+
   const shouldStartPan = (event) => {
     if (event.button !== 0) return false
     if (!(event.target instanceof Element)) return true
@@ -44,6 +54,7 @@ export const useInfiniteCanvas = () => {
   const beginPan = (event) => {
     if (!shouldStartPan(event)) return
 
+    event.preventDefault()
     isPanning.value = true
     activePointerId.value = event.pointerId
     lastPointer.value = { x: event.clientX, y: event.clientY }
@@ -53,6 +64,7 @@ export const useInfiniteCanvas = () => {
   const movePan = (event) => {
     if (!isPanning.value || activePointerId.value !== event.pointerId) return
 
+    event.preventDefault()
     offset.value = {
       x: offset.value.x + event.clientX - lastPointer.value.x,
       y: offset.value.y + event.clientY - lastPointer.value.y
@@ -100,6 +112,7 @@ export const useInfiniteCanvas = () => {
     movePan,
     endPan,
     centerOnWorld,
-    onWheel
+    onWheel,
+    screenToWorldPoint
   }
 }
