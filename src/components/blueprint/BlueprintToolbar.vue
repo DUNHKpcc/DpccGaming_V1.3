@@ -90,7 +90,7 @@ const buttons = [
   background: var(--bp-surface);
   box-shadow: var(--bp-shadow-sm);
   color: var(--bp-text);
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  transition: box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
 }
 
 .bp-toolbar-btn {
@@ -120,7 +120,12 @@ const buttons = [
 }
 
 .bp-toolbar button:hover {
-  transform: translateY(-1px);
+  border-color: rgba(17, 17, 17, 0.22);
   box-shadow: var(--bp-shadow-md);
+}
+
+.bp-toolbar-run:hover {
+  border-color: #181818;
+  background: #262626;
 }
 </style>

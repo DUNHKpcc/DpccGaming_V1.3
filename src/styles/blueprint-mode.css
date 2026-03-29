@@ -68,6 +68,16 @@
   z-index: 8;
 }
 
+.bp-page button:focus {
+  outline: none;
+}
+
+.bp-page button:focus-visible,
+.bp-page input:focus-visible {
+  border-color: rgba(17, 17, 17, 0.24);
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08), var(--bp-shadow-md);
+}
+
 .bp-stage {
   height: 100dvh;
 }

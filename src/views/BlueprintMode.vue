@@ -5,16 +5,18 @@ import BlueprintSidebar from '../components/blueprint/BlueprintSidebar.vue'
 import BlueprintToolbar from '../components/blueprint/BlueprintToolbar.vue'
 import BlueprintCanvasStage from '../components/blueprint/BlueprintCanvasStage.vue'
 import BlueprintGameNode from '../components/blueprint/BlueprintGameNode.vue'
+import BlueprintCompactNode from '../components/blueprint/BlueprintCompactNode.vue'
 import BlueprintPromptPositiveNode from '../components/blueprint/BlueprintPromptPositiveNode.vue'
 import {
+  BLUEPRINT_COMPACT_NODE_META,
   BP_WORLD_HEIGHT,
   BP_WORLD_WIDTH,
+  createBlueprintCompactNode,
   createPromptPositiveBlueprintNode,
   getBlueprintNodePortPoint,
   parseBlueprintWorkflow,
   serializeBlueprintWorkflow,
   snapPointToGrid,
-  updateBlueprintNodeField,
   updateBlueprintNodePosition,
   upsertBlueprintEdge,
   upsertGameBlueprintNode
@@ -35,6 +37,7 @@ const isSidebarCollapsed = ref(false)
 const isLibraryLoading = ref(false)
 const blueprintNodes = ref([])
 const blueprintEdges = ref([])
+const nodeMeasurements = ref({})
 const selectedNodeId = ref('')
 const highlightedNodeId = ref('')
 const activeLibraryGameId = ref('')
@@ -65,6 +68,15 @@ let libraryLoadIdle = null
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
+}
+
+const clearPointerButtonFocus = (event) => {
+  const button = event.target instanceof Element ? event.target.closest('button') : null
+  if (!(button instanceof HTMLButtonElement)) return
+
+  window.setTimeout(() => {
+    button.blur()
+  }, 0)
 }
 
 const createNodeId = () => {
@@ -112,14 +124,30 @@ const handleSelectNode = (nodeId) => {
   }
 }
 
-const handleUpdateNodeField = ({ nodeId, fieldKey, value }) => {
-  blueprintNodes.value = updateBlueprintNodeField(
-    blueprintNodes.value,
-    nodeId,
-    fieldKey,
-    value
-  )
+const handleNodeMeasure = ({ nodeId, width, height }) => {
+  if (!nodeId || !width || !height) return
+
+  const currentMeasurement = nodeMeasurements.value[nodeId]
+  if (currentMeasurement?.width === width && currentMeasurement?.height === height) {
+    return
+  }
+
+  nodeMeasurements.value = {
+    ...nodeMeasurements.value,
+    [nodeId]: { width, height }
+  }
 }
+
+const handleNodeUnmount = (nodeId) => {
+  if (!nodeId || !nodeMeasurements.value[nodeId]) return
+
+  const nextMeasurements = { ...nodeMeasurements.value }
+  delete nextMeasurements[nodeId]
+  nodeMeasurements.value = nextMeasurements
+}
+
+const getNodePortPoint = (node, portType) =>
+  getBlueprintNodePortPoint(node, portType, nodeMeasurements.value[node.id])
 
 const downloadWorkflow = (content, fileName) => {
   const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
@@ -293,7 +321,7 @@ const handleStartLink = (payload, screenToWorldPoint) => {
   const sourceNode = blueprintNodes.value.find((node) => node.id === payload.nodeId)
   if (!sourceNode) return
 
-  const startPoint = getBlueprintNodePortPoint(sourceNode, 'output')
+  const startPoint = getNodePortPoint(sourceNode, 'output')
 
   activeEdgeDrag.value = {
     fromNodeId: payload.nodeId,
@@ -307,7 +335,7 @@ const handleStartLink = (payload, screenToWorldPoint) => {
 }
 
 const handleToolbarAction = (actionKey) => {
-  if (actionKey !== 'prompt-positive' || typeof screenToWorldProjector.value !== 'function') {
+  if (typeof screenToWorldProjector.value !== 'function') {
     return
   }
 
@@ -315,11 +343,20 @@ const handleToolbarAction = (actionKey) => {
     x: window.innerWidth / 2,
     y: window.innerHeight / 2
   })
-  const node = createPromptPositiveBlueprintNode(centerPoint, createNodeId)
+
+  let node = null
+  if (actionKey === 'prompt-positive') {
+    node = createPromptPositiveBlueprintNode(centerPoint, createNodeId)
+  } else if (Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, actionKey)) {
+    node = createBlueprintCompactNode(actionKey, centerPoint, createNodeId)
+  }
+
+  if (!node) return
+
   blueprintNodes.value = [...blueprintNodes.value, node]
   selectedNodeId.value = node.id
   pulseNode(node.id)
-  appendLog('已添加正向提示词节点。')
+  appendLog(`已添加${node.title}节点。`)
 }
 
 const handleCanvasReady = ({ screenToWorldPoint }) => {
@@ -340,6 +377,12 @@ const promptPositiveBlueprintNodes = computed(() =>
   blueprintNodes.value.filter((node) => node.kind === 'prompt-positive')
 )
 
+const compactBlueprintNodes = computed(() =>
+  blueprintNodes.value.filter((node) =>
+    node.kind !== 'prompt-positive' && Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, node.kind)
+  )
+)
+
 const renderedEdges = computed(() =>
   blueprintEdges.value
     .map((edge) => {
@@ -347,8 +390,8 @@ const renderedEdges = computed(() =>
       const toNode = nodeMap.value.get(edge.toNodeId)
       if (!fromNode || !toNode) return null
 
-      const start = getBlueprintNodePortPoint(fromNode, 'output')
-      const end = getBlueprintNodePortPoint(toNode, 'input')
+      const start = getNodePortPoint(fromNode, 'output')
+      const end = getNodePortPoint(toNode, 'input')
       const delta = Math.max(72, Math.abs(end.x - start.x) * 0.4)
 
       return {
@@ -478,7 +521,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="bp-page" :class="{ 'is-sidebar-collapsed': isSidebarCollapsed }">
+  <div
+    class="bp-page"
+    :class="{ 'is-sidebar-collapsed': isSidebarCollapsed }"
+    @pointerup.capture="clearPointerButtonFocus"
+  >
     <BlueprintSidebar
       v-if="!isSidebarCollapsed"
       :games="libraryGames"
@@ -542,6 +589,8 @@ onBeforeUnmount(() => {
             @select="handleSelectNode"
             @drag-start="handleNodeDragStart($event, screenToWorldPoint)"
             @start-link="handleStartLink($event, screenToWorldPoint)"
+            @measure="handleNodeMeasure"
+            @unmount="handleNodeUnmount"
           />
           <BlueprintPromptPositiveNode
             v-for="node in promptPositiveBlueprintNodes"
@@ -552,7 +601,20 @@ onBeforeUnmount(() => {
             @select="handleSelectNode"
             @drag-start="handleNodeDragStart($event, screenToWorldPoint)"
             @start-link="handleStartLink($event, screenToWorldPoint)"
-            @update-field="handleUpdateNodeField"
+            @measure="handleNodeMeasure"
+            @unmount="handleNodeUnmount"
+          />
+          <BlueprintCompactNode
+            v-for="node in compactBlueprintNodes"
+            :key="node.id"
+            :node="node"
+            :selected="selectedNodeId === node.id"
+            :highlighted="highlightedNodeId === node.id"
+            @select="handleSelectNode"
+            @drag-start="handleNodeDragStart($event, screenToWorldPoint)"
+            @start-link="handleStartLink($event, screenToWorldPoint)"
+            @measure="handleNodeMeasure"
+            @unmount="handleNodeUnmount"
           />
           </div>
         </template>
@@ -562,6 +624,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style src="../styles/blueprint-mode.css"></style>
+<style src="../styles/blueprint-node-chrome.css"></style>
 <style scoped>
 .bp-world-layer {
   position: relative;
@@ -578,13 +641,13 @@ onBeforeUnmount(() => {
 
 .bp-edge-path {
   fill: none;
-  stroke: rgba(129, 114, 79, 0.72);
+  stroke: rgba(96, 96, 96, 0.84);
   stroke-width: 3;
   stroke-linecap: round;
 }
 
 .bp-edge-path-preview {
-  stroke: rgba(84, 116, 186, 0.72);
+  stroke: rgba(146, 146, 146, 0.94);
   stroke-dasharray: 10 8;
 }
 </style>

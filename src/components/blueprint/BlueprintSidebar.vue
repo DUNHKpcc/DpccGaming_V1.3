@@ -60,59 +60,104 @@ const removeDragPreview = () => {
   activeDragPreview = null
 }
 
-const createDragPreview = (game) => {
-  removeDragPreview()
+const drawRoundedRectPath = (context, x, y, width, height, radius) => {
+  const safeRadius = Math.min(radius, width / 2, height / 2)
+  context.beginPath()
+  context.moveTo(x + safeRadius, y)
+  context.lineTo(x + width - safeRadius, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
+  context.lineTo(x + width, y + height - safeRadius)
+  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
+  context.lineTo(x + safeRadius, y + height)
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
+  context.lineTo(x, y + safeRadius)
+  context.quadraticCurveTo(x, y, x + safeRadius, y)
+  context.closePath()
+}
 
-  const shell = document.createElement('div')
-  shell.className = 'bp-drag-preview-shell'
+const drawPreviewMedia = (context, mediaElement, width, height) => {
+  if (!mediaElement) return false
 
-  const card = document.createElement('div')
-  card.className = 'bp-drag-preview-card'
+  try {
+    if (mediaElement instanceof HTMLImageElement && mediaElement.complete) {
+      context.drawImage(mediaElement, 0, 0, width, height)
+      return true
+    }
 
-  const mediaWrap = document.createElement('div')
-  mediaWrap.className = 'bp-drag-preview-media'
-
-  if (game.hasVideo && game.videoUrl) {
-    const video = document.createElement('video')
-    video.className = 'bp-drag-preview-cover'
-    video.src = game.videoUrl
-    video.poster = game.coverUrl
-    video.muted = true
-    video.loop = true
-    video.autoplay = true
-    video.playsInline = true
-    video.preload = 'metadata'
-    mediaWrap.appendChild(video)
-  } else {
-    const image = document.createElement('img')
-    image.className = 'bp-drag-preview-cover'
-    image.src = game.coverUrl
-    image.alt = game.title
-    mediaWrap.appendChild(image)
+    if (mediaElement instanceof HTMLVideoElement && mediaElement.readyState >= 2) {
+      context.drawImage(mediaElement, 0, 0, width, height)
+      return true
+    }
+  } catch {
+    return false
   }
 
-  const badge = document.createElement('span')
-  badge.className = 'bp-drag-preview-badge'
-  badge.textContent = '游戏节点'
-  mediaWrap.appendChild(badge)
+  return false
+}
 
-  const body = document.createElement('div')
-  body.className = 'bp-drag-preview-body'
+const createCanvasDragPreview = (game, sourceElement) => {
+  const width = 180
+  const height = 160
+  const mediaHeight = 96
+  const radius = 18
+  const canvas = document.createElement('canvas')
+  canvas.className = 'bp-drag-preview-canvas'
+  canvas.width = width * 2
+  canvas.height = height * 2
+  canvas.style.width = `${width}px`
+  canvas.style.height = `${height}px`
 
-  const title = document.createElement('strong')
-  title.textContent = game.title
-  const category = document.createElement('span')
-  category.textContent = game.categoryLabel
+  const context = canvas.getContext('2d')
+  if (!context) return null
 
-  body.appendChild(title)
-  body.appendChild(category)
-  card.appendChild(mediaWrap)
-  card.appendChild(body)
-  shell.appendChild(card)
-  document.body.appendChild(shell)
+  context.scale(2, 2)
+  context.clearRect(0, 0, width, height)
 
-  activeDragPreview = shell
-  return shell
+  drawRoundedRectPath(context, 0.5, 0.5, width - 1, height - 1, radius)
+  context.save()
+  context.clip()
+
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, width, height)
+
+  const mediaElement = sourceElement?.querySelector('.bp-library-thumb') || null
+  if (!drawPreviewMedia(context, mediaElement, width, mediaHeight)) {
+    const gradient = context.createLinearGradient(0, 0, width, mediaHeight)
+    gradient.addColorStop(0, '#f1ece3')
+    gradient.addColorStop(1, '#ffffff')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, width, mediaHeight)
+  }
+
+  context.fillStyle = 'rgba(24, 24, 24, 0.82)'
+  const badgeX = 8
+  const badgeY = 8
+  const badgeWidth = 56
+  const badgeHeight = 22
+  drawRoundedRectPath(context, badgeX, badgeY, badgeWidth, badgeHeight, 11)
+  context.fill()
+
+  context.fillStyle = '#ffffff'
+  context.font = '600 11px "Inter", "PingFang SC", sans-serif'
+  context.textBaseline = 'middle'
+  context.textAlign = 'center'
+  context.fillText('游戏节点', badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 0.5)
+  context.textAlign = 'start'
+
+  context.fillStyle = '#171513'
+  context.font = '600 13px "Inter", "PingFang SC", sans-serif'
+  context.textBaseline = 'top'
+  context.fillText(game.title.slice(0, 14), 12, 108)
+
+  context.fillStyle = '#9a9388'
+  context.font = '12px "Inter", "PingFang SC", sans-serif'
+  context.fillText(game.categoryLabel, 12, 132)
+
+  context.restore()
+
+  document.body.appendChild(canvas)
+  activeDragPreview = canvas
+  return canvas
 }
 
 const startGameDrag = (event, game) => {
@@ -121,8 +166,10 @@ const startGameDrag = (event, game) => {
   event.dataTransfer?.setData('text/plain', payload)
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'copy'
-    const preview = createDragPreview(game)
-    event.dataTransfer.setDragImage(preview, 28, 28)
+    const preview = createCanvasDragPreview(game, event.currentTarget)
+    if (preview) {
+      event.dataTransfer.setDragImage(preview, 28, 28)
+    }
   }
 
   emit('select-game', game.id)
@@ -414,70 +461,6 @@ watch(
 
 .bp-file-input {
   display: none;
-}
-
-.bp-drag-preview-shell {
-  position: fixed;
-  top: -9999px;
-  left: -9999px;
-  padding: 0;
-  background: transparent;
-  pointer-events: none;
-}
-
-.bp-drag-preview-card {
-  width: 180px;
-  overflow: hidden;
-  border: 1px solid rgba(94, 80, 48, 0.16);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 40px rgba(36, 28, 16, 0.18);
-}
-
-.bp-drag-preview-media {
-  position: relative;
-  height: 96px;
-  overflow: hidden;
-  background: linear-gradient(135deg, rgba(245, 237, 224, 0.95), rgba(255, 255, 255, 0.96));
-}
-
-.bp-drag-preview-cover {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.bp-drag-preview-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: rgba(24, 24, 24, 0.78);
-  color: #ffffff;
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-
-.bp-drag-preview-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px 12px;
-}
-
-.bp-drag-preview-body strong {
-  font-size: 0.82rem;
-  line-height: 1.35;
-}
-
-.bp-drag-preview-body span {
-  color: var(--bp-muted);
-  font-size: 0.72rem;
 }
 
 .bp-side-action,
@@ -785,5 +768,17 @@ watch(
   min-height: 34px;
   margin-top: auto;
   border-radius: 8px;
+}
+</style>
+<style>
+.bp-drag-preview-shell,
+.bp-drag-preview-canvas {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  padding: 0;
+  background: transparent;
+  pointer-events: none;
+  z-index: -1;
 }
 </style>

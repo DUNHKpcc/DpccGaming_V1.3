@@ -6,7 +6,57 @@ export const BP_WORLD_HEIGHT = 3200
 
 const BP_NODE_DIMENSIONS = {
   game: { width: 238, height: 212 },
-  'prompt-positive': { width: 280, height: 252 }
+  design: { width: 214, height: 72 },
+  mixer: { width: 214, height: 72 },
+  music: { width: 214, height: 72 },
+  play: { width: 214, height: 72 },
+  'prompt-negative': { width: 214, height: 72 },
+  'prompt-positive': { width: 214, height: 72 }
+}
+
+export const BLUEPRINT_COMPACT_NODE_META = {
+  'prompt-positive': {
+    title: '正向提示词',
+    subtitle: 'Structured Prompt',
+    iconClass: 'fa fa-wand-magic-sparkles',
+    iconBackground: '#ececec',
+    iconColor: '#111111'
+  },
+  'prompt-negative': {
+    title: '反向提示词',
+    subtitle: 'Negative Prompt',
+    iconClass: 'fa fa-arrows-rotate',
+    iconBackground: '#ffe2e2',
+    iconColor: '#8a1f1f'
+  },
+  mixer: {
+    title: 'Mixer',
+    subtitle: 'Context Mixer',
+    iconClass: 'fa fa-link',
+    iconBackground: '#e6ecff',
+    iconColor: '#2441a8'
+  },
+  design: {
+    title: '游戏设定',
+    subtitle: 'Game Design',
+    iconClass: 'fa fa-map',
+    iconBackground: '#e6f7e8',
+    iconColor: '#24643d'
+  },
+  play: {
+    title: '游戏玩法',
+    subtitle: 'Gameplay Loop',
+    iconClass: 'fa fa-gamepad',
+    iconBackground: '#fff1d8',
+    iconColor: '#8f5b00'
+  },
+  music: {
+    title: '游戏音乐',
+    subtitle: 'Game Music',
+    iconClass: 'fa fa-music',
+    iconBackground: '#dcecff',
+    iconColor: '#1f5f9a'
+  }
 }
 
 const CATEGORY_MAP_EN_TO_ZH = {
@@ -90,7 +140,11 @@ export const createGameBlueprintNode = (game = {}, point = {}, createId = () => 
 export const createPromptPositiveBlueprintNode = (point = {}, createId = () => '') => ({
   id: createId(),
   kind: 'prompt-positive',
-  title: '正向提示词',
+  title: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].title,
+  subtitle: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].subtitle,
+  iconClass: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconClass,
+  iconBackground: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconBackground,
+  iconColor: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconColor,
   fields: {
     theme: '',
     style: '',
@@ -99,6 +153,21 @@ export const createPromptPositiveBlueprintNode = (point = {}, createId = () => '
   },
   position: snapPointToGrid(point)
 })
+
+export const createBlueprintCompactNode = (kind = 'prompt-positive', point = {}, createId = () => '') => {
+  const meta = BLUEPRINT_COMPACT_NODE_META[kind] || BLUEPRINT_COMPACT_NODE_META['prompt-positive']
+
+  return {
+    id: createId(),
+    kind,
+    title: meta.title,
+    subtitle: meta.subtitle,
+    iconClass: meta.iconClass,
+    iconBackground: meta.iconBackground,
+    iconColor: meta.iconColor,
+    position: snapPointToGrid(point)
+  }
+}
 
 export const findGameBlueprintNode = (nodes = [], gameId) =>
   nodes.find((node) => node?.kind === 'game' && String(node?.gameId || '') === String(gameId || '')) || null
@@ -179,8 +248,12 @@ export const upsertBlueprintEdge = (edges = [], fromNodeId, toNodeId, createId =
   }
 }
 
-export const getBlueprintNodePortPoint = (node = {}, portType = 'output') => {
-  const dimensions = BP_NODE_DIMENSIONS[node.kind] || BP_NODE_DIMENSIONS.game
+export const getBlueprintNodePortPoint = (node = {}, portType = 'output', measuredDimensions = null) => {
+  const fallbackDimensions = BP_NODE_DIMENSIONS[node.kind] || BP_NODE_DIMENSIONS.game
+  const dimensions = {
+    width: Number(measuredDimensions?.width) || fallbackDimensions.width,
+    height: Number(measuredDimensions?.height) || fallbackDimensions.height
+  }
   const x = portType === 'input'
     ? node.position.x
     : node.position.x + dimensions.width
@@ -223,18 +296,39 @@ export const parseBlueprintWorkflow = (rawValue) => {
   const edges = Array.isArray(parsed?.edges) ? parsed.edges : []
 
   const normalizedNodes = nodes
-    .filter((node) => node?.id && node?.position && ['game', 'prompt-positive'].includes(node?.kind))
+    .filter((node) => node?.id && node?.position && (
+      ['game', 'prompt-positive'].includes(node?.kind)
+      || Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, node?.kind)
+    ))
     .map((node) => {
       if (node.kind === 'prompt-positive') {
         return {
           ...node,
-          title: node.title || '正向提示词',
+          title: node.title || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].title,
+          subtitle: String(node.subtitle || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].subtitle),
+          iconClass: String(node.iconClass || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconClass),
+          iconBackground: String(node.iconBackground || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconBackground),
+          iconColor: String(node.iconColor || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconColor),
           fields: {
             theme: String(node?.fields?.theme || ''),
             style: String(node?.fields?.style || ''),
             gameplay: String(node?.fields?.gameplay || ''),
             keywords: String(node?.fields?.keywords || '')
           },
+          position: snapPointToGrid(node.position)
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, node.kind)) {
+        const meta = BLUEPRINT_COMPACT_NODE_META[node.kind]
+
+        return {
+          ...node,
+          title: String(node.title || meta.title),
+          subtitle: String(node.subtitle || meta.subtitle),
+          iconClass: String(node.iconClass || meta.iconClass),
+          iconBackground: String(node.iconBackground || meta.iconBackground),
+          iconColor: String(node.iconColor || meta.iconColor),
           position: snapPointToGrid(node.position)
         }
       }

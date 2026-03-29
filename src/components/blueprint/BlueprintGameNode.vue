@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import BlueprintNodePorts from './BlueprintNodePorts.vue'
 import { getGameCodeTypeIconByValue, getGameEngineIconByValue } from '../../utils/gameMetadata'
 
 const props = defineProps({
@@ -8,7 +9,9 @@ const props = defineProps({
   highlighted: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['select', 'drag-start', 'start-link'])
+const emit = defineEmits(['select', 'drag-start', 'start-link', 'measure', 'unmount'])
+const nodeRef = ref(null)
+let resizeObserver = null
 
 const positionStyle = computed(() => ({
   left: `${props.node.position.x}px`,
@@ -20,7 +23,7 @@ const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTy
 
 const onPointerDown = (event) => {
   if (event.button !== 0) return
-  if (event.target instanceof Element && event.target.closest('[data-port-type]')) return
+  if (event.target instanceof Element && event.target.closest('[data-port-hit]')) return
 
   emit('drag-start', {
     nodeId: props.node.id,
@@ -38,11 +41,41 @@ const onOutputPointerDown = (event) => {
     clientY: event.clientY
   })
 }
+
+const publishMeasurement = () => {
+  const element = nodeRef.value
+  if (!element) return
+
+  emit('measure', {
+    nodeId: props.node.id,
+    width: element.offsetWidth,
+    height: element.offsetHeight
+  })
+}
+
+onMounted(() => {
+  nextTick(() => {
+    publishMeasurement()
+
+    if (typeof ResizeObserver !== 'function' || !nodeRef.value) return
+
+    resizeObserver = new ResizeObserver(() => {
+      publishMeasurement()
+    })
+    resizeObserver.observe(nodeRef.value)
+  })
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  emit('unmount', props.node.id)
+})
 </script>
 
 <template>
   <article
-    class="bp-game-node"
+    ref="nodeRef"
+    class="bp-node-frame bp-game-node"
     :class="{
       'is-selected': props.selected,
       'is-highlighted': props.highlighted
@@ -52,22 +85,10 @@ const onOutputPointerDown = (event) => {
     @click="emit('select', props.node.id)"
     @pointerdown.stop="onPointerDown"
   >
-    <button
-      type="button"
-      class="bp-game-node-port bp-game-node-port-in"
-      title="输入"
-      data-port-type="input"
-      :data-node-id="props.node.id"
-      @pointerdown.stop
-    ></button>
-    <button
-      type="button"
-      class="bp-game-node-port bp-game-node-port-out"
-      title="输出"
-      data-port-type="output"
-      :data-node-id="props.node.id"
-      @pointerdown.stop="onOutputPointerDown"
-    ></button>
+    <BlueprintNodePorts
+      :node-id="props.node.id"
+      @start-link="onOutputPointerDown"
+    />
 
     <div class="bp-game-node-cover-wrap" data-no-pan>
       <video
@@ -111,62 +132,23 @@ const onOutputPointerDown = (event) => {
 
 <style scoped>
 .bp-game-node {
-  position: absolute;
+  --bp-node-surface: rgba(255, 255, 255, 0.98);
+  --bp-node-border: rgba(17, 17, 17, 0.14);
+  --bp-node-border-strong: #6f6f6f;
+  --bp-node-port-fill: #b7b7b7;
+  --bp-node-port-fill-hover: #909090;
+  --bp-node-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  --bp-node-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.11);
   width: 238px;
-  overflow: visible;
-  border: 1px solid rgba(94, 80, 48, 0.18);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 40px rgba(36, 28, 16, 0.15);
   color: var(--bp-text);
-  cursor: pointer;
-  user-select: none;
-  backdrop-filter: blur(8px);
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-}
-
-.bp-game-node-port {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.92);
-  border-radius: 999px;
-  background: linear-gradient(135deg, #c7a24e, #8a6320);
-  box-shadow: 0 6px 16px rgba(36, 28, 16, 0.24);
-  transform: translateY(-50%);
-  cursor: crosshair;
-}
-
-.bp-game-node-port-in {
-  left: -8px;
-}
-
-.bp-game-node-port-out {
-  right: -8px;
-}
-
-.bp-game-node:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 44px rgba(36, 28, 16, 0.2);
-}
-
-.bp-game-node.is-selected {
-  border-color: rgba(210, 160, 43, 0.72);
-  box-shadow: 0 0 0 2px rgba(210, 160, 43, 0.14), 0 20px 44px rgba(36, 28, 16, 0.2);
-}
-
-.bp-game-node.is-highlighted {
-  animation: bp-node-pulse 1.2s ease;
 }
 
 .bp-game-node-cover-wrap {
   position: relative;
   height: 128px;
   overflow: hidden;
-  border-radius: 18px 18px 0 0;
-  background: linear-gradient(135deg, rgba(245, 237, 224, 0.95), rgba(255, 255, 255, 0.96));
+  border-radius: 6px 6px 0 0;
+  background: #efefef;
 }
 
 .bp-game-node-cover {
@@ -182,13 +164,16 @@ const onOutputPointerDown = (event) => {
   left: 10px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(24, 24, 24, 0.82);
+  background: rgba(17, 17, 17, 0.92);
   color: #ffffff;
   font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1;
+  text-align: center;
 }
 
 .bp-game-node-body {
@@ -221,9 +206,9 @@ const onOutputPointerDown = (event) => {
   gap: 6px;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(94, 80, 48, 0.12);
+  border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 999px;
-  background: rgba(252, 251, 248, 0.96);
+  background: #f5f5f5;
   font-size: 0.74rem;
   font-weight: 600;
 }
@@ -235,17 +220,4 @@ const onOutputPointerDown = (event) => {
   display: block;
 }
 
-@keyframes bp-node-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(210, 160, 43, 0.34), 0 18px 40px rgba(36, 28, 16, 0.15);
-  }
-
-  50% {
-    box-shadow: 0 0 0 10px rgba(210, 160, 43, 0.08), 0 20px 44px rgba(36, 28, 16, 0.2);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 rgba(210, 160, 43, 0), 0 18px 40px rgba(36, 28, 16, 0.15);
-  }
-}
 </style>
