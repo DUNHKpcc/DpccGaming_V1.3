@@ -1,0 +1,91 @@
+.bp-control-surface {
+  border: 1px solid var(--bp-border);
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
+}
+
+.bp-control-button {
+  appearance: none;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.bp-control-button-hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--bp-shadow-md);
+}
+
+.bp-control-button-hover-highlight:hover {
+  border-color: rgba(17, 17, 17, 0.22);
+  box-shadow: var(--bp-shadow-md);
+}
+
+.bp-control-button-dark {
+  border-color: #181818;
+  background: #181818;
+  color: #ffffff;
+}
+
+.bp-control-button-dark.bp-control-button-hover-highlight:hover {
+  border-color: #181818;
+  background: #262626;
+}
+
+.bp-floating-panel {
+  position: absolute;
+  z-index: 12;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.bp-floating-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8px * var(--bp-ui-scale, 1));
+  min-height: calc(34px * var(--bp-ui-scale, 1));
+  padding: 0 calc(10px * var(--bp-ui-scale, 1));
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bp-text);
+  font-size: calc(0.82rem * var(--bp-ui-scale, 1));
+  font-weight: 600;
+  text-align: left;
+}
+
+.bp-floating-menu-button:hover {
+  border-color: rgba(17, 17, 17, 0.08);
+  background: #f5f5f5;
+}
+
+.bp-floating-menu-button.is-danger {
+  color: #8a2222;
+}
+
+.bp-control-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--bp-border);
+  border-radius: 6px;
+  background: var(--bp-surface);
+  color: var(--bp-text);
+  box-shadow: var(--bp-shadow-sm);
+}
+
+.bp-textarea-control {
+  width: 100%;
+  padding: calc(10px * var(--bp-ui-scale, 1)) calc(12px * var(--bp-ui-scale, 1));
+  border: 1px solid var(--bp-border);
+  border-radius: 6px;
+  outline: none;
+  resize: vertical;
+  background: #ffffff;
+  color: var(--bp-text);
+  font-size: calc(0.84rem * var(--bp-ui-scale, 1));
+  line-height: 1.5;
+  box-sizing: border-box;
+}

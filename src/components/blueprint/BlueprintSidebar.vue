@@ -9,16 +9,32 @@ const props = defineProps({
   games: { type: Array, default: () => [] },
   maxVisibleGames: { type: Number, default: 2 },
   seed: { type: String, default: '' },
+  ownership: { type: String, default: 'draft' },
   logs: { type: Array, default: () => [] },
   modelOptions: { type: Array, default: () => [] },
   collapsed: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
-  activeGameId: { type: [String, Number], default: '' }
+  activeGameId: { type: [String, Number], default: '' },
+  busy: { type: Boolean, default: false },
+  canGenerateSeed: { type: Boolean, default: false },
+  canSaveWorkflow: { type: Boolean, default: false },
+  canCopySeed: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['toggle', 'select-game', 'export-workflow', 'import-workflow', 'clear-workflow'])
+const emit = defineEmits([
+  'toggle',
+  'select-game',
+  'export-workflow',
+  'import-workflow',
+  'clear-workflow',
+  'generate-seed',
+  'save-workflow',
+  'copy-seed',
+  'import-seed'
+])
 const libraryPage = ref(0)
 const importInputRef = ref(null)
+const seedImportValue = ref('')
 let activeDragPreview = null
 
 const libraryGames = computed(() =>
@@ -179,6 +195,28 @@ const endGameDrag = () => {
   window.setTimeout(removeDragPreview, 0)
 }
 
+const seedStateLabel = computed(() => {
+  if (props.ownership === 'source') return '原始版本'
+  if (props.ownership === 'copy') return '副本版本'
+  return '未绑定种子'
+})
+
+const seedHint = computed(() => {
+  if (!props.seed && !props.canGenerateSeed) {
+    return '先创建至少一个节点后再生成种子'
+  }
+
+  if (!props.seed) {
+    return '生成种子后即可保存并分享给其他用户'
+  }
+
+  if (props.ownership === 'source') {
+    return '其他用户导入该种子时，会从你的原始版本创建副本'
+  }
+
+  return '当前是该种子的个人副本，保存时不会覆盖原始作者版本'
+})
+
 const openImportPicker = () => {
   importInputRef.value?.click()
 }
@@ -191,6 +229,14 @@ const onImportFileChange = async (event) => {
 
   const rawValue = await file.text()
   emit('import-workflow', rawValue)
+}
+
+const submitSeedImport = () => {
+  const normalizedSeed = String(seedImportValue.value || '').trim().toUpperCase()
+  if (!normalizedSeed) return
+
+  seedImportValue.value = ''
+  emit('import-seed', normalizedSeed)
 }
 
 watch(maxPage, (value) => {
@@ -220,20 +266,20 @@ watch(
         <div class="bp-brand-title">DPCC GAMING</div>
         <div class="bp-brand-subtitle">BluePrint&amp;WorkFlow</div>
       </div>
-      <button type="button" class="bp-brand-square" :aria-label="props.collapsed ? '展开侧栏' : '收起侧栏'" @click="emit('toggle')">
+      <button type="button" class="bp-control-button bp-control-button-hover-lift" :aria-label="props.collapsed ? '展开侧栏' : '收起侧栏'" @click="emit('toggle')">
         <i :class="props.collapsed ? 'fa fa-angles-right' : 'fa fa-angles-left'"></i>
       </button>
     </header>
 
-    <button v-if="!props.collapsed" type="button" class="bp-side-action" @click="emit('export-workflow')">
+    <button v-if="!props.collapsed" type="button" class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift" @click="emit('export-workflow')">
       <i class="fa fa-download"></i>
       <span>导出 JSON</span>
     </button>
-    <button v-if="!props.collapsed" type="button" class="bp-side-action" @click="openImportPicker">
+    <button v-if="!props.collapsed" type="button" class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift" @click="openImportPicker">
       <i class="fa fa-upload"></i>
       <span>导入</span>
     </button>
-    <button v-if="!props.collapsed" type="button" class="bp-side-action" @click="emit('clear-workflow')">
+    <button v-if="!props.collapsed" type="button" class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift" @click="emit('clear-workflow')">
       <i class="fa fa-trash"></i>
       <span>清空工作流</span>
     </button>
@@ -252,13 +298,13 @@ watch(
           v-for="model in modelOptions"
           :key="model.name"
           type="button"
-          class="bp-model-pill"
+          class="bp-model-pill bp-control-surface bp-control-button bp-control-button-hover-lift"
         >
           <img v-if="model.logoSrc" class="bp-model-logo" :src="model.logoSrc" :alt="model.logoAlt || model.name" />
           <span>{{ model.name }}</span>
         </button>
       </div>
-      <button type="button" class="bp-side-wide-btn">
+      <button type="button" class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift">
         导入自己的模型
       </button>
     </section>
@@ -340,19 +386,59 @@ watch(
 
     <section v-if="!props.collapsed" class="bp-sidebar-section">
       <h3>种子</h3>
-      <div class="bp-seed-box">{{ props.seed }}</div>
-    </section>
-
-    <section v-if="!props.collapsed" class="bp-sidebar-section bp-log-section">
-      <h3>生成日志</h3>
-      <div class="bp-log-box">
-        <p v-for="(line, index) in props.logs" :key="index">{{ line }}</p>
+      <div class="bp-seed-box" :class="{ 'is-empty': !props.seed }">
+        {{ props.seed || '未生成种子' }}
+      </div>
+      <div class="bp-seed-state-row">
+        <span class="bp-seed-state-chip">{{ seedStateLabel }}</span>
+      </div>
+      <p class="bp-seed-hint">{{ seedHint }}</p>
+      <div class="bp-seed-import-row">
+        <input
+          v-model="seedImportValue"
+          type="text"
+          class="bp-seed-input"
+          placeholder="输入种子后导入"
+          :disabled="props.busy"
+          @keydown.enter.prevent="submitSeedImport"
+        />
+        <button
+          type="button"
+          class="bp-control-surface bp-control-button bp-control-button-hover-lift bp-seed-import-btn"
+          :disabled="props.busy || !seedImportValue.trim()"
+          @click="submitSeedImport"
+        >
+          导入
+        </button>
+      </div>
+      <div class="bp-seed-action-stack">
+        <button
+          type="button"
+          class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
+          :disabled="props.busy || !props.canGenerateSeed"
+          @click="emit('generate-seed')"
+        >
+          {{ props.busy && !props.seed ? '生成中...' : '随机生成种子' }}
+        </button>
+        <button
+          type="button"
+          class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
+          :disabled="props.busy || !props.canSaveWorkflow"
+          @click="emit('save-workflow')"
+        >
+          {{ props.busy && props.seed ? '保存中...' : '保存当前蓝图' }}
+        </button>
+        <button
+          type="button"
+          class="bp-side-wide-btn bp-share-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
+          :disabled="props.busy || !props.canCopySeed"
+          @click="emit('copy-seed')"
+        >
+          复制种子
+        </button>
       </div>
     </section>
 
-    <button v-if="!props.collapsed" type="button" class="bp-side-wide-btn bp-share-btn">
-      分享
-    </button>
   </aside>
 </template>
 
@@ -360,42 +446,37 @@ watch(
 .bp-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  width: 304px;
-  min-width: 304px;
+  gap: clamp(9px, 0.9vw, 11px);
+  width: var(--bp-sidebar-width);
+  min-width: var(--bp-sidebar-width);
   height: 100dvh;
-  padding: 16px 14px 10px;
+  padding: clamp(12px, 1vw, 16px) clamp(12px, 0.9vw, 14px) 10px;
   border-right: 1px solid var(--bp-border);
   background: var(--bp-sidebar-bg);
   box-sizing: border-box;
   color: var(--bp-text);
-  transition: width 180ms ease, min-width 180ms ease, padding 180ms ease;
-  overflow: hidden;
+  transition: width 180ms ease, min-width 180ms ease, padding 180ms ease, gap 180ms ease;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.bp-sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 .bp-sidebar.is-collapsed {
-  width: 74px;
-  min-width: 74px;
-  padding-inline: 10px;
-}
-
-.bp-sidebar-brand,
-.bp-side-action,
-.bp-side-wide-btn,
-.bp-model-pill,
-.bp-library-card,
-.bp-brand-square {
-  border: 1px solid var(--bp-border);
-  background: var(--bp-surface);
-  box-shadow: var(--bp-shadow-sm);
+  width: calc(74px * var(--bp-ui-scale));
+  min-width: calc(74px * var(--bp-ui-scale));
+  padding-inline: calc(10px * var(--bp-ui-scale));
 }
 
 .bp-sidebar-brand {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 0 0 8px;
+  gap: calc(12px * var(--bp-ui-scale));
+  padding: 0 0 calc(8px * var(--bp-ui-scale));
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -405,7 +486,7 @@ watch(
 .bp-sidebar.is-collapsed .bp-sidebar-brand {
   grid-template-columns: 1fr;
   justify-items: center;
-  gap: 10px;
+  gap: calc(10px * var(--bp-ui-scale));
 }
 
 .bp-brand-lockup {
@@ -415,26 +496,26 @@ watch(
 }
 
 .bp-brand-logo {
-  width: 30px;
+  width: calc(30px * var(--bp-ui-scale));
   height: auto;
   object-fit: contain;
   display: block;
 }
 
 .bp-sidebar.is-collapsed .bp-brand-logo {
-  width: 20px;
+  width: calc(20px * var(--bp-ui-scale));
 }
 
 .bp-brand-title {
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--bp-ui-scale));
   font-weight: 700;
   letter-spacing: 0.01em;
 }
 
 .bp-brand-subtitle {
-  margin-top: 2px;
+  margin-top: calc(2px * var(--bp-ui-scale));
   color: var(--bp-accent);
-  font-size: 0.69rem;
+  font-size: calc(0.69rem * var(--bp-ui-scale));
   font-weight: 600;
 }
 
@@ -442,21 +523,10 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: calc(36px * var(--bp-ui-scale));
+  height: calc(36px * var(--bp-ui-scale));
+  border-radius: calc(10px * var(--bp-ui-scale));
   color: #3a352d;
-}
-
-.bp-sidebar button {
-  appearance: none;
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
-}
-
-.bp-sidebar button:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--bp-shadow-md);
 }
 
 .bp-file-input {
@@ -468,19 +538,19 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-height: 36px;
-  padding: 0 16px;
-  border-radius: 8px;
+  gap: calc(10px * var(--bp-ui-scale));
+  min-height: clamp(calc(34px * var(--bp-ui-scale)), 3.3vw, calc(36px * var(--bp-ui-scale)));
+  padding: 0 clamp(calc(12px * var(--bp-ui-scale)), 1.1vw, calc(16px * var(--bp-ui-scale)));
+  border-radius: calc(8px * var(--bp-ui-scale));
   color: var(--bp-text);
-  font-size: 0.9rem;
+  font-size: clamp(calc(0.84rem * var(--bp-ui-scale)), calc(0.75rem * var(--bp-ui-scale)) + 0.2vw, calc(0.9rem * var(--bp-ui-scale)));
   font-weight: 600;
   text-align: center;
 }
 
 .bp-side-action i,
 .bp-side-wide-btn i {
-  width: 16px;
+  width: calc(16px * var(--bp-ui-scale));
   text-align: center;
   color: #2a2721;
 }
@@ -488,7 +558,7 @@ watch(
 .bp-sidebar-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: clamp(8px, 0.8vw, 10px);
   padding: 0;
   border: 0;
   background: transparent;
@@ -500,7 +570,7 @@ watch(
 
 .bp-sidebar-section h3 {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: calc(0.78rem * var(--bp-ui-scale));
   font-weight: 600;
   color: var(--bp-muted);
 }
@@ -508,26 +578,26 @@ watch(
 .bp-model-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: clamp(6px, 0.7vw, 8px);
 }
 
 .bp-model-pill {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  min-height: 36px;
+  min-height: clamp(calc(34px * var(--bp-ui-scale)), 3.3vw, calc(36px * var(--bp-ui-scale)));
   min-width: 0;
-  padding: 0 8px;
-  border-radius: 8px;
+  padding: 0 clamp(calc(7px * var(--bp-ui-scale)), 0.8vw, calc(8px * var(--bp-ui-scale)));
+  border-radius: calc(8px * var(--bp-ui-scale));
   color: var(--bp-text);
-  font-size: 0.75rem;
+  font-size: clamp(calc(0.72rem * var(--bp-ui-scale)), calc(0.68rem * var(--bp-ui-scale)) + 0.13vw, calc(0.75rem * var(--bp-ui-scale)));
   font-weight: 600;
 }
 
 .bp-model-logo {
-  width: 16px;
-  height: 16px;
-  margin-right: 8px;
+  width: calc(16px * var(--bp-ui-scale));
+  height: calc(16px * var(--bp-ui-scale));
+  margin-right: calc(8px * var(--bp-ui-scale));
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -543,20 +613,20 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: calc(12px * var(--bp-ui-scale));
 }
 
 .bp-chevron-pair {
   display: inline-flex;
-  gap: 6px;
+  gap: calc(6px * var(--bp-ui-scale));
 }
 
 .bp-chevron-pair button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: calc(18px * var(--bp-ui-scale));
+  height: calc(18px * var(--bp-ui-scale));
   padding: 0;
   border: 1px solid var(--bp-border);
   border-radius: 999px;
@@ -576,29 +646,29 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--bp-ui-scale));
 }
 
 .bp-library-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: clamp(8px, 0.8vw, 10px);
 }
 
 .bp-library-loading {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: clamp(8px, 0.8vw, 10px);
 }
 
 .bp-library-card {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  min-height: 62px;
-  padding: 11px 12px;
-  border-radius: 8px;
+  gap: clamp(8px, 0.8vw, 10px);
+  min-height: clamp(58px, 5vw, 62px);
+  padding: clamp(9px, 0.9vw, 11px) clamp(10px, 0.9vw, 12px);
+  border-radius: calc(8px * var(--bp-ui-scale));
   cursor: grab;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
@@ -622,8 +692,8 @@ watch(
 }
 
 .bp-library-thumb {
-  width: 38px;
-  height: 38px;
+  width: calc(38px * var(--bp-ui-scale));
+  height: calc(38px * var(--bp-ui-scale));
   border-radius: 0;
   object-fit: cover;
   background: #d1d1d1;
@@ -642,35 +712,35 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.86rem;
+  font-size: calc(0.86rem * var(--bp-ui-scale));
   color: var(--bp-text);
   font-weight: 600;
 }
 
 .bp-library-copy small {
-  margin-top: 5px;
+  margin-top: calc(5px * var(--bp-ui-scale));
   color: #6f685d;
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--bp-ui-scale));
 }
 
 .bp-library-icons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: calc(6px * var(--bp-ui-scale));
 }
 
 .bp-library-icons img {
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--bp-ui-scale));
+  height: calc(16px * var(--bp-ui-scale));
   object-fit: contain;
 }
 
 .bp-library-empty {
-  padding: 12px 14px;
+  padding: calc(12px * var(--bp-ui-scale)) calc(14px * var(--bp-ui-scale));
   border: 1px dashed rgba(94, 80, 48, 0.18);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--bp-ui-scale));
   color: var(--bp-muted);
-  font-size: 0.78rem;
+  font-size: calc(0.78rem * var(--bp-ui-scale));
   line-height: 1.6;
   background: rgba(255, 255, 255, 0.72);
 }
@@ -694,18 +764,18 @@ watch(
 
 .bp-library-skeleton-line-title {
   width: 72%;
-  height: 12px;
+  height: calc(12px * var(--bp-ui-scale));
 }
 
 .bp-library-skeleton-line-subtitle {
   width: 44%;
-  height: 10px;
-  margin-top: 8px;
+  height: calc(10px * var(--bp-ui-scale));
+  margin-top: calc(8px * var(--bp-ui-scale));
 }
 
 .bp-library-skeleton-dot {
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--bp-ui-scale));
+  height: calc(16px * var(--bp-ui-scale));
   border-radius: 999px;
 }
 
@@ -719,9 +789,8 @@ watch(
   }
 }
 
-.bp-seed-box,
-.bp-log-box {
-  padding: 12px 14px;
+.bp-seed-box {
+  padding: clamp(10px, 1vw, 12px) clamp(12px, 1vw, 14px);
   border: 1px solid var(--bp-border);
   border-radius: 8px;
   background: var(--bp-surface);
@@ -730,10 +799,10 @@ watch(
 }
 
 .bp-seed-box {
-  min-height: 34px;
+  min-height: calc(34px * var(--bp-ui-scale));
   justify-content: center;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--bp-ui-scale));
   line-height: 1.4;
   color: var(--bp-text);
   font-weight: 600;
@@ -742,32 +811,101 @@ watch(
   text-align: center;
 }
 
-.bp-log-section {
-  flex: 1;
-  min-height: 0;
+.bp-seed-box.is-empty {
+  color: var(--bp-muted);
 }
 
-.bp-log-box {
-  flex: 1;
-  min-height: 190px;
-  overflow: auto;
+.bp-seed-state-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
-.bp-log-box p {
+.bp-seed-state-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(24px * var(--bp-ui-scale));
+  padding: 0 calc(10px * var(--bp-ui-scale));
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--bp-text);
+  font-size: calc(0.72rem * var(--bp-ui-scale));
+  font-weight: 600;
+}
+
+.bp-seed-hint {
   margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.7;
+  color: var(--bp-muted);
+  font-size: calc(0.74rem * var(--bp-ui-scale));
+  line-height: 1.55;
 }
 
-.bp-log-box p + p {
-  margin-top: 8px;
+.bp-seed-import-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(8px * var(--bp-ui-scale));
+}
+
+.bp-seed-input {
+  width: 100%;
+  min-width: 0;
+  min-height: calc(36px * var(--bp-ui-scale));
+  padding: 0 calc(12px * var(--bp-ui-scale));
+  border: 1px solid var(--bp-border);
+  border-radius: calc(8px * var(--bp-ui-scale));
+  background: var(--bp-surface);
+  box-shadow: var(--bp-shadow-sm);
+  color: var(--bp-text);
+  font-size: calc(0.82rem * var(--bp-ui-scale));
+  outline: none;
+}
+
+.bp-seed-input:focus {
+  border-color: rgba(210, 160, 43, 0.68);
+}
+
+.bp-seed-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bp-seed-import-btn {
+  min-width: calc(64px * var(--bp-ui-scale));
+  min-height: calc(36px * var(--bp-ui-scale));
+  padding-inline: calc(12px * var(--bp-ui-scale));
+  border-radius: calc(8px * var(--bp-ui-scale));
+}
+
+.bp-seed-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--bp-ui-scale));
 }
 
 .bp-share-btn {
   justify-content: center;
-  min-height: 34px;
-  margin-top: auto;
-  border-radius: 8px;
+  min-height: calc(34px * var(--bp-ui-scale));
+  border-radius: calc(8px * var(--bp-ui-scale));
+}
+
+@media (max-width: 1200px) {
+  .bp-brand-title {
+    font-size: 0.82rem;
+  }
+
+  .bp-brand-subtitle {
+    font-size: 0.66rem;
+  }
+
+  .bp-library-copy strong {
+    font-size: 0.82rem;
+  }
+
+  .bp-library-copy small,
+  .bp-library-empty {
+    font-size: 0.74rem;
+  }
 }
 </style>
 <style>

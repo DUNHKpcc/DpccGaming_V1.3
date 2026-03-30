@@ -5,9 +5,14 @@ const props = defineProps({
 
 const emit = defineEmits(['start-link'])
 
-const onOutputPointerDown = (event) => {
+const onPortPointerDown = (portPosition, event) => {
   if (event.button !== 0) return
-  emit('start-link', event)
+
+  emit('start-link', {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    portPosition
+  })
 }
 </script>
 
@@ -15,31 +20,41 @@ const onOutputPointerDown = (event) => {
   <button
     type="button"
     class="bp-node-port bp-node-port-in"
-    title="输入"
+    title="左侧连接点"
     data-port-hit="true"
-    data-port-type="input"
+    data-port-type="port"
+    data-port-position="left"
     :data-node-id="props.nodeId"
-    @pointerdown.stop
+    @pointerdown.stop="onPortPointerDown('left', $event)"
   ></button>
   <button
     type="button"
     class="bp-node-port bp-node-port-out"
-    title="输出"
+    title="右侧连接点"
     data-port-hit="true"
-    data-port-type="output"
+    data-port-type="port"
+    data-port-position="right"
     :data-node-id="props.nodeId"
-    @pointerdown.stop="onOutputPointerDown"
+    @pointerdown.stop="onPortPointerDown('right', $event)"
   ></button>
-  <span
-    class="bp-node-port bp-node-port-top bp-node-port-aux"
+  <button
+    type="button"
+    class="bp-node-port bp-node-port-top"
+    title="顶部连接点"
     data-port-hit="true"
-    aria-hidden="true"
-    @pointerdown.stop
-  ></span>
-  <span
-    class="bp-node-port bp-node-port-bottom bp-node-port-aux"
+    data-port-type="port"
+    data-port-position="top"
+    :data-node-id="props.nodeId"
+    @pointerdown.stop="onPortPointerDown('top', $event)"
+  ></button>
+  <button
+    type="button"
+    class="bp-node-port bp-node-port-bottom"
+    title="底部连接点"
     data-port-hit="true"
-    aria-hidden="true"
-    @pointerdown.stop
-  ></span>
+    data-port-type="port"
+    data-port-position="bottom"
+    :data-node-id="props.nodeId"
+    @pointerdown.stop="onPortPointerDown('bottom', $event)"
+  ></button>
 </template>

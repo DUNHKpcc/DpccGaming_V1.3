@@ -1,6 +1,7 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import BlueprintNodePorts from './BlueprintNodePorts.vue'
+import { useBlueprintNodeInteractions } from './useBlueprintNodeInteractions.js'
 import { getGameCodeTypeIconByValue, getGameEngineIconByValue } from '../../utils/gameMetadata'
 
 const props = defineProps({
@@ -9,9 +10,13 @@ const props = defineProps({
   highlighted: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['select', 'drag-start', 'start-link', 'measure', 'unmount'])
-const nodeRef = ref(null)
-let resizeObserver = null
+const emit = defineEmits(['select', 'drag-start', 'start-link', 'measure', 'unmount', 'context-menu'])
+const {
+  nodeRef,
+  onPointerDown,
+  onPortPointerDown,
+  onContextMenu
+} = useBlueprintNodeInteractions(props, emit)
 
 const positionStyle = computed(() => ({
   left: `${props.node.position.x}px`,
@@ -21,55 +26,6 @@ const positionStyle = computed(() => ({
 const engineIcon = computed(() => getGameEngineIconByValue(props.node.engineLabel))
 const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTypeLabel))
 
-const onPointerDown = (event) => {
-  if (event.button !== 0) return
-  if (event.target instanceof Element && event.target.closest('[data-port-hit]')) return
-
-  emit('drag-start', {
-    nodeId: props.node.id,
-    clientX: event.clientX,
-    clientY: event.clientY
-  })
-}
-
-const onOutputPointerDown = (event) => {
-  if (event.button !== 0) return
-
-  emit('start-link', {
-    nodeId: props.node.id,
-    clientX: event.clientX,
-    clientY: event.clientY
-  })
-}
-
-const publishMeasurement = () => {
-  const element = nodeRef.value
-  if (!element) return
-
-  emit('measure', {
-    nodeId: props.node.id,
-    width: element.offsetWidth,
-    height: element.offsetHeight
-  })
-}
-
-onMounted(() => {
-  nextTick(() => {
-    publishMeasurement()
-
-    if (typeof ResizeObserver !== 'function' || !nodeRef.value) return
-
-    resizeObserver = new ResizeObserver(() => {
-      publishMeasurement()
-    })
-    resizeObserver.observe(nodeRef.value)
-  })
-})
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  emit('unmount', props.node.id)
-})
 </script>
 
 <template>
@@ -84,10 +40,11 @@ onBeforeUnmount(() => {
     data-no-pan
     @click="emit('select', props.node.id)"
     @pointerdown.stop="onPointerDown"
+    @contextmenu.prevent.stop="onContextMenu"
   >
     <BlueprintNodePorts
       :node-id="props.node.id"
-      @start-link="onOutputPointerDown"
+      @start-link="onPortPointerDown"
     />
 
     <div class="bp-game-node-cover-wrap" data-no-pan>
@@ -139,13 +96,13 @@ onBeforeUnmount(() => {
   --bp-node-port-fill-hover: #909090;
   --bp-node-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
   --bp-node-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.11);
-  width: 238px;
+  width: calc(238px * var(--bp-ui-scale, 1));
   color: var(--bp-text);
 }
 
 .bp-game-node-cover-wrap {
   position: relative;
-  height: 128px;
+  height: calc(128px * var(--bp-ui-scale, 1));
   overflow: hidden;
   border-radius: 6px 6px 0 0;
   background: #efefef;
@@ -160,17 +117,17 @@ onBeforeUnmount(() => {
 
 .bp-game-node-badge {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: calc(10px * var(--bp-ui-scale, 1));
+  left: calc(10px * var(--bp-ui-scale, 1));
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  padding: 0 10px;
+  min-height: calc(24px * var(--bp-ui-scale, 1));
+  padding: 0 calc(10px * var(--bp-ui-scale, 1));
   border-radius: 999px;
   background: rgba(17, 17, 17, 0.92);
   color: #ffffff;
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--bp-ui-scale, 1));
   font-weight: 600;
   line-height: 1;
   text-align: center;
@@ -179,43 +136,43 @@ onBeforeUnmount(() => {
 .bp-game-node-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  gap: calc(10px * var(--bp-ui-scale, 1));
+  padding: calc(14px * var(--bp-ui-scale, 1));
 }
 
 .bp-game-node-body strong {
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--bp-ui-scale, 1));
   line-height: 1.35;
 }
 
 .bp-game-node-body p {
   margin: 0;
   color: var(--bp-muted);
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--bp-ui-scale, 1));
 }
 
 .bp-game-node-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: calc(8px * var(--bp-ui-scale, 1));
 }
 
 .bp-game-node-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 10px;
+  gap: calc(6px * var(--bp-ui-scale, 1));
+  min-height: calc(30px * var(--bp-ui-scale, 1));
+  padding: 0 calc(10px * var(--bp-ui-scale, 1));
   border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 999px;
   background: #f5f5f5;
-  font-size: 0.74rem;
+  font-size: calc(0.74rem * var(--bp-ui-scale, 1));
   font-weight: 600;
 }
 
 .bp-game-node-chip img {
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--bp-ui-scale, 1));
+  height: calc(14px * var(--bp-ui-scale, 1));
   object-fit: contain;
   display: block;
 }

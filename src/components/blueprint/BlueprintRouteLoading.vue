@@ -12,10 +12,6 @@
       <div class="bp-route-loading-bar">
         <span></span>
       </div>
-
-      <div class="bp-route-loading-grid" aria-hidden="true">
-        <span v-for="index in 6" :key="index"></span>
-      </div>
     </div>
   </section>
 </template>
@@ -86,22 +82,6 @@
   animation: bp-route-loading-bar 1.2s ease-in-out infinite;
 }
 
-.bp-route-loading-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.bp-route-loading-grid span {
-  display: block;
-  height: 96px;
-  border-radius: 16px;
-  background: linear-gradient(90deg, #efefef, #fafafa, #efefef);
-  background-size: 200% 100%;
-  animation: bp-route-loading-sheen 1.6s linear infinite;
-}
-
 @keyframes bp-route-loading-bar {
   0% {
     transform: translateX(-28%);
@@ -116,13 +96,4 @@
   }
 }
 
-@keyframes bp-route-loading-sheen {
-  0% {
-    background-position: 200% 0;
-  }
-
-  100% {
-    background-position: -200% 0;
-  }
-}
 </style>

@@ -1,5 +1,5 @@
 ﻿<template>
-  <section ref="heroSection" class="hero-section relative">
+  <section class="hero-section relative">
     <!-- Waves background -->
     <div class="waves-bg absolute inset-0">
       <a-waves class="block w-full h-full"><svg class="js-svg"></svg></a-waves>
@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -63,25 +63,13 @@ gsap.registerPlugin(ScrollTrigger)
 
 const router = useRouter()
 
-const heroSection = ref(null)
 const heroTitle = ref(null)
 const heroSubtitle = ref(null)
-const heroImage = ref(null)
 const heroActions = ref(null)
 
 const heroSubtitleText = 'A game aggregation platform for individual developers'
 
 let heroTimeline = null
-
-const heroImageOffset = ref('2rem')
-const heroImageTabletOffset = ref('1.5rem')
-const heroImageMobileOffset = ref('1rem')
-
-const heroImageWrapperStyle = computed(() => ({
-  '--hero-image-offset': heroImageOffset.value,
-  '--hero-image-tablet-offset': heroImageTabletOffset.value,
-  '--hero-image-mobile-offset': heroImageMobileOffset.value
-}))
 
 const scrollToGames = () => {
   router.push('/games')
@@ -97,7 +85,6 @@ const scrollToFeatures = () => {
 const initAnimations = () => {
   const titleEl = heroTitle.value
   const subtitleEl = heroSubtitle.value
-  const imageEl = heroImage.value
   const actionsEl = heroActions.value
 
   // Smooth intro: title drops from top -> bottom, others rise slightly
@@ -109,10 +96,6 @@ const initAnimations = () => {
   }
   const others = [subtitleEl, actionsEl].filter(Boolean)
   if (others.length) gsap.set(others, { opacity: 0, y: 50 })
-
-  if (imageEl) {
-    gsap.set(imageEl, { opacity: 1, y: 0, scale: 1 })
-  }
 
   if (heroTimeline) {
     heroTimeline.kill()
@@ -401,76 +384,10 @@ if (!customElements.get('a-waves')) {
   customElements.define('a-waves', AWaves)
 }
 
-// 主题状态管理
-const isLightTheme = ref(false)
-
-// 动态设置AWaves组件的颜色
-const updateAWavesColors = () => {
-  const wavesElements = document.querySelectorAll('a-waves')
-  wavesElements.forEach(waves => {
-    const paths = waves.querySelectorAll('path')
-    const beforeElements = waves.querySelectorAll('::before')
-    
-    if (isLightTheme.value) {
-      // 亮色模式：设置为黑色
-      paths.forEach(path => {
-        path.style.stroke = '#000000'
-        path.style.strokeWidth = '1px'
-        path.style.fill = 'none'
-        // 使用!important确保覆盖
-        path.style.setProperty('stroke', '#000000', 'important')
-      })
-      
-      // 设置::before伪元素的背景色
-      waves.style.setProperty('--waves-dot-color', '#000000')
-    } else {
-      // 暗色模式：设置为浅色
-      paths.forEach(path => {
-        path.style.stroke = '#efecec'
-        path.style.strokeWidth = '1px'
-        path.style.fill = 'none'
-        path.style.setProperty('stroke', '#efecec', 'important')
-      })
-      
-      waves.style.setProperty('--waves-dot-color', '#fff7f7')
-    }
-  })
-}
-
-// 监听主题变化
-const observeThemeChanges = () => {
-  const checkTheme = () => {
-    const currentTheme = document.documentElement.getAttribute('data-theme')
-    const wasLight = isLightTheme.value
-    isLightTheme.value = currentTheme === 'light'
-    
-    // 只有在主题确实改变时才更新颜色
-    if (wasLight !== isLightTheme.value) {
-      updateAWavesColors()
-    }
-  }
-  
-  // 初始检查
-  checkTheme()
-  
-  // 监听DOM属性变化
-  const observer = new MutationObserver(checkTheme)
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-theme']
-  })
-  
-  // 定期检查（备用方案）
-  setInterval(checkTheme, 1000)
-}
-
 onMounted(() => {
   requestAnimationFrame(() => {
     initAnimations()
     initScrollAnimations()
-    observeThemeChanges()
-    // 延迟执行以确保AWaves组件已渲染
-    setTimeout(updateAWavesColors, 100)
   })
 })
 
@@ -628,6 +545,7 @@ onUnmounted(() => {
 :deep(a-waves) {
   --x: -0.5rem;
   --y: 50%;
+  color: var(--waves-stroke-current);
   position: absolute;
   inset: 0;
   margin: 0;
@@ -643,8 +561,7 @@ onUnmounted(() => {
   left: 0;
   width: 0.5rem;
   height: 0.5rem;
-  /* 暗色模式（默认） */
-  background: #fff7f7;
+  background: var(--waves-dot-current);
   border-radius: 50%;
   transform: translate3d(calc(var(--x) - 50%), calc(var(--y) - 50%), 0);
   will-change: transform;
@@ -652,54 +569,30 @@ onUnmounted(() => {
   transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 亮色模式下的waves小点 */
-html[data-theme="light"] a-waves::before {
-  background: var(--waves-dot-current) !important;
-}
-
-/* 暗色模式下的waves小点 */
-html[data-theme="dark"] a-waves::before {
-  background: var(--waves-dot-current) !important;
-}
-
 :deep(a-waves) svg { display: block; width: 100%; height: 100%; }
 :deep(a-waves) path { 
   fill: none; 
-  /* 暗色模式（默认） */
-  stroke: #efecec; 
+  stroke: currentColor;
   stroke-width: 1px; 
   transition: stroke 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 全局CSS变量定义 */
-:root {
+:global(:root) {
   --waves-stroke-dark: #efecec;
   --waves-dot-dark: #fff7f7;
   --waves-stroke-light: #000000;
   --waves-dot-light: #000000;
 }
 
-html[data-theme="light"] {
+:global(html[data-theme="light"]) {
   --waves-stroke-current: var(--waves-stroke-light);
   --waves-dot-current: var(--waves-dot-light);
 }
 
-html[data-theme="dark"] {
+:global(html[data-theme="dark"]) {
   --waves-stroke-current: var(--waves-stroke-dark);
   --waves-dot-current: var(--waves-dot-dark);
-}
-
-/* 测试样式 - 直接覆盖AWaves路径 */
-a-waves path, 
-a-waves svg path {
-  stroke: var(--waves-stroke-current) !important;
-  stroke-width: 1px !important;
-  fill: none !important;
-}
-
-/* 测试样式 - 直接覆盖AWaves小点 */
-a-waves::before {
-  background: var(--waves-dot-current) !important;
 }
 
 .hero-actions {

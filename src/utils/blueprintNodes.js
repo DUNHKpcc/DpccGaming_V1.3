@@ -4,7 +4,7 @@ const VIDEO_EXT_PATTERN = /\.(mp4|webm|ogg|m4v|mov)(\?.*)?$/i
 export const BP_WORLD_WIDTH = 4800
 export const BP_WORLD_HEIGHT = 3200
 
-const BP_NODE_DIMENSIONS = {
+export const BP_NODE_DIMENSIONS = {
   game: { width: 238, height: 212 },
   design: { width: 214, height: 72 },
   mixer: { width: 214, height: 72 },
@@ -20,44 +20,97 @@ export const BLUEPRINT_COMPACT_NODE_META = {
     subtitle: 'Structured Prompt',
     iconClass: 'fa fa-wand-magic-sparkles',
     iconBackground: '#ececec',
-    iconColor: '#111111'
+    iconColor: '#111111',
+    contentLabel: '提示词内容',
+    contentPlaceholder: '输入正向提示词内容'
   },
   'prompt-negative': {
     title: '反向提示词',
     subtitle: 'Negative Prompt',
     iconClass: 'fa fa-arrows-rotate',
     iconBackground: '#ffe2e2',
-    iconColor: '#8a1f1f'
+    iconColor: '#8a1f1f',
+    contentLabel: '负向提示词',
+    contentPlaceholder: '输入需要规避的内容'
   },
   mixer: {
     title: 'Mixer',
     subtitle: 'Context Mixer',
     iconClass: 'fa fa-link',
     iconBackground: '#e6ecff',
-    iconColor: '#2441a8'
+    iconColor: '#2441a8',
+    contentLabel: '混合说明',
+    contentPlaceholder: '输入节点混合和串联说明'
   },
   design: {
     title: '游戏设定',
     subtitle: 'Game Design',
     iconClass: 'fa fa-map',
     iconBackground: '#e6f7e8',
-    iconColor: '#24643d'
+    iconColor: '#24643d',
+    contentLabel: '设定描述',
+    contentPlaceholder: '输入世界观、风格和核心设定'
   },
   play: {
     title: '游戏玩法',
     subtitle: 'Gameplay Loop',
     iconClass: 'fa fa-gamepad',
     iconBackground: '#fff1d8',
-    iconColor: '#8f5b00'
+    iconColor: '#8f5b00',
+    contentLabel: '玩法描述',
+    contentPlaceholder: '输入核心玩法和循环设计'
   },
   music: {
     title: '游戏音乐',
     subtitle: 'Game Music',
     iconClass: 'fa fa-music',
     iconBackground: '#dcecff',
-    iconColor: '#1f5f9a'
+    iconColor: '#1f5f9a',
+    contentLabel: '音乐描述',
+    contentPlaceholder: '输入音乐氛围、节奏和参考方向'
   }
 }
+
+const BP_EDGE_COLOR_BY_PAIR = {
+  'game:prompt-positive': '#2fcf5f',
+  'game:prompt-negative': '#ff5a5f',
+  'game:mixer': '#2d7ff9',
+  'game:design': '#ff9f1c',
+  'game:play': '#b83280',
+  'game:music': '#12c2e9',
+  'prompt-positive:mixer': '#4a7cff',
+  'prompt-negative:mixer': '#ff6b81',
+  'mixer:design': '#ff8c42',
+  'mixer:play': '#a855f7',
+  'mixer:music': '#00b8d9',
+  'design:play': '#ff6f61',
+  'design:music': '#17bebb',
+  'play:music': '#7c4dff'
+}
+
+const BP_EDGE_COLOR_BY_TARGET = {
+  'prompt-positive': '#2fcf5f',
+  'prompt-negative': '#ff5a5f',
+  mixer: '#4a7cff',
+  design: '#ff9f1c',
+  play: '#b83280',
+  music: '#12c2e9',
+  game: '#ffd166'
+}
+
+export const isBlueprintCompactNodeKind = (kind = '') =>
+  Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, String(kind || ''))
+
+export const getBlueprintEdgeColor = (fromKind = '', toKind = '') => {
+  const pairKey = `${String(fromKind || '')}:${String(toKind || '')}`
+
+  return BP_EDGE_COLOR_BY_PAIR[pairKey]
+    || BP_EDGE_COLOR_BY_TARGET[String(toKind || '')]
+    || '#5e8bff'
+}
+
+export const getBlueprintEdgePreviewColor = (fromKind = '') =>
+  BP_EDGE_COLOR_BY_TARGET[String(fromKind || '')] || '#8c8c8c'
 
 const CATEGORY_MAP_EN_TO_ZH = {
   action: '动作',
@@ -145,6 +198,7 @@ export const createPromptPositiveBlueprintNode = (point = {}, createId = () => '
   iconClass: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconClass,
   iconBackground: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconBackground,
   iconColor: BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconColor,
+  content: '',
   fields: {
     theme: '',
     style: '',
@@ -165,6 +219,7 @@ export const createBlueprintCompactNode = (kind = 'prompt-positive', point = {},
     iconClass: meta.iconClass,
     iconBackground: meta.iconBackground,
     iconColor: meta.iconColor,
+    content: '',
     position: snapPointToGrid(point)
   }
 }
@@ -219,6 +274,21 @@ export const updateBlueprintNodeField = (nodes = [], nodeId, fieldKey, value) =>
     }
   })
 
+export const updateBlueprintNodeContent = (nodes = [], nodeId, content = '') =>
+  nodes.map((node) => {
+    if (node.id !== nodeId) return node
+
+    return {
+      ...node,
+      content: String(content || '')
+    }
+  })
+
+export const removeBlueprintNode = (nodes = [], edges = [], nodeId = '') => ({
+  nodes: nodes.filter((node) => node.id !== nodeId),
+  edges: edges.filter((edge) => edge.fromNodeId !== nodeId && edge.toNodeId !== nodeId)
+})
+
 export const createBlueprintEdge = (fromNodeId, toNodeId, createId = () => '') => ({
   id: createId(),
   fromNodeId,
@@ -254,12 +324,67 @@ export const getBlueprintNodePortPoint = (node = {}, portType = 'output', measur
     width: Number(measuredDimensions?.width) || fallbackDimensions.width,
     height: Number(measuredDimensions?.height) || fallbackDimensions.height
   }
-  const x = portType === 'input'
-    ? node.position.x
-    : node.position.x + dimensions.width
+
+  if (portType === 'left' || portType === 'input') {
+    return {
+      x: node.position.x,
+      y: node.position.y + dimensions.height / 2
+    }
+  }
+
+  if (portType === 'top') {
+    return {
+      x: node.position.x + dimensions.width / 2,
+      y: node.position.y
+    }
+  }
+
+  if (portType === 'bottom') {
+    return {
+      x: node.position.x + dimensions.width / 2,
+      y: node.position.y + dimensions.height
+    }
+  }
+
+  const x = node.position.x + dimensions.width
   const y = node.position.y + dimensions.height / 2
 
   return { x, y }
+}
+
+export const getBlueprintEdgePortPositions = (fromNode = {}, toNode = {}) => {
+  const fromX = Number(fromNode?.position?.x) || 0
+  const fromY = Number(fromNode?.position?.y) || 0
+  const toX = Number(toNode?.position?.x) || 0
+  const toY = Number(toNode?.position?.y) || 0
+  const deltaX = toX - fromX
+  const deltaY = toY - fromY
+
+  if (Math.abs(deltaY) > Math.abs(deltaX)) {
+    if (deltaY >= 0) {
+      return {
+        fromPort: 'bottom',
+        toPort: 'top'
+      }
+    }
+
+    return {
+      fromPort: 'top',
+      toPort: 'bottom'
+    }
+  }
+
+  if (deltaX >= 0) {
+    return {
+      fromPort: 'right',
+      toPort: 'left'
+    }
+  }
+
+  return {
+    fromPort: 'left',
+    toPort: 'right'
+  }
 }
 
 export const serializeBlueprintGameDragData = (game = {}) =>
@@ -298,7 +423,7 @@ export const parseBlueprintWorkflow = (rawValue) => {
   const normalizedNodes = nodes
     .filter((node) => node?.id && node?.position && (
       ['game', 'prompt-positive'].includes(node?.kind)
-      || Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, node?.kind)
+      || isBlueprintCompactNodeKind(node?.kind)
     ))
     .map((node) => {
       if (node.kind === 'prompt-positive') {
@@ -309,6 +434,12 @@ export const parseBlueprintWorkflow = (rawValue) => {
           iconClass: String(node.iconClass || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconClass),
           iconBackground: String(node.iconBackground || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconBackground),
           iconColor: String(node.iconColor || BLUEPRINT_COMPACT_NODE_META['prompt-positive'].iconColor),
+          content: String(
+            node.content
+            || node?.fields?.theme
+            || node?.fields?.keywords
+            || ''
+          ),
           fields: {
             theme: String(node?.fields?.theme || ''),
             style: String(node?.fields?.style || ''),
@@ -319,7 +450,7 @@ export const parseBlueprintWorkflow = (rawValue) => {
         }
       }
 
-      if (Object.prototype.hasOwnProperty.call(BLUEPRINT_COMPACT_NODE_META, node.kind)) {
+      if (isBlueprintCompactNodeKind(node.kind)) {
         const meta = BLUEPRINT_COMPACT_NODE_META[node.kind]
 
         return {
@@ -329,6 +460,7 @@ export const parseBlueprintWorkflow = (rawValue) => {
           iconClass: String(node.iconClass || meta.iconClass),
           iconBackground: String(node.iconBackground || meta.iconBackground),
           iconColor: String(node.iconColor || meta.iconColor),
+          content: String(node.content || ''),
           position: snapPointToGrid(node.position)
         }
       }

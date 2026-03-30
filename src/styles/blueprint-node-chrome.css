@@ -1,5 +1,7 @@
 .bp-node-frame {
   position: absolute;
+  z-index: var(--bp-node-z-index, 1);
+  isolation: isolate;
   overflow: visible;
   border-radius: 6px;
   background: var(--bp-node-surface, #ffffff);
@@ -20,6 +22,7 @@
 }
 
 .bp-node-frame.is-selected {
+  --bp-node-z-index: 3;
   border-color: var(--bp-node-border-strong, #767676);
   box-shadow:
     0 0 0 3px rgba(118, 118, 118, 0.18),
@@ -27,6 +30,7 @@
 }
 
 .bp-node-frame.is-highlighted {
+  --bp-node-z-index: 2;
   animation: bp-node-frame-pulse 1.05s ease;
 }
 
@@ -70,66 +74,66 @@ span.bp-node-port {
 .bp-node-port-in,
 .bp-node-port-out {
   top: 50%;
-  width: 24px;
-  height: 40px;
+  width: calc(24px * var(--bp-ui-scale, 1));
+  height: calc(40px * var(--bp-ui-scale, 1));
   transform: translateY(-50%);
 }
 
 .bp-node-port-in {
-  left: -18px;
+  left: calc(-18px * var(--bp-ui-scale, 1));
 }
 
 .bp-node-port-out {
-  right: -18px;
+  right: calc(-18px * var(--bp-ui-scale, 1));
 }
 
 .bp-node-port-in::before,
 .bp-node-port-out::before {
-  top: 8px;
-  width: 12px;
-  height: 24px;
+  top: calc(8px * var(--bp-ui-scale, 1));
+  width: calc(12px * var(--bp-ui-scale, 1));
+  height: calc(24px * var(--bp-ui-scale, 1));
 }
 
 .bp-node-port-in::before {
-  left: 6px;
+  left: calc(6px * var(--bp-ui-scale, 1));
   border-radius: 999px 0 0 999px;
 }
 
 .bp-node-port-out::before {
-  left: 6px;
+  left: calc(6px * var(--bp-ui-scale, 1));
   border-radius: 0 999px 999px 0;
 }
 
 .bp-node-port-top,
 .bp-node-port-bottom {
   left: 50%;
-  width: 40px;
-  height: 24px;
+  width: calc(40px * var(--bp-ui-scale, 1));
+  height: calc(24px * var(--bp-ui-scale, 1));
   transform: translateX(-50%);
 }
 
 .bp-node-port-top {
-  top: -18px;
+  top: calc(-18px * var(--bp-ui-scale, 1));
 }
 
 .bp-node-port-bottom {
-  bottom: -18px;
+  bottom: calc(-18px * var(--bp-ui-scale, 1));
 }
 
 .bp-node-port-top::before,
 .bp-node-port-bottom::before {
-  left: 8px;
-  width: 24px;
-  height: 12px;
+  left: calc(8px * var(--bp-ui-scale, 1));
+  width: calc(24px * var(--bp-ui-scale, 1));
+  height: calc(12px * var(--bp-ui-scale, 1));
 }
 
 .bp-node-port-top::before {
-  top: 6px;
+  top: calc(6px * var(--bp-ui-scale, 1));
   border-radius: 999px 999px 0 0;
 }
 
 .bp-node-port-bottom::before {
-  top: 6px;
+  top: calc(6px * var(--bp-ui-scale, 1));
   border-radius: 0 0 999px 999px;
 }
 

@@ -14,7 +14,6 @@ const isGameDragOver = ref(false)
 const {
   stageRef,
   isPanning,
-  worldCenter,
   worldStyle,
   gridStyle,
   beginPan,
@@ -70,7 +69,7 @@ const onDrop = (event) => {
 }
 
 onMounted(() => {
-  centerOnWorld({ xRatio: 0.54, yRatio: 0.41 })
+  centerOnWorld()
   emit('canvas-ready', {
     screenToWorldPoint
   })
@@ -97,8 +96,8 @@ onMounted(() => {
   >
     <div class="bp-stage-grid" :style="gridStyle"></div>
 
-    <div class="bp-stage-world" :style="worldStyle">
-      <div v-if="props.showEmptyState" class="bp-empty-state" :style="{ left: `${worldCenter.x}px`, top: `${worldCenter.y}px` }">
+    <div v-if="props.showEmptyState" class="bp-stage-empty-state">
+      <div class="bp-empty-state">
         <div class="bp-empty-brand">
           <img class="bp-empty-brand-mark" src="/logo_light.png" alt="BluePrint" />
           <span>BluePrint</span>
@@ -106,6 +105,9 @@ onMounted(() => {
         <h1>独创游戏生成工作流</h1>
         <p>拖拽移动节点，滚轮缩放视图。每一个节点都是一次创意的进发。</p>
       </div>
+    </div>
+
+    <div class="bp-stage-world" :style="worldStyle">
       <slot name="world" :screen-to-world-point="screenToWorldPoint"></slot>
     </div>
 
@@ -150,12 +152,20 @@ onMounted(() => {
 
 .bp-stage-grid,
 .bp-stage-world,
-.bp-stage-overlay {
+.bp-stage-overlay,
+.bp-stage-empty-state {
   position: absolute;
   inset: 0;
 }
 
 .bp-stage-overlay {
+  pointer-events: none;
+}
+
+.bp-stage-empty-state {
+  z-index: 1;
+  display: grid;
+  place-items: center;
   pointer-events: none;
 }
 
@@ -173,9 +183,8 @@ onMounted(() => {
 }
 
 .bp-empty-state {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  width: 290px;
+  position: relative;
+  width: clamp(calc(240px * var(--bp-ui-scale)), 31vw, calc(290px * var(--bp-ui-scale)));
   color: var(--bp-text);
   text-align: center;
 }
@@ -183,51 +192,52 @@ onMounted(() => {
 .bp-empty-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  margin-bottom: 16px;
-  padding: 0 15px;
+  gap: calc(10px * var(--bp-ui-scale));
+  min-height: calc(46px * var(--bp-ui-scale));
+  margin-bottom: calc(16px * var(--bp-ui-scale));
+  padding: 0 calc(15px * var(--bp-ui-scale));
   border: 1px solid var(--bp-border);
-  border-radius: 11px;
+  border-radius: calc(11px * var(--bp-ui-scale));
   background: var(--bp-surface);
   box-shadow: var(--bp-shadow-sm);
   color: var(--bp-accent);
-  font-size: 0.84rem;
+  font-size: calc(0.84rem * var(--bp-ui-scale));
   font-weight: 700;
 }
 
 .bp-empty-brand-mark {
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--bp-ui-scale));
+  height: calc(16px * var(--bp-ui-scale));
   object-fit: contain;
   display: block;
 }
 
 .bp-empty-state h1 {
-  margin: 0 0 12px;
-  font-size: 1.06rem;
+  margin: 0 0 calc(12px * var(--bp-ui-scale));
+  font-size: clamp(calc(0.96rem * var(--bp-ui-scale)), calc(0.88rem * var(--bp-ui-scale)) + 0.33vw, calc(1.06rem * var(--bp-ui-scale)));
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .bp-empty-state p {
-  width: 172px;
+  width: min(172px, 100%);
   margin: 0 auto;
   color: var(--bp-muted);
-  font-size: 0.83rem;
+  font-size: clamp(calc(0.78rem * var(--bp-ui-scale)), calc(0.73rem * var(--bp-ui-scale)) + 0.2vw, calc(0.83rem * var(--bp-ui-scale)));
   line-height: 1.6;
 }
 
 .bp-prompt-dock {
   position: absolute;
   left: 50%;
-  bottom: 64px;
+  bottom: clamp(calc(28px * var(--bp-ui-scale)), 6.6vh, calc(64px * var(--bp-ui-scale)));
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 495px;
+  gap: clamp(calc(8px * var(--bp-ui-scale)), 0.9vw, calc(10px * var(--bp-ui-scale)));
+  width: clamp(calc(360px * var(--bp-ui-scale)), 57%, calc(495px * var(--bp-ui-scale)));
+  max-width: calc(100% - calc(40px * var(--bp-ui-scale)));
   transform: translateX(-50%);
   pointer-events: auto;
 }
@@ -235,15 +245,15 @@ onMounted(() => {
 .bp-prompt-input {
   flex: 1;
   min-width: 0;
-  height: 40px;
-  padding: 0 14px;
+  height: calc(40px * var(--bp-ui-scale));
+  padding: 0 calc(14px * var(--bp-ui-scale));
   border: 1px solid var(--bp-border);
-  border-radius: 8px;
+  border-radius: calc(8px * var(--bp-ui-scale));
   outline: none;
   background: var(--bp-surface);
   box-shadow: var(--bp-shadow-sm);
   color: var(--bp-text);
-  font-size: 0.94rem;
+  font-size: clamp(calc(0.88rem * var(--bp-ui-scale)), calc(0.82rem * var(--bp-ui-scale)) + 0.13vw, calc(0.94rem * var(--bp-ui-scale)));
 }
 
 .bp-prompt-input::placeholder {
@@ -254,13 +264,23 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: clamp(calc(34px * var(--bp-ui-scale)), 3.1vw, calc(36px * var(--bp-ui-scale)));
+  height: clamp(calc(34px * var(--bp-ui-scale)), 3.1vw, calc(36px * var(--bp-ui-scale)));
   border: 1px solid #181818;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--bp-ui-scale));
   background: #181818;
   color: #ffffff;
   box-shadow: var(--bp-shadow-sm);
   cursor: pointer;
+}
+
+@media (max-width: 1200px) {
+  .bp-empty-state {
+    width: clamp(calc(228px * var(--bp-ui-scale)), 33vw, calc(260px * var(--bp-ui-scale)));
+  }
+
+  .bp-prompt-dock {
+    max-width: calc(100% - calc(28px * var(--bp-ui-scale)));
+  }
 }
 </style>

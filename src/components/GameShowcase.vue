@@ -124,27 +124,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useModalStore } from '../stores/modal'
-import { useGameStore } from '../stores/game'
 import { useThemeStore } from '../stores/theme'
 
 // 注册GSAP插件
 gsap.registerPlugin(ScrollTrigger)
 
 const modalStore = useModalStore()
-const gameStore = useGameStore()
 const themeStore = useThemeStore()
 const { isDark } = storeToRefs(themeStore)
 
 // 响应式数据
 const cardRefs = ref([])
-
-// 获取游戏数据
-const games = computed(() => gameStore.games.slice(0, 5)) // 取前5个游戏用于展示
 
 // 模板引用
 const sectionTitle = ref(null)
@@ -489,9 +484,6 @@ const initScrollAnimations = () => {
 }
 
 onMounted(async () => {
-  // 确保游戏数据已加载
-  await gameStore.loadGames()
-
   // 初始化滚动卡片动画（一张一张从上至下出现）
   setTimeout(() => {
     initScrollCardAnimations()

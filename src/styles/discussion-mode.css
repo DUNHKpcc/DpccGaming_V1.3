@@ -2191,10 +2191,12 @@ body {
   box-shadow: 0 8px 18px rgba(17, 24, 39, 0.28);
 }
 
-.send-icon-lucide {
-  display: block;
-  width: 18px;
-  height: 18px;
+.send-icon-fa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .send-btn:disabled {

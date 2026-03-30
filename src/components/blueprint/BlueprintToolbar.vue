@@ -19,22 +19,22 @@ const buttons = [
         v-for="button in buttons"
         :key="button.key"
         type="button"
-        class="bp-toolbar-btn"
+        class="bp-toolbar-btn bp-control-surface bp-control-button bp-control-button-hover-highlight"
         @click="emit('action', button.key)"
       >
         <i :class="button.icon"></i>
         <span>{{ button.label }}</span>
       </button>
-      <button type="button" class="bp-toolbar-square">
+      <button type="button" class="bp-toolbar-square bp-control-surface bp-control-button bp-control-button-hover-highlight">
         <i class="fa fa-plus"></i>
       </button>
     </div>
 
     <div class="bp-toolbar-side">
-      <button type="button" class="bp-toolbar-square">
-        <i class="fa fa-download"></i>
+      <button type="button" class="bp-toolbar-square bp-control-surface bp-control-button bp-control-button-hover-highlight">
+        <i class="fa fa-save"></i>
       </button>
-      <button type="button" class="bp-toolbar-run">
+      <button type="button" class="bp-toolbar-run bp-control-button bp-control-button-dark bp-control-button-hover-highlight">
         <i class="fa fa-play"></i>
       </button>
     </div>
@@ -46,7 +46,7 @@ const buttons = [
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: clamp(6px, 0.8vw, 8px);
   width: auto;
   padding: 0;
 }
@@ -55,12 +55,13 @@ const buttons = [
 .bp-toolbar-side {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: clamp(6px, 0.8vw, 9px);
   min-width: 0;
 }
 
 .bp-toolbar-side {
-  margin-right: 30px;
+  flex: 0 0 auto;
+  margin-right: clamp(8px, 1.6vw, 30px);
 }
 
 .bp-toolbar-main {
@@ -73,59 +74,48 @@ const buttons = [
   display: none;
 }
 
-.bp-toolbar button {
-  appearance: none;
-  cursor: pointer;
-}
-
 .bp-toolbar-btn,
 .bp-toolbar-square,
 .bp-toolbar-run {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  border: 1px solid var(--bp-border);
-  background: var(--bp-surface);
-  box-shadow: var(--bp-shadow-sm);
+  gap: calc(6px * var(--bp-ui-scale));
+  min-height: calc(34px * var(--bp-ui-scale));
   color: var(--bp-text);
-  transition: box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
 }
 
 .bp-toolbar-btn {
   flex: 0 0 auto;
-  padding: 0 7px;
-  border-radius: 8px;
+  padding: 0 clamp(6px, 0.75vw, 8px);
+  border-radius: calc(8px * var(--bp-ui-scale));
   white-space: nowrap;
-  font-size: 0.78rem;
+  font-size: clamp(calc(0.74rem * var(--bp-ui-scale)), calc(0.69rem * var(--bp-ui-scale)) + 0.15vw, calc(0.78rem * var(--bp-ui-scale)));
   font-weight: 600;
 }
 
 .bp-toolbar-btn i {
   color: #26231d;
-  font-size: 0.74rem;
+  font-size: calc(0.74rem * var(--bp-ui-scale));
 }
 
 .bp-toolbar-square,
 .bp-toolbar-run {
-  width: 32px;
-  border-radius: 8px;
+  width: clamp(calc(30px * var(--bp-ui-scale)), 2.9vw, calc(32px * var(--bp-ui-scale)));
+  border-radius: calc(8px * var(--bp-ui-scale));
 }
 
 .bp-toolbar-run {
-  background: #181818;
   color: #ffffff;
-  border-color: #181818;
 }
 
-.bp-toolbar button:hover {
-  border-color: rgba(17, 17, 17, 0.22);
-  box-shadow: var(--bp-shadow-md);
-}
+@media (max-width: 1200px) {
+  .bp-toolbar-btn {
+    min-height: calc(32px * var(--bp-ui-scale));
+  }
 
-.bp-toolbar-run:hover {
-  border-color: #181818;
-  background: #262626;
+  .bp-toolbar-btn i {
+    font-size: calc(0.7rem * var(--bp-ui-scale));
+  }
 }
 </style>

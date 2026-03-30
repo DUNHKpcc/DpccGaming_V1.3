@@ -1,6 +1,7 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import BlueprintNodePorts from './BlueprintNodePorts.vue'
+import { useBlueprintNodeInteractions } from './useBlueprintNodeInteractions.js'
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -8,60 +9,20 @@ const props = defineProps({
   highlighted: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['select', 'drag-start', 'start-link', 'measure', 'unmount'])
+const emit = defineEmits(['select', 'drag-start', 'start-link', 'measure', 'unmount', 'context-menu'])
+const {
+  nodeRef,
+  onPointerDown,
+  onPortPointerDown,
+  onContextMenu
+} = useBlueprintNodeInteractions(props, emit)
 
-const nodeRef = ref(null)
-let resizeObserver = null
-
-const onPointerDown = (event) => {
-  if (event.button !== 0) return
-  if (event.target instanceof Element && event.target.closest('[data-port-hit]')) return
-
-  emit('drag-start', {
-    nodeId: props.node.id,
-    clientX: event.clientX,
-    clientY: event.clientY
-  })
-}
-
-const onOutputPointerDown = (event) => {
-  if (event.button !== 0) return
-
-  emit('start-link', {
-    nodeId: props.node.id,
-    clientX: event.clientX,
-    clientY: event.clientY
-  })
-}
-
-const publishMeasurement = () => {
-  const element = nodeRef.value
-  if (!element) return
-
-  emit('measure', {
-    nodeId: props.node.id,
-    width: element.offsetWidth,
-    height: element.offsetHeight
-  })
-}
-
-onMounted(() => {
-  nextTick(() => {
-    publishMeasurement()
-
-    if (typeof ResizeObserver !== 'function' || !nodeRef.value) return
-
-    resizeObserver = new ResizeObserver(() => {
-      publishMeasurement()
-    })
-    resizeObserver.observe(nodeRef.value)
-  })
-})
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  emit('unmount', props.node.id)
-})
+const nodeStyle = computed(() => ({
+  left: `${props.node.position.x}px`,
+  top: `${props.node.position.y}px`,
+  '--bp-compact-icon-background': props.node.iconBackground || '#ededed',
+  '--bp-compact-icon-color': props.node.iconColor || '#111111'
+}))
 </script>
 
 <template>
@@ -72,19 +33,15 @@ onBeforeUnmount(() => {
       'is-selected': props.selected,
       'is-highlighted': props.highlighted
     }"
-    :style="{
-      left: `${props.node.position.x}px`,
-      top: `${props.node.position.y}px`,
-      '--bp-compact-icon-background': props.node.iconBackground || '#ededed',
-      '--bp-compact-icon-color': props.node.iconColor || '#111111'
-    }"
+    :style="nodeStyle"
     data-no-pan
     @click="emit('select', props.node.id)"
     @pointerdown.stop="onPointerDown"
+    @contextmenu.prevent.stop="onContextMenu"
   >
     <BlueprintNodePorts
       :node-id="props.node.id"
-      @start-link="onOutputPointerDown"
+      @start-link="onPortPointerDown"
     />
 
     <span class="bp-compact-node-icon" aria-hidden="true">
@@ -92,7 +49,7 @@ onBeforeUnmount(() => {
     </span>
     <div class="bp-compact-node-copy" data-no-pan>
       <strong>{{ props.node.title }}</strong>
-      <span>{{ props.node.subtitle }}</span>
+      <span>{{ String(props.node.content || '').trim() || props.node.subtitle }}</span>
     </div>
   </article>
 </template>
@@ -108,10 +65,10 @@ onBeforeUnmount(() => {
   --bp-node-shadow-hover: 0 14px 28px rgba(0, 0, 0, 0.11);
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 214px;
-  min-height: 72px;
-  padding: 12px 14px;
+  gap: calc(12px * var(--bp-ui-scale, 1));
+  width: calc(214px * var(--bp-ui-scale, 1));
+  min-height: calc(72px * var(--bp-ui-scale, 1));
+  padding: calc(12px * var(--bp-ui-scale, 1)) calc(14px * var(--bp-ui-scale, 1));
   box-sizing: border-box;
   color: var(--bp-text);
 }
@@ -120,13 +77,13 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: calc(36px * var(--bp-ui-scale, 1));
+  height: calc(36px * var(--bp-ui-scale, 1));
   border: 1px solid rgba(17, 17, 17, 0.1);
-  border-radius: 10px;
+  border-radius: calc(10px * var(--bp-ui-scale, 1));
   background: var(--bp-compact-icon-background);
   color: var(--bp-compact-icon-color);
-  font-size: 1rem;
+  font-size: calc(1rem * var(--bp-ui-scale, 1));
   line-height: 1;
   flex: 0 0 auto;
 }
@@ -138,16 +95,16 @@ onBeforeUnmount(() => {
 .bp-compact-node-copy strong {
   display: block;
   color: #111111;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--bp-ui-scale, 1));
   font-weight: 700;
   line-height: 1.25;
 }
 
 .bp-compact-node-copy span {
   display: block;
-  margin-top: 4px;
+  margin-top: calc(4px * var(--bp-ui-scale, 1));
   color: #727272;
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--bp-ui-scale, 1));
   line-height: 1.2;
 }
 </style>
