@@ -1,4 +1,7 @@
-const { ARK_CONFIG } = require('../../aiController');
+const {
+  buildBuiltinModelRequestConfig,
+  normalizeBuiltinModelName
+} = require('../../../utils/aiProviderConfig');
 const {
   AI_REPLY_CHAR_LIMIT,
   parseJsonObject,
@@ -7,13 +10,6 @@ const {
   clampAiReplyContent
 } = require('./core');
 
-const DEFAULT_MODEL = ARK_CONFIG.defaultModel;
-const DEFAULT_ENDPOINT = ARK_CONFIG.defaultEndpoint;
-const DEFAULT_REASONING = ARK_CONFIG.defaultReasoning;
-const DEFAULT_ARK_API_KEY = ARK_CONFIG.defaultApiKey;
-const DEFAULT_QWEN_CODEMAX_ENDPOINT = 'https://coding.dashscope.aliyuncs.com/v1';
-const DEFAULT_QWEN_CODEMAX_API_KEY = 'sk-sp-9a16d7d7aa4740b7aeffccaeb07a80ce';
-const DEFAULT_QWEN_CODEMAX_MODEL = 'qwen3.5-plus';
 const RESOURCE_READ_VERBS = [
   '看', '看看', '读', '读取', '阅读', '查看', '分析', '检查', '审查', '参考', '结合', '打开', '浏览',
   'read', 'review', 'inspect', 'check', 'open', 'load', 'use'
@@ -27,6 +23,8 @@ const DOCUMENT_RESOURCE_TERMS = [
 const LINKED_RESOURCE_TERMS = [
   '附件', '文件', '这份', '这个', '这段', '刚发', '刚刚发', '刚上传', '上面', '上一条', '刚才'
 ];
+const AI_REQUEST_TIMEOUT_MS = 90000;
+const AI_NETWORK_RETRY_COUNT = 1;
 
 const parseTextMessageContent = (content) => {
   if (!content) return '';
@@ -193,23 +191,15 @@ const buildPromptFromAiContext = ({
   ].filter(Boolean).join('\n\n');
 };
 
-const requestArkAiReply = async ({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective }) => {
-  const apiKey = process.env.ARK_API_KEY || DEFAULT_ARK_API_KEY;
-  if (!apiKey) {
-    return 'AI 机器人暂未配置 ARK_API_KEY，当前先由系统占位回复。请配置后启用真实 AI 对话。';
-  }
-
-  const payload = {
-    model: process.env.ARK_MODEL_ID || DEFAULT_MODEL,
-    max_completion_tokens: Number(process.env.ARK_MAX_TOKENS) || 1200,
-    reasoning_effort: process.env.ARK_REASONING_LEVEL || DEFAULT_REASONING,
-    messages: [
+const buildProviderMessages = (provider = 'ark', systemText = '', userText = '') => {
+  if (provider === 'ark') {
+    return [
       {
         role: 'system',
         content: [
           {
             type: 'text',
-            text: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息回复；只有在当前请求明确要求时，才使用附带的文档或源码上下文。'
+            text: systemText
           }
         ]
       },
@@ -218,94 +208,119 @@ const requestArkAiReply = async ({ prompt, gameTitle, roomMessages, roomSummary,
         content: [
           {
             type: 'text',
-            text: buildPromptFromAiContext({
-              prompt,
-              gameTitle,
-              recentMessages: roomMessages,
-              roomSummary,
-              memoryEntries,
-              systemDirective
-            })
+            text: userText
           }
         ]
       }
-    ]
-  };
-
-  const response = await fetch(process.env.ARK_API_URL || DEFAULT_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(details || `AI 调用失败，状态码 ${response.status}`);
+    ];
   }
 
-  const data = await response.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) return 'AI 未返回有效内容，请稍后重试。';
-  return parseTextMessageContent(content) || 'AI 未返回有效文本内容。';
+  return [
+    {
+      role: 'system',
+      content: systemText
+    },
+    {
+      role: 'user',
+      content: userText
+    }
+  ];
 };
 
-const requestQwenCodeMaxReply = async ({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective }) => {
-  const apiKey = process.env.QWEN_CODEMAX_API_KEY || DEFAULT_QWEN_CODEMAX_API_KEY;
-  const endpoint = (process.env.QWEN_CODEMAX_BASE_URL || DEFAULT_QWEN_CODEMAX_ENDPOINT).replace(/\/+$/, '');
-  const model = process.env.QWEN_CODEMAX_MODEL || DEFAULT_QWEN_CODEMAX_MODEL;
-  if (!apiKey) {
-    return 'Qwen3-CodeMax 暂未配置 API KEY，当前先由系统占位回复。';
+const isRetryableNetworkError = (error) => {
+  if (!error) return false;
+  if (error?.name === 'AbortError' || error?.name === 'TimeoutError') return true;
+  if (error instanceof TypeError) return true;
+
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('fetch failed')
+    || message.includes('network error')
+    || message.includes('socket hang up')
+    || message.includes('econnreset')
+    || message.includes('etimedout')
+    || message.includes('timeout')
+  );
+};
+
+const formatAiNetworkErrorMessage = (normalizedModel, endpoint, error) => {
+  const details = error?.cause?.message || error?.message || 'unknown';
+  return `${normalizedModel} 网络请求失败：无法连接 ${endpoint}（${details}）`;
+};
+
+const fetchBuiltinAiResponse = async (requestConfig, payload, { normalizedModel }) => {
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt <= AI_NETWORK_RETRY_COUNT) {
+    try {
+      return await fetch(requestConfig.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${requestConfig.apiKey}`
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableNetworkError(error) || attempt >= AI_NETWORK_RETRY_COUNT) {
+        throw new Error(formatAiNetworkErrorMessage(normalizedModel, requestConfig.endpoint, error));
+      }
+    }
+
+    attempt += 1;
   }
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.35,
-      messages: [
-        {
-          role: 'system',
-          content: systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息回复；只有在当前请求明确要求时，才使用附带的文档或源码上下文。'
-        },
-        {
-          role: 'user',
-          content: buildPromptFromAiContext({
-            prompt,
-            gameTitle,
-            recentMessages: roomMessages,
-            roomSummary,
-            memoryEntries,
-            systemDirective
-          })
-        }
-      ]
-    })
+  throw new Error(formatAiNetworkErrorMessage(normalizedModel, requestConfig.endpoint, lastError));
+};
+
+const requestBuiltinAiReply = async ({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective, builtinModel = '' }) => {
+  const requestConfig = buildBuiltinModelRequestConfig(builtinModel);
+  const apiKey = requestConfig.apiKey;
+  const normalizedModel = requestConfig.normalizedModel;
+  if (!apiKey) {
+    if (normalizedModel === 'GLM-4.5') {
+      return 'GLM-4.5 暂未配置 API KEY，当前先由系统占位回复。';
+    }
+    if (normalizedModel === 'Qwen3-CodeMax') {
+      return 'Qwen3-CodeMax 暂未配置 API KEY，当前先由系统占位回复。';
+    }
+    return 'AI 机器人暂未配置 ARK_API_KEY，当前先由系统占位回复。请配置后启用真实 AI 对话。';
+  }
+
+  const systemText = systemDirective || '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息回复；只有在当前请求明确要求时，才使用附带的文档或源码上下文。';
+  const userText = buildPromptFromAiContext({
+    prompt,
+    gameTitle,
+    recentMessages: roomMessages,
+    roomSummary,
+    memoryEntries,
+    systemDirective
   });
+
+  const payload = {
+    ...requestConfig.payload,
+    messages: buildProviderMessages(requestConfig.provider, systemText, userText)
+  };
+
+  const response = await fetchBuiltinAiResponse(requestConfig, payload, { normalizedModel });
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(details || `Qwen3-CodeMax 调用失败，状态码 ${response.status}`);
+    throw new Error(details || `${normalizedModel} 调用失败，状态码 ${response.status}`);
   }
 
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) return 'Qwen3-CodeMax 未返回有效内容，请稍后重试。';
-  return parseTextMessageContent(content) || 'Qwen3-CodeMax 未返回有效文本内容。';
+  if (!content) return `${normalizedModel} 未返回有效内容，请稍后重试。`;
+  return parseTextMessageContent(content) || `${normalizedModel} 未返回有效文本内容。`;
 };
 
 const generateAiReply = async ({ prompt, gameTitle, roomMessages, builtinModel = '', roomSummary = null, memoryEntries = [], systemDirective = '' }) => {
-  const modelName = String(builtinModel || '').trim();
-  if (modelName === 'Qwen3-CodeMax') {
-    return requestQwenCodeMaxReply({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective });
-  }
-  return requestArkAiReply({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective });
+  const modelName = normalizeBuiltinModelName(builtinModel);
+  return requestBuiltinAiReply({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective, builtinModel: modelName });
 };
 
 const buildRoomScopedAiPrompt = ({
@@ -456,7 +471,7 @@ const createRequestRoomAiReplyBySlot = ({
         prompt: scopedPrompt,
         gameTitle: roomContext.game_title,
         roomMessages: recentMessages,
-        builtinModel: slot.builtinModel || 'DouBaoSeed1.6',
+        builtinModel: slot.builtinModel || 'DouBaoSeed',
         roomSummary: summary,
         memoryEntries,
         systemDirective: '你是 DpccGaming 讨论房间内的 AI 协作成员。默认只根据成员消息和当前提问回复；只有当前请求明确要求你查寻或使用源码和文档时，才使用附带的文档或源码上下文。请明确区分是谁发了什么，并自然、可执行地回复。最终回复严格控制在80字以内。'
@@ -470,5 +485,11 @@ module.exports = {
   buildAiSenderLabel,
   describeMessageForMemory,
   generateAiReply,
-  createRequestRoomAiReplyBySlot
+  createRequestRoomAiReplyBySlot,
+  __test: {
+    requestBuiltinAiReply,
+    fetchBuiltinAiResponse,
+    isRetryableNetworkError,
+    formatAiNetworkErrorMessage
+  }
 };

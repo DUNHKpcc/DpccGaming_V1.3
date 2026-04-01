@@ -1,4 +1,5 @@
 import { compressImageToWebpDataUrl } from './image'
+export { isPullAiConnectionField } from './discussionAiSlotFields.js'
 
 export const CHAT_MORE_DIRECT_MENU_ITEMS = [
   { key: 'game-code', label: '游戏代码选取' },
@@ -39,7 +40,7 @@ export const CHAT_MORE_BUILTIN_MODELS = [
   'GPT-5.4',
   'Claude 4.6 opus',
   'Gemini 3.0 Pro',
-  'DeepSeek-R1',
+  'GLM-4.5',
   'Qwen3-CodeMax'
 ]
 
@@ -64,9 +65,9 @@ export const CHAT_MORE_BUILTIN_MODEL_META = {
     label: 'Gemini 3.0 Pro',
     logo: '/Ai/Gemini.svg'
   },
-  'DeepSeek-R1': {
-    label: 'DeepSeek-R1',
-    logo: '/Ai/DeepSeekR1.png'
+  'GLM-4.5': {
+    label: 'GLM-4.5',
+    logo: '/Ai/GLM5.png'
   },
   'Qwen3-CodeMax': {
     label: 'Qwen-CodeMax',

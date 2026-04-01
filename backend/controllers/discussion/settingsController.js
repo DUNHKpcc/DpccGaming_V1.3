@@ -48,7 +48,7 @@ const BUILTIN_MODEL_AVATAR_MAP = {
   'GPT-5.4': '/Ai/ChatGPT.svg',
   'Claude 4.6 opus': '/Ai/Claude.png',
   'Gemini 3.0 Pro': '/Ai/Gemini.svg',
-  'DeepSeek-R1': '/Ai/DeepSeekR1.png',
+  'GLM-4.5': '/Ai/GLM5.png',
   'Qwen3-CodeMax': '/Ai/Qwen.png'
 };
 

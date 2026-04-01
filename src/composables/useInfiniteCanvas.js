@@ -45,10 +45,14 @@ export const useInfiniteCanvas = () => {
     }
   }
 
+  const shouldIgnoreCanvasGesture = (event) => {
+    if (!(event.target instanceof Element)) return false
+    return Boolean(event.target.closest(PAN_GUARD_SELECTOR))
+  }
+
   const shouldStartPan = (event) => {
     if (event.button !== 0) return false
-    if (!(event.target instanceof Element)) return true
-    return !event.target.closest(PAN_GUARD_SELECTOR)
+    return !shouldIgnoreCanvasGesture(event)
   }
 
   const beginPan = (event) => {
@@ -85,9 +89,12 @@ export const useInfiniteCanvas = () => {
   }
 
   const onWheel = (event) => {
+    if (shouldIgnoreCanvasGesture(event)) return
+
     const rect = stageRef.value?.getBoundingClientRect()
     if (!rect) return
 
+    event.preventDefault()
     const pointerX = event.clientX - rect.left
     const pointerY = event.clientY - rect.top
     const previousScale = scale.value

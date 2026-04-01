@@ -8,10 +8,12 @@ import { BP_GAME_DRAG_MIME, serializeBlueprintGameDragData } from '../../utils/b
 const props = defineProps({
   games: { type: Array, default: () => [] },
   maxVisibleGames: { type: Number, default: 2 },
+  maxVisibleModels: { type: Number, default: 4 },
   seed: { type: String, default: '' },
   ownership: { type: String, default: 'draft' },
   logs: { type: Array, default: () => [] },
   modelOptions: { type: Array, default: () => [] },
+  selectedModel: { type: String, default: '' },
   collapsed: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   activeGameId: { type: [String, Number], default: '' },
@@ -30,9 +32,11 @@ const emit = defineEmits([
   'generate-seed',
   'save-workflow',
   'copy-seed',
-  'import-seed'
+  'import-seed',
+  'select-model'
 ])
 const libraryPage = ref(0)
+const modelPage = ref(0)
 const importInputRef = ref(null)
 const seedImportValue = ref('')
 let activeDragPreview = null
@@ -61,6 +65,15 @@ const visibleLibraryGames = computed(() => {
 
 const canPageBackward = computed(() => libraryPage.value > 0)
 const canPageForward = computed(() => libraryPage.value < maxPage.value)
+const maxModelPage = computed(() =>
+  Math.max(0, Math.ceil(props.modelOptions.length / props.maxVisibleModels) - 1)
+)
+const visibleModelOptions = computed(() => {
+  const start = modelPage.value * props.maxVisibleModels
+  return props.modelOptions.slice(start, start + props.maxVisibleModels)
+})
+const canModelPageBackward = computed(() => modelPage.value > 0)
+const canModelPageForward = computed(() => modelPage.value < maxModelPage.value)
 const loadingPlaceholders = computed(() =>
   Array.from({ length: props.maxVisibleGames }, (_, index) => index)
 )
@@ -68,6 +81,11 @@ const loadingPlaceholders = computed(() =>
 const moveLibraryPage = (direction) => {
   const nextPage = libraryPage.value + direction
   libraryPage.value = Math.min(maxPage.value, Math.max(0, nextPage))
+}
+
+const moveModelPage = (direction) => {
+  const nextPage = modelPage.value + direction
+  modelPage.value = Math.min(maxModelPage.value, Math.max(0, nextPage))
 }
 
 const removeDragPreview = () => {
@@ -245,6 +263,12 @@ watch(maxPage, (value) => {
   }
 })
 
+watch(maxModelPage, (value) => {
+  if (modelPage.value > value) {
+    modelPage.value = value
+  }
+})
+
 watch(
   () => props.activeGameId,
   (gameId) => {
@@ -253,6 +277,17 @@ watch(
 
     libraryPage.value = Math.floor(targetIndex / props.maxVisibleGames)
   }
+)
+
+watch(
+  () => props.selectedModel,
+  (modelValue) => {
+    const targetIndex = props.modelOptions.findIndex((model) => String(model.value) === String(modelValue || ''))
+    if (targetIndex < 0) return
+
+    modelPage.value = Math.floor(targetIndex / props.maxVisibleModels)
+  },
+  { immediate: true }
 )
 </script>
 
@@ -292,16 +327,28 @@ watch(
     />
 
     <section v-if="!props.collapsed" class="bp-sidebar-section">
-      <h3>配置工作流</h3>
+      <div class="bp-section-head">
+        <h3>配置工作流</h3>
+        <div class="bp-chevron-pair">
+          <button type="button" :disabled="!canModelPageBackward" @click="moveModelPage(-1)">
+            <i class="fa fa-angle-left"></i>
+          </button>
+          <button type="button" :disabled="!canModelPageForward" @click="moveModelPage(1)">
+            <i class="fa fa-angle-right"></i>
+          </button>
+        </div>
+      </div>
       <div class="bp-model-grid">
         <button
-          v-for="model in modelOptions"
-          :key="model.name"
+          v-for="model in visibleModelOptions"
+          :key="model.value"
           type="button"
           class="bp-model-pill bp-control-surface bp-control-button bp-control-button-hover-lift"
+          :class="{ 'is-active': props.selectedModel === model.value }"
+          @click="emit('select-model', model.value)"
         >
           <img v-if="model.logoSrc" class="bp-model-logo" :src="model.logoSrc" :alt="model.logoAlt || model.name" />
-          <span>{{ model.name }}</span>
+          <span>{{ model.label || model.name }}</span>
         </button>
       </div>
       <button type="button" class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift">
@@ -592,6 +639,7 @@ watch(
   color: var(--bp-text);
   font-size: clamp(calc(0.72rem * var(--bp-ui-scale)), calc(0.68rem * var(--bp-ui-scale)) + 0.13vw, calc(0.75rem * var(--bp-ui-scale)));
   font-weight: 600;
+  width: 100%;
 }
 
 .bp-model-logo {
@@ -640,6 +688,12 @@ watch(
   cursor: default;
   transform: none;
   box-shadow: var(--bp-shadow-sm);
+}
+
+.bp-model-pill.is-active {
+  border-color: rgba(17, 17, 17, 0.28);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--bp-shadow-md);
 }
 
 .bp-chevron-pair i {

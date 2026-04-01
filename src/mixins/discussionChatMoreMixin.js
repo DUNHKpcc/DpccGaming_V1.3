@@ -8,7 +8,8 @@ import {
   normalizeChatMoreSettings,
   getCollaborationStatusLabel,
   getCollaborationStatusMeta,
-  compressImageToWebpDataUrl
+  compressImageToWebpDataUrl,
+  isPullAiConnectionField
 } from '../utils/discussionChatMore'
 import { compressImageToBlob } from '../utils/image'
 import {
@@ -630,6 +631,10 @@ export default {
         }
         this.flushRoomSettingsSave(roomId)
         return
+      }
+
+      if (isPullAiConnectionField(field)) {
+        this.queueRoomSettingsSave(roomId, 120)
       }
     },
     async saveAiSlot(slotId) {

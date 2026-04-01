@@ -49,3 +49,27 @@ export const getBlueprintNodeEditorPanelPosition = (
     y: clamp(Number(node?.position?.y || 0), margin, worldHeight - height - margin)
   }
 }
+
+export const getBlueprintLogPanelPosition = (
+  viewport = {},
+  {
+    panelWidth = 320,
+    panelHeight = 220,
+    safeTop = 84,
+    safeBottom = 128,
+    safeRight = 24,
+    safeLeft = 24
+  } = {}
+) => {
+  const viewportWidth = Math.max(0, Number(viewport?.width) || 0)
+  const viewportHeight = Math.max(0, Number(viewport?.height) || 0)
+  const minX = safeLeft
+  const maxX = Math.max(minX, viewportWidth - panelWidth - safeRight)
+  const minY = safeTop
+  const maxY = Math.max(minY, viewportHeight - panelHeight - safeBottom)
+
+  return {
+    x: maxX,
+    y: Math.min(maxY, minY)
+  }
+}

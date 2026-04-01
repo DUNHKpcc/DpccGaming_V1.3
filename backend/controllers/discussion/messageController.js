@@ -68,7 +68,7 @@ const resolveSingleAiSlot = (settings = {}) => {
     id: 'slot-1',
     enabled: true,
     provider: 'builtin',
-    builtinModel: 'DouBaoSeed1.6',
+    builtinModel: 'DouBaoSeed',
     customModel: '',
     customEndpoint: '',
     apiKey: '',

@@ -5,13 +5,22 @@ export const BP_WORLD_WIDTH = 4800
 export const BP_WORLD_HEIGHT = 3200
 
 export const BP_NODE_DIMENSIONS = {
-  game: { width: 238, height: 212 },
+  character: { width: 214, height: 72 },
   design: { width: 214, height: 72 },
+  economy: { width: 214, height: 72 },
+  game: { width: 238, height: 212 },
+  language: { width: 214, height: 72 },
+  level: { width: 214, height: 72 },
   mixer: { width: 214, height: 72 },
   music: { width: 214, height: 72 },
+  narrative: { width: 214, height: 72 },
   play: { width: 214, height: 72 },
+  progression: { width: 214, height: 72 },
   'prompt-negative': { width: 214, height: 72 },
-  'prompt-positive': { width: 214, height: 72 }
+  'prompt-positive': { width: 214, height: 72 },
+  output: { width: 214, height: 72 },
+  ui: { width: 214, height: 72 },
+  visual: { width: 214, height: 72 }
 }
 
 export const BLUEPRINT_COMPACT_NODE_META = {
@@ -42,6 +51,24 @@ export const BLUEPRINT_COMPACT_NODE_META = {
     contentLabel: '混合说明',
     contentPlaceholder: '输入节点混合和串联说明'
   },
+  visual: {
+    title: '视觉风格',
+    subtitle: 'Visual Direction',
+    iconClass: 'fa fa-palette',
+    iconBackground: '#efe6ff',
+    iconColor: '#6a35a0',
+    contentLabel: '视觉描述',
+    contentPlaceholder: '输入画风、色彩、镜头和氛围方向'
+  },
+  language: {
+    title: '编程语言要求',
+    subtitle: 'Code Language',
+    iconClass: 'fa fa-code',
+    iconBackground: '#ecf3ff',
+    iconColor: '#345f9c',
+    contentLabel: '目标语言',
+    contentPlaceholder: '输入 TypeScript、JavaScript、C# 等编程语言'
+  },
   design: {
     title: '游戏设定',
     subtitle: 'Game Design',
@@ -60,6 +87,60 @@ export const BLUEPRINT_COMPACT_NODE_META = {
     contentLabel: '玩法描述',
     contentPlaceholder: '输入核心玩法和循环设计'
   },
+  character: {
+    title: '角色设定',
+    subtitle: 'Character Cast',
+    iconClass: 'fa fa-user',
+    iconBackground: '#fff0dc',
+    iconColor: '#995c11',
+    contentLabel: '角色描述',
+    contentPlaceholder: '输入主角、敌人、NPC 与能力定位'
+  },
+  ui: {
+    title: 'UI/HUD',
+    subtitle: 'Interface Flow',
+    iconClass: 'fa fa-table-columns',
+    iconBackground: '#dff4ff',
+    iconColor: '#165f87',
+    contentLabel: '界面描述',
+    contentPlaceholder: '输入界面结构、HUD 信息和交互重点'
+  },
+  level: {
+    title: '关卡流程',
+    subtitle: 'Level Flow',
+    iconClass: 'fa fa-route',
+    iconBackground: '#e8f8ec',
+    iconColor: '#28784d',
+    contentLabel: '流程描述',
+    contentPlaceholder: '输入章节推进、地图结构和任务路径'
+  },
+  progression: {
+    title: '数值成长',
+    subtitle: 'Progression Curve',
+    iconClass: 'fa fa-chart-line',
+    iconBackground: '#f3ebff',
+    iconColor: '#6c3bb0',
+    contentLabel: '成长描述',
+    contentPlaceholder: '输入等级、技能、装备和成长节奏'
+  },
+  economy: {
+    title: '经济奖励',
+    subtitle: 'Economy Loop',
+    iconClass: 'fa fa-coins',
+    iconBackground: '#fff2d6',
+    iconColor: '#946200',
+    contentLabel: '经济描述',
+    contentPlaceholder: '输入货币、掉落、商店和奖励循环'
+  },
+  narrative: {
+    title: '剧情叙事',
+    subtitle: 'Narrative Arc',
+    iconClass: 'fa fa-book-open',
+    iconBackground: '#ffe8ef',
+    iconColor: '#9d2d58',
+    contentLabel: '叙事描述',
+    contentPlaceholder: '输入剧情背景、事件推进和对白节奏'
+  },
   music: {
     title: '游戏音乐',
     subtitle: 'Game Music',
@@ -68,34 +149,67 @@ export const BLUEPRINT_COMPACT_NODE_META = {
     iconColor: '#1f5f9a',
     contentLabel: '音乐描述',
     contentPlaceholder: '输入音乐氛围、节奏和参考方向'
+  },
+  output: {
+    title: '输出节点',
+    subtitle: 'Prompt Output',
+    iconClass: 'fa fa-paper-plane',
+    iconBackground: '#e9ecf7',
+    iconColor: '#2d3f76',
+    contentLabel: '输出内容',
+    contentPlaceholder: '输入最终 Prompt、摘要或执行指令'
   }
 }
 
 const BP_EDGE_COLOR_BY_PAIR = {
+  'character:play': '#ff9b54',
+  'character:ui': '#2f8cff',
+  'design:character': '#4bbf73',
+  'design:level': '#31a06f',
   'game:prompt-positive': '#2fcf5f',
   'game:prompt-negative': '#ff5a5f',
   'game:mixer': '#2d7ff9',
   'game:design': '#ff9f1c',
   'game:play': '#b83280',
   'game:music': '#12c2e9',
+  'language:output': '#3f73d6',
+  'language:play': '#5a7bdd',
+  'level:progression': '#8b5cf6',
+  'play:progression': '#c95d9b',
+  'play:economy': '#d69a00',
   'prompt-positive:mixer': '#4a7cff',
   'prompt-negative:mixer': '#ff6b81',
+  'ui:output': '#3568d4',
+  'visual:music': '#5a7ff0',
+  'visual:output': '#7b52d6',
   'mixer:design': '#ff8c42',
   'mixer:play': '#a855f7',
   'mixer:music': '#00b8d9',
+  'mixer:visual': '#8a5cff',
   'design:play': '#ff6f61',
   'design:music': '#17bebb',
-  'play:music': '#7c4dff'
+  'narrative:level': '#d94c73',
+  'play:music': '#7c4dff',
+  'progression:economy': '#c08700'
 }
 
 const BP_EDGE_COLOR_BY_TARGET = {
+  character: '#ff9b54',
+  design: '#ff9f1c',
+  economy: '#d69a00',
+  level: '#31a06f',
+  mixer: '#4a7cff',
+  music: '#12c2e9',
+  narrative: '#d94c73',
+  output: '#506edc',
+  play: '#b83280',
+  progression: '#8b5cf6',
   'prompt-positive': '#2fcf5f',
   'prompt-negative': '#ff5a5f',
-  mixer: '#4a7cff',
-  design: '#ff9f1c',
-  play: '#b83280',
-  music: '#12c2e9',
-  game: '#ffd166'
+  ui: '#2f8cff',
+  visual: '#8a5cff',
+  game: '#ffd166',
+  language: '#3f73d6'
 }
 
 export const isBlueprintCompactNodeKind = (kind = '') =>
@@ -172,6 +286,22 @@ export const getBlueprintGameCodeTypeLabel = (game = {}) =>
   String(game?.codeTypeLabel || game?.code_type || game?.codeType || game?.code_category || '')
     .trim() || '未标注语言'
 
+export const getBlueprintGameDescription = (game = {}) =>
+  String(game?.description || game?.summary || game?.intro || '')
+    .trim()
+
+export const getBlueprintGameCodeSummary = (game = {}) =>
+  String(game?.codeSummary || game?.code_summary || '')
+    .trim()
+
+export const getBlueprintGameCodeEntryPath = (game = {}) =>
+  String(game?.codeEntryPath || game?.code_entry_path || '')
+    .trim()
+
+export const getBlueprintGameCodePackageUrl = (game = {}) =>
+  String(game?.codePackageUrl || game?.code_package_url || '')
+    .trim()
+
 export const createGameBlueprintNode = (game = {}, point = {}, createId = () => '') => {
   const title = game?.title || game?.name || '未命名游戏'
 
@@ -186,6 +316,10 @@ export const createGameBlueprintNode = (game = {}, point = {}, createId = () => 
     hasVideo: hasBlueprintGameVideo(game),
     engineLabel: getBlueprintGameEngineLabel(game),
     codeTypeLabel: getBlueprintGameCodeTypeLabel(game),
+    description: getBlueprintGameDescription(game),
+    codeSummary: getBlueprintGameCodeSummary(game),
+    codeEntryPath: getBlueprintGameCodeEntryPath(game),
+    codePackageUrl: getBlueprintGameCodePackageUrl(game),
     position: snapPointToGrid(point)
   }
 }
@@ -468,6 +602,10 @@ export const parseBlueprintWorkflow = (rawValue) => {
       return {
         ...node,
         gameId: String(node.gameId || ''),
+        description: String(node.description || ''),
+        codeSummary: String(node.codeSummary || ''),
+        codeEntryPath: String(node.codeEntryPath || ''),
+        codePackageUrl: String(node.codePackageUrl || ''),
         videoUrl: String(node.videoUrl || ''),
         hasVideo: Boolean(node.hasVideo || hasBlueprintGameVideo({ videoUrl: node.videoUrl })),
         position: snapPointToGrid(node.position)

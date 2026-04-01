@@ -71,7 +71,8 @@ const onDrop = (event) => {
 onMounted(() => {
   centerOnWorld()
   emit('canvas-ready', {
-    screenToWorldPoint
+    screenToWorldPoint,
+    getStageRect: () => stageRef.value?.getBoundingClientRect() || null
   })
 })
 </script>
@@ -88,7 +89,7 @@ onMounted(() => {
     @pointermove="movePan"
     @pointerup="endPan"
     @pointercancel="endPan"
-    @wheel.prevent="onWheel"
+    @wheel="onWheel"
     @dragenter.prevent="onDragEnter"
     @dragover.prevent="onDragOver"
     @dragleave.self="onDragLeave"
@@ -112,14 +113,13 @@ onMounted(() => {
     </div>
 
     <div class="bp-stage-overlay" data-no-pan>
-      <slot name="overlay">
-        <div class="bp-prompt-dock" data-no-pan>
-          <input class="bp-prompt-input" :placeholder="props.placeholder" data-no-pan />
-          <button type="button" class="bp-prompt-send" data-no-pan>
-            <i class="fa fa-paper-plane"></i>
-          </button>
-        </div>
-      </slot>
+      <slot name="overlay"></slot>
+      <div class="bp-prompt-dock" data-no-pan>
+        <input class="bp-prompt-input" :placeholder="props.placeholder" data-no-pan />
+        <button type="button" class="bp-prompt-send" data-no-pan>
+          <i class="fa fa-paper-plane"></i>
+        </button>
+      </div>
     </div>
   </section>
 </template>

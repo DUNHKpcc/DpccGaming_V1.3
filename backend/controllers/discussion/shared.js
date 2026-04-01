@@ -396,7 +396,7 @@ const createRuntimeAiSlot = (rawSlot = {}, index = 0) => ({
   id: safeText(rawSlot.id || `slot-${index + 1}`, 40) || `slot-${index + 1}`,
   enabled: Boolean(rawSlot.enabled),
   provider: rawSlot.provider === 'custom' ? 'custom' : 'builtin',
-  builtinModel: safeText(rawSlot.builtinModel || 'DouBaoSeed1.6', 120) || 'DouBaoSeed1.6',
+  builtinModel: safeText(rawSlot.builtinModel || 'DouBaoSeed', 120) || 'DouBaoSeed',
   customModel: safeText(rawSlot.customModel || '', 120),
   customEndpoint: safeText(rawSlot.customEndpoint || '', 500),
   apiKey: safeText(rawSlot.apiKey || '', 400),

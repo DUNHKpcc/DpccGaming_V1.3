@@ -1,8 +1,11 @@
-const DEFAULT_MODEL = 'doubao-seed-1-6-251015';
-const DEFAULT_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-const DEFAULT_REASONING = 'medium';
 const MAX_CODE_CONTEXT_LENGTH = 4000;
-const DEFAULT_ARK_API_KEY = '904fb2f6-8bfc-4c0b-baff-41a85380fd9e';
+const {
+  DEFAULT_ARK_API_KEY,
+  DEFAULT_ARK_ENDPOINT,
+  DEFAULT_ARK_MODEL,
+  DEFAULT_ARK_REASONING,
+  buildBuiltinModelRequestConfig
+} = require('../utils/aiProviderConfig');
 
 const ensureText = (input, fallback = '') => {
   if (typeof input === 'string') return input;
@@ -42,18 +45,52 @@ const extractAnswerText = (arkResponse) => {
     .join('\n\n');
 };
 
-const codeAssistant = async (req, res) => {
-  const arkApiKey = process.env.ARK_API_KEY || DEFAULT_ARK_API_KEY;
-  if (!arkApiKey) {
-    return res.status(400).json({ message: 'AI 服务未配置 API KEY' });
+const buildProviderMessages = (provider = 'ark', systemText = '', userText = '') => {
+  if (provider === 'ark') {
+    return [
+      {
+        role: 'system',
+        content: [
+          {
+            type: 'text',
+            text: systemText
+          }
+        ]
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: userText
+          }
+        ]
+      }
+    ];
   }
 
+  return [
+    {
+      role: 'system',
+      content: systemText
+    },
+    {
+      role: 'user',
+      content: userText
+    }
+  ];
+};
+
+const buildModelRequestConfig = (requestedModel = '') => buildBuiltinModelRequestConfig(requestedModel);
+
+const codeAssistant = async (req, res) => {
   try {
     const {
       prompt,
       selectedFile = '',
       fileContent = '',
-      files = []
+      files = [],
+      model = ''
     } = req.body || {};
 
     if (!prompt || !prompt.toString().trim()) {
@@ -62,44 +99,32 @@ const codeAssistant = async (req, res) => {
 
     const contextText = buildContextText({ prompt, selectedFile, fileContent, files });
 
+    const requestConfig = buildModelRequestConfig(model);
+    if (!requestConfig.apiKey) {
+      return res.status(400).json({ message: 'AI 服务未配置 API KEY' });
+    }
+
     const payload = {
-      model: process.env.ARK_MODEL_ID || DEFAULT_MODEL,
-      max_completion_tokens: Number(process.env.ARK_MAX_TOKENS) || 2048,
-      reasoning_effort: process.env.ARK_REASONING_LEVEL || DEFAULT_REASONING,
-      messages: [
-        {
-          role: 'system',
-          content: [
-            {
-              type: 'text',
-              text: '你是 DpccGaming 平台的代码助手。请结合提供的源码上下文，用简体中文给出清晰的分析与建议。'
-            }
-          ]
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: contextText
-            }
-          ]
-        }
-      ]
+      ...requestConfig.payload,
+      messages: buildProviderMessages(
+        requestConfig.provider,
+        '你是 DpccGaming 平台的代码助手。请结合提供的源码上下文，用简体中文给出清晰的分析与建议。',
+        contextText
+      )
     };
 
-    const response = await fetch(process.env.ARK_API_URL || DEFAULT_ENDPOINT, {
+    const response = await fetch(requestConfig.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${arkApiKey}`
+        Authorization: `Bearer ${requestConfig.apiKey}`
       },
       body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
       const errorPayload = await response.text();
-      throw new Error(errorPayload || `Ark API 请求失败，状态码 ${response.status}`);
+      throw new Error(errorPayload || `AI API 请求失败，状态码 ${response.status}`);
     }
 
     const arkResult = await response.json();
@@ -122,9 +147,9 @@ const codeAssistant = async (req, res) => {
 module.exports = {
   codeAssistant,
   ARK_CONFIG: {
-    defaultModel: DEFAULT_MODEL,
-    defaultEndpoint: DEFAULT_ENDPOINT,
-    defaultReasoning: DEFAULT_REASONING,
+    defaultModel: DEFAULT_ARK_MODEL,
+    defaultEndpoint: DEFAULT_ARK_ENDPOINT,
+    defaultReasoning: DEFAULT_ARK_REASONING,
     defaultApiKey: DEFAULT_ARK_API_KEY
   }
 };

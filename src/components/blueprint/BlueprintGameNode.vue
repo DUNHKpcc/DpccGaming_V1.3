@@ -1,13 +1,15 @@
 <script setup>
 import { computed } from 'vue'
 import BlueprintNodePorts from './BlueprintNodePorts.vue'
+import BlueprintNodeProgressPanel from './BlueprintNodeProgressPanel.vue'
 import { useBlueprintNodeInteractions } from './useBlueprintNodeInteractions.js'
 import { getGameCodeTypeIconByValue, getGameEngineIconByValue } from '../../utils/gameMetadata'
 
 const props = defineProps({
   node: { type: Object, required: true },
   selected: { type: Boolean, default: false },
-  highlighted: { type: Boolean, default: false }
+  highlighted: { type: Boolean, default: false },
+  runtime: { type: Object, default: null }
 })
 
 const emit = defineEmits(['select', 'drag-start', 'start-link', 'measure', 'unmount', 'context-menu'])
@@ -25,6 +27,12 @@ const positionStyle = computed(() => ({
 
 const engineIcon = computed(() => getGameEngineIconByValue(props.node.engineLabel))
 const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTypeLabel))
+const runtimeStatusLabel = computed(() => {
+  if (props.runtime?.status === 'running') return '执行中'
+  if (props.runtime?.status === 'completed') return '已读取'
+  if (props.runtime?.status === 'failed') return '失败'
+  return ''
+})
 
 </script>
 
@@ -34,7 +42,8 @@ const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTy
     class="bp-node-frame bp-game-node"
     :class="{
       'is-selected': props.selected,
-      'is-highlighted': props.highlighted
+      'is-highlighted': props.highlighted,
+      'is-running': props.runtime?.status === 'running'
     }"
     :style="positionStyle"
     data-no-pan
@@ -83,7 +92,14 @@ const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTy
           <span>{{ props.node.codeTypeLabel }}</span>
         </span>
       </div>
+
+      <div v-if="props.runtime" class="bp-game-node-runtime">
+        <em class="bp-game-runtime-chip">{{ runtimeStatusLabel }}</em>
+        <small v-if="props.runtime.summary">{{ props.runtime.summary }}</small>
+      </div>
     </div>
+
+    <BlueprintNodeProgressPanel :runtime="props.runtime" />
   </article>
 </template>
 
@@ -98,6 +114,29 @@ const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTy
   --bp-node-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.11);
   width: calc(238px * var(--bp-ui-scale, 1));
   color: var(--bp-text);
+  overflow: visible;
+}
+
+.bp-game-node::before {
+  content: '';
+  position: absolute;
+  inset: calc(-4px * var(--bp-ui-scale, 1));
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, rgba(46, 204, 113, 0.14), rgba(80, 220, 255, 0.96), rgba(46, 204, 113, 0.14));
+  background-size: 220% 100%;
+  transition: opacity 0.18s ease;
+}
+
+.bp-game-node.is-running::before {
+  opacity: 1;
+  animation: bp-game-node-running-marquee 1.4s linear infinite;
+}
+
+.bp-game-node.is-running {
+  box-shadow: 0 0 0 2px rgba(80, 220, 255, 0.34), 0 18px 36px rgba(43, 112, 188, 0.24);
 }
 
 .bp-game-node-cover-wrap {
@@ -175,6 +214,42 @@ const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTy
   height: calc(14px * var(--bp-ui-scale, 1));
   object-fit: contain;
   display: block;
+}
+
+.bp-game-node-runtime {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--bp-ui-scale, 1));
+}
+
+.bp-game-runtime-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0 calc(8px * var(--bp-ui-scale, 1));
+  min-height: calc(20px * var(--bp-ui-scale, 1));
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #2b63c8;
+  font-size: calc(0.64rem * var(--bp-ui-scale, 1));
+  font-style: normal;
+  font-weight: 700;
+}
+
+.bp-game-node-runtime small {
+  color: #5f5f5f;
+  font-size: calc(0.68rem * var(--bp-ui-scale, 1));
+  line-height: 1.25;
+}
+
+@keyframes bp-game-node-running-marquee {
+  0% {
+    background-position: 200% 50%;
+  }
+
+  100% {
+    background-position: -20% 50%;
+  }
 }
 
 </style>

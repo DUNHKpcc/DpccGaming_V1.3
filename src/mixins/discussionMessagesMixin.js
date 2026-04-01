@@ -397,6 +397,13 @@ export default {
       this.errorText = ''
 
       try {
+        if (this.isDraftMentioningAi) {
+          const saved = await this.flushRoomSettingsSave(this.currentChat.id)
+          if (saved === false) {
+            throw new Error(this.errorText || 'AI 设置保存失败，请稍后重试')
+          }
+        }
+
         const response = await apiCall(`/discussion/rooms/${this.currentChat.id}/messages`, {
           method: 'POST',
           body: JSON.stringify({ content: value })
@@ -423,6 +430,11 @@ export default {
       this.errorText = ''
 
       try {
+        const saved = await this.flushRoomSettingsSave(this.currentChat.id)
+        if (saved === false) {
+          throw new Error(this.errorText || 'AI 设置保存失败，请稍后重试')
+        }
+
         const response = await apiCall(`/discussion/rooms/${this.currentChat.id}/ai-message`, {
           method: 'POST',
           body: JSON.stringify({ prompt })

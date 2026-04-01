@@ -5,6 +5,10 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
 router.post('/', authenticateToken, blueprintController.createBlueprint);
+router.post('/execute', authenticateToken, blueprintController.executeBlueprintWorkflow);
+router.get('/runs', authenticateToken, blueprintController.listBlueprintRuns);
+router.get('/runs/:runId', authenticateToken, blueprintController.getBlueprintRunDetail);
+router.post('/runs/:runId/cancel', authenticateToken, blueprintController.cancelBlueprintRun);
 router.get('/:seed', authenticateToken, blueprintController.getBlueprintBySeed);
 router.put('/:seed', authenticateToken, blueprintController.saveBlueprintBySeed);
 

@@ -287,6 +287,10 @@ import {
   getGameEngineIcon,
   getGameEngineLabel
 } from '../utils/gameMetadata.js'
+import {
+  CHAT_MORE_BUILTIN_MODELS,
+  CHAT_MORE_BUILTIN_MODEL_META
+} from '../utils/discussionChatMore.js'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
 
 const route = useRoute()
@@ -306,12 +310,12 @@ const selectedFilePath = ref('')
 const userInput = ref('')
 const aiLoading = ref(false)
 const chatThreadRef = ref(null)
-const selectedModel = ref('doubao-seed-1-6-251015')
-const modelOptions = [
-  { label: 'DoubaoSeed 1.6', value: 'doubao-seed-1-6-251015', image: '/Ai/DouBaoSeed1.6.png' },
-  { label: 'DeepSeekR1', value: 'doubao-seed-1-8-20241115', image: '/Ai/DeepSeekR1.png' },
-  { label: '通用轻量模型', value: 'general-lite', image: '/Ai/DouBaoSeed1.6.png' }
-]
+const selectedModel = ref(CHAT_MORE_BUILTIN_MODELS[0] || 'DouBaoSeed')
+const modelOptions = CHAT_MORE_BUILTIN_MODELS.map((modelName) => ({
+  label: CHAT_MORE_BUILTIN_MODEL_META[modelName]?.label || modelName,
+  value: modelName,
+  image: CHAT_MORE_BUILTIN_MODEL_META[modelName]?.logo || '/Ai/DouBaoSeed1.6.png'
+}))
 const DEFAULT_ASSISTANT_AVATAR = '/Ai/DouBaoSeed1.6.png'
 const gameFrameRef = ref(null)
 let gameFrameMeasureAttempts = 0

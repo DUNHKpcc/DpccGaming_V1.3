@@ -1,14 +1,9 @@
 import { useAuthStore } from '../stores/auth'
+import { normalizeApiBase } from './apiBase.js'
 
 const envApiBase = typeof import.meta !== 'undefined' && import.meta.env
   ? import.meta.env.VITE_API_BASE_URL
   : ''
-
-const normalizeApiBase = (rawBase = '') => {
-  const value = String(rawBase || '').trim()
-  if (!value) return '/api'
-  return value.replace(/\/+$/, '')
-}
 
 export const API_BASE_URL = normalizeApiBase(envApiBase || '/api')
 
@@ -68,6 +63,8 @@ export async function apiCall(endpoint, options = {}) {
     },
   }
 
+  delete finalOptions.suppressErrorLogging
+
   if (isFormDataBody && finalOptions.headers) {
     delete finalOptions.headers['Content-Type']
     delete finalOptions.headers['content-type']
@@ -97,7 +94,9 @@ export async function apiCall(endpoint, options = {}) {
 
     return data
   } catch (error) {
-    console.error('API调用错误:', error)
+    if (!options.suppressErrorLogging) {
+      console.error('API调用错误:', error)
+    }
     throw error
   }
 }

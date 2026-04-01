@@ -3,7 +3,7 @@ const props = defineProps({
   menu: { type: Object, required: true }
 })
 
-const emit = defineEmits(['edit', 'delete'])
+const emit = defineEmits(['rerun-node', 'continue-from-node', 'edit', 'delete'])
 </script>
 
 <template>
@@ -18,6 +18,22 @@ const emit = defineEmits(['edit', 'delete'])
     @click.stop
     @contextmenu.prevent.stop
   >
+    <button
+      type="button"
+      class="bp-node-menu-btn bp-floating-menu-button"
+      @click="emit('rerun-node', props.menu.nodeId)"
+    >
+      <i class="fa fa-rotate-right"></i>
+      <span>重跑该节点</span>
+    </button>
+    <button
+      type="button"
+      class="bp-node-menu-btn bp-floating-menu-button"
+      @click="emit('continue-from-node', props.menu.nodeId)"
+    >
+      <i class="fa fa-forward-step"></i>
+      <span>从此继续运行</span>
+    </button>
     <button
       v-if="props.menu.kind !== 'game'"
       type="button"
