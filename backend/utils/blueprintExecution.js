@@ -20,14 +20,65 @@ const BLUEPRINT_NODE_EXECUTION_GUIDE = {
   output: '把上游结果整合成最终可执行的方案或最终 Prompt。'
 };
 
+const serializeBlueprintTextValue = (value = '') => {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim();
+  }
+
+  try {
+    return JSON.stringify(value, null, 2).trim();
+  } catch {
+    return String(value).trim();
+  }
+};
+
 const safeText = (value = '', maxLength = 0) => {
-  const text = String(value || '').trim();
+  const text = serializeBlueprintTextValue(value);
   if (!maxLength || text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}...`;
 };
 
+const decodeEscapedBlockText = (value = '') => {
+  const text = String(value || '');
+  if (!text.includes('\\n') && !text.includes('\\t') && !text.includes('\\"')) {
+    return text;
+  }
+
+  return text
+    .replace(/\\r/g, '\r')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"');
+};
+
+const sanitizeBlueprintPlainText = (value = '', fallback = '') => {
+  const text = decodeEscapedBlockText(value)
+    .replace(/```(?:json)?/gi, '')
+    .replace(/\r/g, '')
+    .trim();
+
+  if (!text) return String(fallback || '').trim();
+  if (/^\s*[{[]+\s*$/.test(text)) return String(fallback || '').trim();
+  if (/^\s*[}\]]+\s*$/.test(text)) return String(fallback || '').trim();
+
+  const collapsed = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^[{}\[\],]+$/.test(line))
+    .join('\n')
+    .trim();
+
+  if (!collapsed) return String(fallback || '').trim();
+  return collapsed;
+};
+
 const extractJsonObject = (raw = '') => {
-  const text = String(raw || '').trim();
+  const text = decodeEscapedBlockText(raw)
+    .replace(/```(?:json)?/gi, '')
+    .replace(/\r/g, '')
+    .trim();
   if (!text) return null;
 
   try {
@@ -62,7 +113,10 @@ const formatGameNodeOutput = (node = {}) => [
   node.codeSummary ? `代码摘要：${safeText(node.codeSummary, 320)}` : '',
   node.codeEntryPath ? `代码入口：${safeText(node.codeEntryPath, 180)}` : '',
   node.codePackageUrl ? `代码包：${safeText(node.codePackageUrl, 240)}` : '',
-  node.codeSnippet ? `代码片段：\n${safeText(node.codeSnippet, 900)}` : ''
+  node.codeSnippet ? `代码片段：\n${safeText(node.codeSnippet, 900)}` : '',
+  node.visionAnalysis?.summary ? `画面视觉理解：${safeText(node.visionAnalysis.summary, 240)}` : '',
+  node.visionAnalysis?.analysis ? `视觉推断：${safeText(node.visionAnalysis.analysis, 420)}` : '',
+  node.visionAnalysis?.output ? `视觉重点：\n${safeText(node.visionAnalysis.output, 900)}` : ''
 ].filter(Boolean).join('\n');
 
 const normalizeWorkflow = (workflow = {}) => ({
@@ -179,9 +233,18 @@ const selectBlueprintExecutionSteps = (plan = {}, options = {}) => {
 
 const createBlueprintSourceStepOutput = (node = {}) => {
   const output = formatGameNodeOutput(node);
+  const hasVisionAnalysis = Boolean(
+    String(node?.visionAnalysis?.summary || '').trim()
+    || String(node?.visionAnalysis?.analysis || '').trim()
+    || String(node?.visionAnalysis?.output || '').trim()
+  );
   return {
-    summary: `已读取《${safeText(node.title || '未命名游戏', 60)}》的基础元信息。`,
-    analysis: '该节点作为源节点提供游戏标题、类型、引擎、代码语言、简介，以及可用的封面/视频/代码摘要与代码片段信息，供后续 AI 节点继续分析。',
+    summary: hasVisionAnalysis
+      ? `已读取《${safeText(node.title || '未命名游戏', 60)}》的基础元信息，并完成关键帧视觉理解。`
+      : `已读取《${safeText(node.title || '未命名游戏', 60)}》的基础元信息。`,
+    analysis: hasVisionAnalysis
+      ? '该节点作为源节点提供游戏标题、类型、引擎、代码语言、简介，以及可用的封面/视频/代码摘要与代码片段信息；同时已基于关键帧补充画面风格、HUD/UI 与场景节奏的视觉理解，供后续 AI 节点继续分析。'
+      : '该节点作为源节点提供游戏标题、类型、引擎、代码语言、简介，以及可用的封面/视频/代码摘要与代码片段信息，供后续 AI 节点继续分析。',
     output
   };
 };
@@ -240,8 +303,10 @@ const buildBlueprintNodePrompt = ({ step, stepResults = {}, stepsById = {} }) =>
     `节点职责：${nodeGoal}`,
     visibleInput,
     '请先提炼你从上游拿到了什么，再分析当前节点应该产出什么，最后给出可供下游继续使用的结果。',
+    '所有字段都要用干净自然语言表达，不要保留 JSON 片段、字段名、代码围栏、列表前缀或多余符号。',
+    '如果当前节点会影响最终产物，请明确服务于“生成可直接玩的浏览器 H5 游戏”，避免输出停留在概念层。',
     '必须返回严格 JSON 对象，不要加 Markdown 代码块。字段只能是 summary、analysis、output。',
-    'summary 用 1 句话概括本节点完成了什么；analysis 用 2 到 4 句解释判断依据；output 输出该节点最终结论。'
+    'summary 用 1 句话概括本节点完成了什么；analysis 用 2 到 4 句解释判断依据；output 输出该节点最终结论，且 output 必须是可继续给下游消费的纯文本。'
   ].join('\n\n');
 
   return {
@@ -255,18 +320,29 @@ const normalizeBlueprintStepResult = (payload = {}, node = {}) => {
   const normalizedPayload = typeof payload === 'string'
     ? { rawReply: payload }
     : (payload || {});
-  const rawReply = String(normalizedPayload.rawReply || '');
+  const rawReply = serializeBlueprintTextValue(normalizedPayload.rawReply || '');
   const parsed = extractJsonObject(rawReply);
+  const fallbackSummary = sanitizeBlueprintPlainText(rawReply, `${safeText(node.title || '当前节点', 40)}已完成。`);
+  const fallbackOutput = sanitizeBlueprintPlainText(rawReply, safeText(node.content || '', 400));
   const summary = safeText(
-    normalizedPayload.summary || parsed?.summary || rawReply || `${safeText(node.title || '当前节点', 40)}已完成。`,
+    sanitizeBlueprintPlainText(
+      normalizedPayload.summary || parsed?.summary || fallbackSummary || `${safeText(node.title || '当前节点', 40)}已完成。`,
+      `${safeText(node.title || '当前节点', 40)}已完成。`
+    ),
     MAX_STEP_SUMMARY_LENGTH
   );
   const analysis = safeText(
-    normalizedPayload.analysis || parsed?.analysis || '模型未返回结构化分析，已使用原始回复兜底。',
+    sanitizeBlueprintPlainText(
+      normalizedPayload.analysis || parsed?.analysis || '模型未返回结构化分析，已使用原始回复兜底。',
+      '模型未返回结构化分析，已使用原始回复兜底。'
+    ),
     MAX_STEP_ANALYSIS_LENGTH
   );
   const output = safeText(
-    normalizedPayload.output || parsed?.output || rawReply || safeText(node.content || '', 400),
+    sanitizeBlueprintPlainText(
+      normalizedPayload.output || parsed?.output || fallbackOutput || safeText(node.content || '', 400),
+      safeText(node.content || '', 400)
+    ),
     MAX_STEP_OUTPUT_LENGTH
   );
   const visibleInputText = safeText(

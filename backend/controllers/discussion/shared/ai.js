@@ -191,7 +191,16 @@ const buildPromptFromAiContext = ({
   ].filter(Boolean).join('\n\n');
 };
 
-const buildProviderMessages = (provider = 'ark', systemText = '', userText = '') => {
+const buildProviderMessages = (provider = 'ark', systemText = '', userText = '', userContentItems = null) => {
+  const normalizedUserContent = Array.isArray(userContentItems) && userContentItems.length
+    ? userContentItems
+    : [
+      {
+        type: 'text',
+        text: userText
+      }
+    ];
+
   if (provider === 'ark') {
     return [
       {
@@ -205,12 +214,7 @@ const buildProviderMessages = (provider = 'ark', systemText = '', userText = '')
       },
       {
         role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: userText
-          }
-        ]
+        content: normalizedUserContent
       }
     ];
   }
@@ -222,7 +226,9 @@ const buildProviderMessages = (provider = 'ark', systemText = '', userText = '')
     },
     {
       role: 'user',
-      content: userText
+      content: Array.isArray(userContentItems) && userContentItems.length
+        ? normalizedUserContent
+        : userText
     }
   ];
 };
@@ -276,13 +282,25 @@ const fetchBuiltinAiResponse = async (requestConfig, payload, { normalizedModel 
   throw new Error(formatAiNetworkErrorMessage(normalizedModel, requestConfig.endpoint, lastError));
 };
 
-const requestBuiltinAiReply = async ({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective, builtinModel = '' }) => {
+const requestBuiltinAiReply = async ({
+  prompt,
+  gameTitle,
+  roomMessages,
+  roomSummary,
+  memoryEntries,
+  systemDirective,
+  builtinModel = '',
+  userContentItems = null
+}) => {
   const requestConfig = buildBuiltinModelRequestConfig(builtinModel);
   const apiKey = requestConfig.apiKey;
   const normalizedModel = requestConfig.normalizedModel;
   if (!apiKey) {
     if (normalizedModel === 'GLM-4.5') {
       return 'GLM-4.5 暂未配置 API KEY，当前先由系统占位回复。';
+    }
+    if (normalizedModel === 'GLM-4.6V') {
+      return 'GLM-4.6V 暂未配置 API KEY，当前先由系统占位回复。';
     }
     if (normalizedModel === 'Qwen3-CodeMax') {
       return 'Qwen3-CodeMax 暂未配置 API KEY，当前先由系统占位回复。';
@@ -302,7 +320,7 @@ const requestBuiltinAiReply = async ({ prompt, gameTitle, roomMessages, roomSumm
 
   const payload = {
     ...requestConfig.payload,
-    messages: buildProviderMessages(requestConfig.provider, systemText, userText)
+    messages: buildProviderMessages(requestConfig.provider, systemText, userText, userContentItems)
   };
 
   const response = await fetchBuiltinAiResponse(requestConfig, payload, { normalizedModel });
@@ -318,9 +336,27 @@ const requestBuiltinAiReply = async ({ prompt, gameTitle, roomMessages, roomSumm
   return parseTextMessageContent(content) || `${normalizedModel} 未返回有效文本内容。`;
 };
 
-const generateAiReply = async ({ prompt, gameTitle, roomMessages, builtinModel = '', roomSummary = null, memoryEntries = [], systemDirective = '' }) => {
+const generateAiReply = async ({
+  prompt,
+  gameTitle,
+  roomMessages,
+  builtinModel = '',
+  roomSummary = null,
+  memoryEntries = [],
+  systemDirective = '',
+  userContentItems = null
+}) => {
   const modelName = normalizeBuiltinModelName(builtinModel);
-  return requestBuiltinAiReply({ prompt, gameTitle, roomMessages, roomSummary, memoryEntries, systemDirective, builtinModel: modelName });
+  return requestBuiltinAiReply({
+    prompt,
+    gameTitle,
+    roomMessages,
+    roomSummary,
+    memoryEntries,
+    systemDirective,
+    builtinModel: modelName,
+    userContentItems
+  });
 };
 
 const buildRoomScopedAiPrompt = ({

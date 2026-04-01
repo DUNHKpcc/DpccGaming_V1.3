@@ -5,22 +5,22 @@ export const BP_WORLD_WIDTH = 4800
 export const BP_WORLD_HEIGHT = 3200
 
 export const BP_NODE_DIMENSIONS = {
-  character: { width: 214, height: 72 },
-  design: { width: 214, height: 72 },
-  economy: { width: 214, height: 72 },
+  character: { width: 264, height: 136 },
+  design: { width: 264, height: 136 },
+  economy: { width: 264, height: 136 },
   game: { width: 238, height: 212 },
-  language: { width: 214, height: 72 },
-  level: { width: 214, height: 72 },
-  mixer: { width: 214, height: 72 },
-  music: { width: 214, height: 72 },
-  narrative: { width: 214, height: 72 },
-  play: { width: 214, height: 72 },
-  progression: { width: 214, height: 72 },
-  'prompt-negative': { width: 214, height: 72 },
-  'prompt-positive': { width: 214, height: 72 },
-  output: { width: 214, height: 72 },
-  ui: { width: 214, height: 72 },
-  visual: { width: 214, height: 72 }
+  language: { width: 264, height: 136 },
+  level: { width: 264, height: 136 },
+  mixer: { width: 264, height: 136 },
+  music: { width: 264, height: 136 },
+  narrative: { width: 264, height: 136 },
+  play: { width: 264, height: 136 },
+  progression: { width: 264, height: 136 },
+  'prompt-negative': { width: 264, height: 136 },
+  'prompt-positive': { width: 264, height: 136 },
+  output: { width: 264, height: 136 },
+  ui: { width: 264, height: 136 },
+  visual: { width: 264, height: 136 }
 }
 
 export const BLUEPRINT_COMPACT_NODE_META = {
@@ -458,10 +458,14 @@ export const getBlueprintNodePortPoint = (node = {}, portType = 'output', measur
     width: Number(measuredDimensions?.width) || fallbackDimensions.width,
     height: Number(measuredDimensions?.height) || fallbackDimensions.height
   }
+  const widthScale = fallbackDimensions.width > 0
+    ? dimensions.width / fallbackDimensions.width
+    : 1
+  const portOffset = 6 * widthScale
 
   if (portType === 'left' || portType === 'input') {
     return {
-      x: node.position.x,
+      x: node.position.x - portOffset,
       y: node.position.y + dimensions.height / 2
     }
   }
@@ -469,18 +473,18 @@ export const getBlueprintNodePortPoint = (node = {}, portType = 'output', measur
   if (portType === 'top') {
     return {
       x: node.position.x + dimensions.width / 2,
-      y: node.position.y
+      y: node.position.y - portOffset
     }
   }
 
   if (portType === 'bottom') {
     return {
       x: node.position.x + dimensions.width / 2,
-      y: node.position.y + dimensions.height
+      y: node.position.y + dimensions.height + portOffset
     }
   }
 
-  const x = node.position.x + dimensions.width
+  const x = node.position.x + dimensions.width + portOffset
   const y = node.position.y + dimensions.height / 2
 
   return { x, y }

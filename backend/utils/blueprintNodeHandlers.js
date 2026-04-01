@@ -1,3 +1,5 @@
+const fs = require('node:fs/promises');
+
 const {
   createBlueprintSourceStepOutput,
   buildBlueprintNodePrompt,
@@ -20,6 +22,15 @@ const OUTPUT_FILE_CONTENT_TYPES = {
   'README.md': 'text/markdown; charset=utf-8'
 };
 
+const VISION_FRAME_LIMIT = 4;
+
+const IMAGE_MIME_BY_EXTENSION = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp'
+};
+
 const extractJsonObject = (raw = '') => {
   const text = String(raw || '').trim();
   if (!text) return null;
@@ -39,6 +50,117 @@ const extractJsonObject = (raw = '') => {
   } catch {
     return null;
   }
+};
+
+const resolveImageMimeType = (filePath = '') => {
+  const normalizedPath = String(filePath || '').trim().toLowerCase();
+  const matchedExtension = Object.keys(IMAGE_MIME_BY_EXTENSION)
+    .find((extension) => normalizedPath.endsWith(extension));
+  return matchedExtension ? IMAGE_MIME_BY_EXTENSION[matchedExtension] : 'image/jpeg';
+};
+
+const readFrameAsDataUrl = async (frame = {}) => {
+  const imagePath = String(frame?.path || '').trim();
+  if (!imagePath) return '';
+
+  const fileBuffer = await fs.readFile(imagePath);
+  return `data:${resolveImageMimeType(imagePath)};base64,${fileBuffer.toString('base64')}`;
+};
+
+const buildSourceVisionUserContentItems = async (node = {}) => {
+  const frameInputs = Array.isArray(node?.videoKeyframes)
+    ? node.videoKeyframes.slice(0, VISION_FRAME_LIMIT)
+    : [];
+
+  if (!frameInputs.length) return [];
+
+  const imageItems = [];
+
+  for (const frame of frameInputs) {
+    let imageUrl = '';
+
+    try {
+      imageUrl = await readFrameAsDataUrl(frame);
+    } catch {
+      imageUrl = '';
+    }
+
+    if (!imageUrl) {
+      const fallbackUrl = String(frame?.url || '').trim();
+      if (/^(https?:|data:)/i.test(fallbackUrl)) {
+        imageUrl = fallbackUrl;
+      }
+    }
+
+    if (!imageUrl) continue;
+
+    imageItems.push({
+      type: 'image_url',
+      image_url: {
+        url: imageUrl
+      }
+    });
+  }
+
+  if (!imageItems.length) return [];
+
+  return [
+    {
+      type: 'text',
+      text: [
+        `请分析这款游戏《${String(node?.title || '未命名游戏').trim() || '未命名游戏'}》的关键帧截图。`,
+        '你看到的是同一款游戏的多个连续画面，请综合判断，不要只描述单张图片。',
+        '必须返回严格 JSON，不要输出 Markdown 代码块。字段只能是 summary、analysis、output。',
+        'summary 用 1 句话总结画面与玩法感受；analysis 用 2 到 4 句解释你从画面中观察到的镜头、HUD/UI、场景与动作反馈；output 给出可供后续节点复用的视觉理解结论。'
+      ].join('\n')
+    },
+    ...imageItems
+  ];
+};
+
+const analyzeBlueprintSourceVision = async ({
+  node = {},
+  selectedVisionModel = '',
+  generateAiReply
+} = {}) => {
+  if (selectedVisionModel !== 'GLM-4.6V') return null;
+  if (typeof generateAiReply !== 'function') return null;
+
+  const userContentItems = await buildSourceVisionUserContentItems(node);
+  if (!userContentItems.length) return null;
+
+  const rawReply = await generateAiReply({
+    prompt: [
+      `分析游戏《${String(node?.title || '未命名游戏').trim() || '未命名游戏'}》的关键帧截图。`,
+      '请总结画面风格、镜头视角、HUD/UI 呈现、场景特征、角色或载具动作反馈。'
+    ].join('\n'),
+    gameTitle: node?.title || '',
+    roomMessages: [],
+    roomSummary: null,
+    memoryEntries: [],
+    builtinModel: selectedVisionModel,
+    systemDirective: '你是 DpccGaming BluePrint 的视觉理解节点分析器。你会读取游戏关键帧截图，并返回严格 JSON。',
+    userContentItems
+  });
+
+  const parsed = extractJsonObject(rawReply);
+  if (!parsed || typeof parsed !== 'object') {
+    return {
+      summary: '',
+      analysis: '',
+      output: String(rawReply || '').trim(),
+      rawReply
+    };
+  }
+
+  return {
+    summary: String(parsed.summary || '').trim(),
+    analysis: String(parsed.analysis || '').trim(),
+    output: typeof parsed.output === 'string'
+      ? parsed.output.trim()
+      : JSON.stringify(parsed.output || '', null, 2).trim(),
+    rawReply
+  };
 };
 
 const resolveBlueprintGameTitle = ({
@@ -173,7 +295,8 @@ const executeBlueprintOutputStep = async ({
   selectedModel = '',
   generateAiReply,
   startedAt = new Date().toISOString(),
-  maxRepairAttempts = 1
+  maxRepairAttempts = 1,
+  onProgress
 } = {}) => {
   const gameSpec = buildBlueprintGameSpec({ step, node, stepResults, stepsById });
   let attempt = 0;
@@ -181,11 +304,24 @@ const executeBlueprintOutputStep = async ({
   let previousIssues = [];
   let lastRawReply = '';
 
+  emitBlueprintStepProgress(onProgress, {
+    progress: 0.16,
+    stage: 'prepare',
+    detail: '正在整理上游规格并准备输出文件约束。'
+  });
+
   while (attempt <= maxRepairAttempts) {
     const prompt = buildBlueprintOutputPrompt({
       gameSpec,
       previousIssues,
       previousFiles
+    });
+    emitBlueprintStepProgress(onProgress, {
+      progress: 0.52,
+      stage: 'generate',
+      detail: attempt > 0
+        ? `正在根据校验结果修复文件，第 ${attempt} 次重试。`
+        : '正在请求模型生成最终输出文件。'
     });
     const rawReply = await generateAiReply({
       prompt,
@@ -198,6 +334,11 @@ const executeBlueprintOutputStep = async ({
     });
     lastRawReply = rawReply;
 
+    emitBlueprintStepProgress(onProgress, {
+      progress: 0.84,
+      stage: 'parse',
+      detail: '模型已返回，正在解析并校验输出文件。'
+    });
     const parsed = extractJsonObject(rawReply) || {};
     const files = parsed?.files && typeof parsed.files === 'object' ? parsed.files : {};
     const validation = validateBlueprintOutputBundle(files);
@@ -205,6 +346,11 @@ const executeBlueprintOutputStep = async ({
     if (validation.ok) {
       const completedAt = new Date().toISOString();
       const artifacts = buildBlueprintOutputArtifacts(files);
+      emitBlueprintStepProgress(onProgress, {
+        progress: 1,
+        stage: 'finalize',
+        detail: '输出文件已整理完成并通过合同校验。'
+      });
       const normalized = normalizeBlueprintStepResult({
         summary: '已生成可直接运行的 H5 游戏四文件。',
         analysis: `输出节点已基于上游规格生成四文件，并通过了 ${REQUIRED_BLUEPRINT_OUTPUT_FILES.length} 文件合同校验。`,
@@ -251,6 +397,11 @@ const executeBlueprintOutputStep = async ({
 
   const completedAt = new Date().toISOString();
   const errorMessage = `输出节点校验失败：${previousIssues.join('；') || '未生成有效文件。'}`;
+  emitBlueprintStepProgress(onProgress, {
+    progress: 1,
+    stage: 'finalize',
+    detail: errorMessage
+  });
   const normalized = normalizeBlueprintStepResult({
     rawReply: lastRawReply,
     input: JSON.stringify(gameSpec, null, 2),
@@ -328,7 +479,9 @@ const executeBlueprintSourceStep = async ({
   step = {},
   node = {},
   startedAt = new Date().toISOString(),
-  onProgress
+  onProgress,
+  selectedVisionModel = 'DouBaoSeed',
+  generateAiReply
 } = {}) => {
   try {
     emitBlueprintStepProgress(onProgress, {
@@ -353,7 +506,26 @@ const executeBlueprintSourceStep = async ({
         : (node.videoKeyframeNote || '当前没有可用视频关键帧，已跳过该阶段。')
     });
 
-    const sourceOutput = createBlueprintSourceStepOutput(node);
+    let visionAnalysis = null;
+
+    if (Array.isArray(node.videoKeyframes) && node.videoKeyframes.length && selectedVisionModel === 'GLM-4.6V') {
+      emitBlueprintStepProgress(onProgress, {
+        progress: 0.9,
+        stage: 'vision',
+        detail: `正在使用 ${selectedVisionModel} 分析关键帧画面。`
+      });
+
+      visionAnalysis = await analyzeBlueprintSourceVision({
+        node,
+        selectedVisionModel,
+        generateAiReply
+      });
+    }
+
+    const sourceOutput = createBlueprintSourceStepOutput({
+      ...node,
+      visionAnalysis
+    });
     const visibleInputText = sourceOutput.output;
     const completedAt = new Date().toISOString();
     emitBlueprintStepProgress(onProgress, {
@@ -385,6 +557,8 @@ const executeBlueprintSourceStep = async ({
         output: sourceOutput.output,
         input: visibleInputText,
         visibleInputText,
+        visionModel: selectedVisionModel,
+        visionAnalysis,
         videoKeyframes: Array.isArray(node.videoKeyframes) ? node.videoKeyframes : [],
         videoKeyframeNote: String(node.videoKeyframeNote || '')
       }
@@ -393,7 +567,7 @@ const executeBlueprintSourceStep = async ({
     return buildBlueprintStepRuntime({
       step,
       normalized,
-      model: 'source',
+      model: selectedVisionModel,
       status: 'completed',
       startedAt,
       completedAt,
@@ -417,7 +591,7 @@ const executeBlueprintSourceStep = async ({
     return buildBlueprintStepRuntime({
       step,
       normalized,
-      model: 'source',
+      model: selectedVisionModel,
       status: 'failed',
       startedAt,
       completedAt,

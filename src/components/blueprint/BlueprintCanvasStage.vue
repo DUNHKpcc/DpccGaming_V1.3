@@ -5,10 +5,15 @@ import { BP_GAME_DRAG_MIME, parseBlueprintGameDragData } from '../../utils/bluep
 
 const props = defineProps({
   placeholder: { type: String, default: '描述您的创意...' },
-  showEmptyState: { type: Boolean, default: true }
+  promptValue: { type: String, default: '' },
+  promptDisabled: { type: Boolean, default: false },
+  planning: { type: Boolean, default: false },
+  planningLabel: { type: String, default: 'AI 正在规划工作流...' },
+  showEmptyState: { type: Boolean, default: true },
+  busy: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['drop-game', 'canvas-ready'])
+const emit = defineEmits(['drop-game', 'canvas-ready', 'submit-prompt', 'update:prompt'])
 const isGameDragOver = ref(false)
 
 const {
@@ -20,6 +25,7 @@ const {
   movePan,
   endPan,
   centerOnWorld,
+  focusWorldBounds,
   onWheel,
   screenToWorldPoint
 } = useInfiniteCanvas()
@@ -68,11 +74,20 @@ const onDrop = (event) => {
   })
 }
 
+const updatePromptValue = (event) => {
+  emit('update:prompt', event?.target?.value || '')
+}
+
+const submitPrompt = () => {
+  emit('submit-prompt')
+}
+
 onMounted(() => {
   centerOnWorld()
   emit('canvas-ready', {
     screenToWorldPoint,
-    getStageRect: () => stageRef.value?.getBoundingClientRect() || null
+    getStageRect: () => stageRef.value?.getBoundingClientRect() || null,
+    focusWorldBounds
   })
 })
 </script>
@@ -99,12 +114,15 @@ onMounted(() => {
 
     <div v-if="props.showEmptyState" class="bp-stage-empty-state">
       <div class="bp-empty-state">
-        <div class="bp-empty-brand">
-          <img class="bp-empty-brand-mark" src="/logo_light.png" alt="BluePrint" />
-          <span>BluePrint</span>
+        <div class="bp-empty-state-hero">
+          <div class="bp-empty-brand">
+            <img class="bp-empty-brand-mark" src="/logo_light.png" alt="BluePrint" />
+            <span>BluePrint</span>
+          </div>
+          <h1>独创游戏生成工作流</h1>
+          <p>拖拽移动节点，滚轮缩放视图。每一个节点都是一次创意的进发。</p>
+          <span class="bp-empty-tip">从左侧拖入一个游戏节点，或在侧边栏输入种子继续已有蓝图。</span>
         </div>
-        <h1>独创游戏生成工作流</h1>
-        <p>拖拽移动节点，滚轮缩放视图。每一个节点都是一次创意的进发。</p>
       </div>
     </div>
 
@@ -114,12 +132,28 @@ onMounted(() => {
 
     <div class="bp-stage-overlay" data-no-pan>
       <slot name="overlay"></slot>
-      <div class="bp-prompt-dock" data-no-pan>
-        <input class="bp-prompt-input" :placeholder="props.placeholder" data-no-pan />
-        <button type="button" class="bp-prompt-send" data-no-pan>
+      <div v-if="props.planning" class="bp-prompt-planning" data-no-pan aria-live="polite">
+        <div class="bp-prompt-planning-copy">
+          <strong>AI 正在规划工作流</strong>
+          <span>{{ props.planningLabel }}</span>
+        </div>
+        <div class="bp-prompt-planning-track" aria-hidden="true">
+          <span></span>
+        </div>
+      </div>
+      <form class="bp-prompt-dock" data-no-pan @submit.prevent="submitPrompt">
+        <input
+          class="bp-prompt-input"
+          :value="props.promptValue"
+          :placeholder="props.placeholder"
+          :disabled="props.promptDisabled"
+          data-no-pan
+          @input="updatePromptValue"
+        />
+        <button type="submit" class="bp-prompt-send" :disabled="props.promptDisabled" data-no-pan>
           <i class="fa fa-paper-plane"></i>
         </button>
-      </div>
+      </form>
     </div>
   </section>
 </template>
@@ -166,6 +200,7 @@ onMounted(() => {
   z-index: 1;
   display: grid;
   place-items: center;
+  padding: calc(28px * var(--bp-ui-scale)) calc(28px * var(--bp-ui-scale)) calc(120px * var(--bp-ui-scale));
   pointer-events: none;
 }
 
@@ -184,9 +219,13 @@ onMounted(() => {
 
 .bp-empty-state {
   position: relative;
-  width: clamp(calc(240px * var(--bp-ui-scale)), 31vw, calc(290px * var(--bp-ui-scale)));
+  width: min(calc(460px * var(--bp-ui-scale)), calc(100% - calc(56px * var(--bp-ui-scale))));
   color: var(--bp-text);
+}
+
+.bp-empty-state-hero {
   text-align: center;
+  pointer-events: none;
 }
 
 .bp-empty-brand {
@@ -221,11 +260,19 @@ onMounted(() => {
 }
 
 .bp-empty-state p {
-  width: min(172px, 100%);
+  width: min(220px, 100%);
   margin: 0 auto;
   color: var(--bp-muted);
   font-size: clamp(calc(0.78rem * var(--bp-ui-scale)), calc(0.73rem * var(--bp-ui-scale)) + 0.2vw, calc(0.83rem * var(--bp-ui-scale)));
   line-height: 1.6;
+}
+
+.bp-empty-tip {
+  display: inline-flex;
+  margin-top: calc(14px * var(--bp-ui-scale));
+  color: #7a746a;
+  font-size: calc(0.72rem * var(--bp-ui-scale));
+  line-height: 1.5;
 }
 
 .bp-prompt-dock {
@@ -240,6 +287,66 @@ onMounted(() => {
   max-width: calc(100% - calc(40px * var(--bp-ui-scale)));
   transform: translateX(-50%);
   pointer-events: auto;
+}
+
+.bp-prompt-planning {
+  position: absolute;
+  left: 50%;
+  bottom: calc(clamp(calc(28px * var(--bp-ui-scale)), 6.6vh, calc(64px * var(--bp-ui-scale))) + calc(56px * var(--bp-ui-scale)));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--bp-ui-scale));
+  width: clamp(calc(320px * var(--bp-ui-scale)), 46%, calc(440px * var(--bp-ui-scale)));
+  max-width: calc(100% - calc(52px * var(--bp-ui-scale)));
+  padding: calc(12px * var(--bp-ui-scale)) calc(14px * var(--bp-ui-scale));
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: calc(12px * var(--bp-ui-scale));
+  background: rgba(255, 252, 246, 0.96);
+  box-shadow: 0 16px 34px rgba(32, 24, 11, 0.12);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.bp-prompt-planning-copy {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--bp-ui-scale));
+}
+
+.bp-prompt-planning-copy strong {
+  color: #171513;
+  font-size: clamp(calc(0.8rem * var(--bp-ui-scale)), calc(0.76rem * var(--bp-ui-scale)) + 0.12vw, calc(0.86rem * var(--bp-ui-scale)));
+  font-weight: 700;
+}
+
+.bp-prompt-planning-copy span {
+  color: #6f685e;
+  font-size: clamp(calc(0.72rem * var(--bp-ui-scale)), calc(0.7rem * var(--bp-ui-scale)) + 0.08vw, calc(0.76rem * var(--bp-ui-scale)));
+  line-height: 1.5;
+}
+
+.bp-prompt-planning-track {
+  position: relative;
+  width: 100%;
+  height: calc(6px * var(--bp-ui-scale));
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(190, 180, 163, 0.32);
+}
+
+.bp-prompt-planning-track span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(188, 137, 21, 0.24), #c88e11, rgba(238, 185, 66, 0.72));
+  animation: bp-planning-marquee 1.2s ease-in-out infinite;
+}
+
+.bp-prompt-dock button:disabled,
+.bp-prompt-dock input:disabled {
+  cursor: not-allowed;
 }
 
 .bp-prompt-input {
@@ -276,11 +383,28 @@ onMounted(() => {
 
 @media (max-width: 1200px) {
   .bp-empty-state {
-    width: clamp(calc(228px * var(--bp-ui-scale)), 33vw, calc(260px * var(--bp-ui-scale)));
+    grid-template-columns: 1fr;
+    width: min(calc(540px * var(--bp-ui-scale)), calc(100% - calc(24px * var(--bp-ui-scale))));
   }
 
   .bp-prompt-dock {
     max-width: calc(100% - calc(28px * var(--bp-ui-scale)));
+  }
+
+  .bp-prompt-planning {
+    max-width: calc(100% - calc(28px * var(--bp-ui-scale)));
+  }
+}
+
+@keyframes bp-planning-marquee {
+  0% {
+    transform: translateX(-15%);
+  }
+  50% {
+    transform: translateX(120%);
+  }
+  100% {
+    transform: translateX(245%);
   }
 }
 </style>

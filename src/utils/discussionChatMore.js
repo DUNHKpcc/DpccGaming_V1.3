@@ -1,4 +1,4 @@
-import { compressImageToWebpDataUrl } from './image'
+import { compressImageToWebpDataUrl } from './image.js'
 export { isPullAiConnectionField } from './discussionAiSlotFields.js'
 
 export const CHAT_MORE_DIRECT_MENU_ITEMS = [
@@ -67,6 +67,14 @@ export const CHAT_MORE_BUILTIN_MODEL_META = {
   },
   'GLM-4.5': {
     label: 'GLM-4.5',
+    logo: '/Ai/GLM5.png'
+  },
+  'GLM-4.6V': {
+    label: 'GLM-4.6V',
+    logo: '/Ai/GLM5.png'
+  },
+  'GLM4.6V': {
+    label: 'GLM-4.6V',
     logo: '/Ai/GLM5.png'
   },
   'Qwen3-CodeMax': {

@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import BlueprintNodePorts from './BlueprintNodePorts.vue'
 import BlueprintNodeProgressPanel from './BlueprintNodeProgressPanel.vue'
+import BlueprintNodeAiBadge from './BlueprintNodeAiBadge.vue'
 import { useBlueprintNodeInteractions } from './useBlueprintNodeInteractions.js'
 import { getGameCodeTypeIconByValue } from '../../utils/gameMetadata'
+import { normalizeBlueprintRuntimeText } from '../../utils/blueprintRuntime.js'
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -36,14 +38,26 @@ const languageIcon = computed(() => {
 })
 
 const runtimeStatusLabel = computed(() => {
-  if (props.runtime?.status === 'running') return '执行中'
+  if (props.runtime?.status === 'running') return 'AI 思考中'
   if (props.runtime?.status === 'failed') return '失败'
   if (props.runtime?.status === 'completed') return '已完成'
   return ''
 })
 
+const runtimeProgressCopy = computed(() =>
+  String(
+    props.runtime?.progressDetail
+    || props.runtime?.summary
+    || ''
+  ).trim()
+)
+
 const runtimePreview = computed(() =>
   {
+    if (props.runtime?.status === 'running') {
+      return runtimeProgressCopy.value || '正在分析当前节点输入与上下文'
+    }
+
     if (props.runtime?.artifactType === 'file-bundle') {
       const fileCount = Object.keys(props.runtime?.artifactJson?.files || {}).length
       if (fileCount) {
@@ -51,13 +65,13 @@ const runtimePreview = computed(() =>
       }
     }
 
-    return String(
+    return normalizeBlueprintRuntimeText(
       props.runtime?.output
       || props.runtime?.summary
       || props.node.content
       || props.node.subtitle
       || ''
-    ).trim()
+    )
   }
 )
 </script>
@@ -81,6 +95,7 @@ const runtimePreview = computed(() =>
       :node-id="props.node.id"
       @start-link="onPortPointerDown"
     />
+    <BlueprintNodeAiBadge :runtime="props.runtime" />
 
     <span class="bp-compact-node-icon" :class="{ 'has-logo': Boolean(languageIcon) }" aria-hidden="true">
       <img v-if="languageIcon" :src="languageIcon" alt="" />
@@ -88,7 +103,9 @@ const runtimePreview = computed(() =>
     </span>
     <div class="bp-compact-node-copy" data-no-pan>
       <strong>{{ props.node.title }}</strong>
-      <span>{{ runtimePreview }}</span>
+      <div class="bp-compact-node-preview">
+        <span>{{ runtimePreview }}</span>
+      </div>
       <div v-if="props.runtime" class="bp-compact-node-runtime">
         <em
           class="bp-compact-runtime-chip"
@@ -100,7 +117,8 @@ const runtimePreview = computed(() =>
         >
           {{ runtimeStatusLabel }}
         </em>
-        <small v-if="props.runtime.summary">{{ props.runtime.summary }}</small>
+        <small v-if="props.runtime.status === 'running' && runtimeProgressCopy">{{ runtimeProgressCopy }}</small>
+        <small v-else-if="props.runtime.summary">{{ props.runtime.summary }}</small>
         <small v-if="props.runtime.analysis">{{ props.runtime.analysis }}</small>
       </div>
     </div>
@@ -119,10 +137,11 @@ const runtimePreview = computed(() =>
   --bp-node-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
   --bp-node-shadow-hover: 0 14px 28px rgba(0, 0, 0, 0.11);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: calc(12px * var(--bp-ui-scale, 1));
-  width: calc(214px * var(--bp-ui-scale, 1));
-  min-height: calc(72px * var(--bp-ui-scale, 1));
+  width: calc(264px * var(--bp-ui-scale, 1));
+  min-height: calc(112px * var(--bp-ui-scale, 1));
+  max-height: calc(176px * var(--bp-ui-scale, 1));
   padding: calc(12px * var(--bp-ui-scale, 1)) calc(14px * var(--bp-ui-scale, 1));
   box-sizing: border-box;
   color: var(--bp-text);
@@ -179,6 +198,10 @@ const runtimePreview = computed(() =>
 
 .bp-compact-node-copy {
   min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .bp-compact-node-copy strong {
@@ -189,12 +212,20 @@ const runtimePreview = computed(() =>
   line-height: 1.25;
 }
 
-.bp-compact-node-copy span {
-  display: block;
+.bp-compact-node-preview {
   margin-top: calc(4px * var(--bp-ui-scale, 1));
+  max-height: calc(56px * var(--bp-ui-scale, 1));
+  overflow: auto;
+  padding-right: calc(4px * var(--bp-ui-scale, 1));
+}
+
+.bp-compact-node-preview span {
+  display: block;
   color: #727272;
   font-size: calc(0.72rem * var(--bp-ui-scale, 1));
-  line-height: 1.2;
+  line-height: 1.28;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .bp-compact-node-runtime {
@@ -202,6 +233,11 @@ const runtimePreview = computed(() =>
   flex-direction: column;
   gap: calc(4px * var(--bp-ui-scale, 1));
   margin-top: calc(8px * var(--bp-ui-scale, 1));
+  padding: calc(8px * var(--bp-ui-scale, 1));
+  border-radius: calc(10px * var(--bp-ui-scale, 1));
+  background: rgba(243, 247, 255, 0.92);
+  max-height: calc(68px * var(--bp-ui-scale, 1));
+  overflow: auto;
 }
 
 .bp-compact-runtime-chip {
@@ -219,8 +255,8 @@ const runtimePreview = computed(() =>
 }
 
 .bp-compact-runtime-chip.is-running {
-  background: #edf3ff;
-  color: #2b63c8;
+  background: #dfeaff;
+  color: #184ea8;
 }
 
 .bp-compact-runtime-chip.is-done {
@@ -238,6 +274,17 @@ const runtimePreview = computed(() =>
   color: #636363;
   font-size: calc(0.67rem * var(--bp-ui-scale, 1));
   line-height: 1.25;
+}
+
+.bp-compact-node-preview::-webkit-scrollbar,
+.bp-compact-node-runtime::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bp-compact-node-preview::-webkit-scrollbar-thumb,
+.bp-compact-node-runtime::-webkit-scrollbar-thumb {
+  background: rgba(17, 17, 17, 0.16);
+  border-radius: 999px;
 }
 
 @keyframes bp-node-running-marquee {

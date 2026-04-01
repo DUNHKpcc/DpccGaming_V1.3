@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import BlueprintNodePorts from './BlueprintNodePorts.vue'
 import BlueprintNodeProgressPanel from './BlueprintNodeProgressPanel.vue'
+import BlueprintNodeAiBadge from './BlueprintNodeAiBadge.vue'
 import { useBlueprintNodeInteractions } from './useBlueprintNodeInteractions.js'
 import { getGameCodeTypeIconByValue, getGameEngineIconByValue } from '../../utils/gameMetadata'
 
@@ -28,11 +29,19 @@ const positionStyle = computed(() => ({
 const engineIcon = computed(() => getGameEngineIconByValue(props.node.engineLabel))
 const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTypeLabel))
 const runtimeStatusLabel = computed(() => {
-  if (props.runtime?.status === 'running') return '执行中'
+  if (props.runtime?.status === 'running') return 'AI 思考中'
   if (props.runtime?.status === 'completed') return '已读取'
   if (props.runtime?.status === 'failed') return '失败'
   return ''
 })
+
+const runtimeProgressCopy = computed(() =>
+  String(
+    props.runtime?.progressDetail
+    || props.runtime?.summary
+    || ''
+  ).trim()
+)
 
 </script>
 
@@ -55,6 +64,7 @@ const runtimeStatusLabel = computed(() => {
       :node-id="props.node.id"
       @start-link="onPortPointerDown"
     />
+    <BlueprintNodeAiBadge :runtime="props.runtime" />
 
     <div class="bp-game-node-cover-wrap" data-no-pan>
       <video
@@ -94,8 +104,14 @@ const runtimeStatusLabel = computed(() => {
       </div>
 
       <div v-if="props.runtime" class="bp-game-node-runtime">
-        <em class="bp-game-runtime-chip">{{ runtimeStatusLabel }}</em>
-        <small v-if="props.runtime.summary">{{ props.runtime.summary }}</small>
+        <em
+          class="bp-game-runtime-chip"
+          :class="{ 'is-running': props.runtime.status === 'running' }"
+        >
+          {{ runtimeStatusLabel }}
+        </em>
+        <small v-if="props.runtime.status === 'running' && runtimeProgressCopy">{{ runtimeProgressCopy }}</small>
+        <small v-else-if="props.runtime.summary">{{ props.runtime.summary }}</small>
       </div>
     </div>
 
@@ -220,6 +236,9 @@ const runtimeStatusLabel = computed(() => {
   display: flex;
   flex-direction: column;
   gap: calc(4px * var(--bp-ui-scale, 1));
+  padding: calc(8px * var(--bp-ui-scale, 1));
+  border-radius: calc(10px * var(--bp-ui-scale, 1));
+  background: rgba(243, 247, 255, 0.92);
 }
 
 .bp-game-runtime-chip {
@@ -234,6 +253,11 @@ const runtimeStatusLabel = computed(() => {
   font-size: calc(0.64rem * var(--bp-ui-scale, 1));
   font-style: normal;
   font-weight: 700;
+}
+
+.bp-game-runtime-chip.is-running {
+  background: #dfeaff;
+  color: #184ea8;
 }
 
 .bp-game-node-runtime small {

@@ -1,0 +1,24 @@
+.bp-world-layer {
+  position: relative;
+  width: 4800px;
+  height: 3200px;
+}
+
+.bp-edge-layer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bp-edge-path {
+  fill: none;
+  stroke: rgba(96, 96, 96, 0.84);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.bp-edge-path-preview {
+  stroke: rgba(146, 146, 146, 0.94);
+  stroke-dasharray: 10 8;
+}

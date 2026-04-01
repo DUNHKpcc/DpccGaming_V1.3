@@ -35,6 +35,32 @@ export const useInfiniteCanvas = () => {
     }
   }
 
+  const focusWorldBounds = (
+    bounds = {},
+    {
+      padding = 160,
+      minScale = 0.55,
+      maxScale = 1.15
+    } = {}
+  ) => {
+    const rect = stageRef.value?.getBoundingClientRect()
+    if (!rect) return
+
+    const width = Math.max(1, Number(bounds?.width) || (Number(bounds?.maxX) || 0) - (Number(bounds?.minX) || 0))
+    const height = Math.max(1, Number(bounds?.height) || (Number(bounds?.maxY) || 0) - (Number(bounds?.minY) || 0))
+    const centerX = (Number(bounds?.minX) || 0) + width / 2
+    const centerY = (Number(bounds?.minY) || 0) + height / 2
+    const usableWidth = Math.max(1, rect.width - padding * 2)
+    const usableHeight = Math.max(1, rect.height - padding * 2)
+    const fittedScale = clamp(Math.min(usableWidth / width, usableHeight / height), minScale, maxScale)
+
+    scale.value = fittedScale
+    offset.value = {
+      x: rect.width / 2 - centerX * fittedScale,
+      y: rect.height / 2 - centerY * fittedScale
+    }
+  }
+
   const screenToWorldPoint = ({ x = 0, y = 0 } = {}) => {
     const rect = stageRef.value?.getBoundingClientRect()
     if (!rect) return { x: 0, y: 0 }
@@ -119,6 +145,7 @@ export const useInfiniteCanvas = () => {
     movePan,
     endPan,
     centerOnWorld,
+    focusWorldBounds,
     onWheel,
     screenToWorldPoint
   }

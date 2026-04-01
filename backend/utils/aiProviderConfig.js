@@ -6,6 +6,7 @@ const DEFAULT_ARK_API_KEY = '904fb2f6-8bfc-4c0b-baff-41a85380fd9e';
 const DEFAULT_GLM_ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const DEFAULT_GLM_API_KEY = '4c41d21037774fe388212b7e705ec6ff.hVqyHfZKejOrzu7Q';
 const DEFAULT_GLM_MODEL = 'glm-4.5';
+const DEFAULT_GLM_VISION_MODEL = 'glm-4.6v';
 
 const DEFAULT_QWEN_CODEMAX_ENDPOINT = 'https://coding.dashscope.aliyuncs.com/v1/chat/completions';
 const DEFAULT_QWEN_CODEMAX_API_KEY = 'sk-sp-9a16d7d7aa4740b7aeffccaeb07a80ce';
@@ -20,6 +21,7 @@ const normalizeBuiltinModelName = (value = '') => {
   if (!normalized) return DEFAULT_BUILTIN_MODEL;
   if (lower === 'doubaoseed1.6' || lower === 'doubaoseed') return 'DouBaoSeed';
   if (lower === 'glm-4.5' || lower === 'glm4.5' || lower === 'glm') return 'GLM-4.5';
+  if (lower === 'glm4.6v' || lower === 'glm-4.6v') return 'GLM-4.6V';
   if (lower === 'gemini 3.0 pro' || lower === 'gemini') return 'Gemini 3.0 Pro';
   if (lower === 'qwen3-codemax' || lower === 'qwencodemax') return 'Qwen3-CodeMax';
   if (lower === 'gpt-5.4') return 'GPT-5.4';
@@ -43,6 +45,19 @@ const buildBuiltinModelRequestConfig = (requestedModel = '') => {
         thinking: {
           type: 'enabled'
         }
+      }
+    };
+  }
+
+  if (normalizedModel === 'GLM-4.6V') {
+    return {
+      normalizedModel,
+      provider: 'glm',
+      endpoint: process.env.GLM_BASE_URL || DEFAULT_GLM_ENDPOINT,
+      apiKey: process.env.GLM_API_KEY || DEFAULT_GLM_API_KEY,
+      payload: {
+        model: process.env.GLM_VISION_MODEL || DEFAULT_GLM_VISION_MODEL,
+        temperature: 0.2
       }
     };
   }
@@ -79,6 +94,7 @@ module.exports = {
   DEFAULT_ARK_ENDPOINT,
   DEFAULT_ARK_REASONING,
   DEFAULT_ARK_API_KEY,
+  DEFAULT_GLM_VISION_MODEL,
   buildBuiltinModelRequestConfig,
   normalizeBuiltinModelName
 };

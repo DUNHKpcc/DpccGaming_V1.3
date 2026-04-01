@@ -4,41 +4,50 @@ import { categoryToZh } from '../../utils/category'
 import { getGameCodeTypeIcon, getGameEngineIcon } from '../../utils/gameMetadata'
 import { getGameCoverUrl, getGameVideoUrl, hasPlayableVideo } from '../../utils/gameLibraryPresentation'
 import { BP_GAME_DRAG_MIME, serializeBlueprintGameDragData } from '../../utils/blueprintNodes.js'
+import {
+  clampBlueprintSidebarPage,
+  findBlueprintSidebarPageBySeed,
+  getBlueprintSidebarPageItems,
+  getBlueprintSidebarMaxPage
+} from '../../utils/blueprintSidebar.js'
 
 const props = defineProps({
   games: { type: Array, default: () => [] },
   maxVisibleGames: { type: Number, default: 2 },
   maxVisibleModels: { type: Number, default: 4 },
-  seed: { type: String, default: '' },
-  ownership: { type: String, default: 'draft' },
+  maxVisibleRecentBlueprints: { type: Number, default: 2 },
   logs: { type: Array, default: () => [] },
   modelOptions: { type: Array, default: () => [] },
   selectedModel: { type: String, default: '' },
+  visionModelOptions: { type: Array, default: () => [] },
+  selectedVisionModel: { type: String, default: '' },
+  seed: { type: String, default: '' },
+  recentBlueprints: { type: Array, default: () => [] },
+  recentBlueprintsLoading: { type: Boolean, default: false },
+  recentBlueprintsError: { type: String, default: '' },
   collapsed: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   activeGameId: { type: [String, Number], default: '' },
-  busy: { type: Boolean, default: false },
-  canGenerateSeed: { type: Boolean, default: false },
-  canSaveWorkflow: { type: Boolean, default: false },
-  canCopySeed: { type: Boolean, default: false }
+  busy: { type: Boolean, default: false }
 })
 
 const emit = defineEmits([
   'toggle',
+  'create-blueprint',
   'select-game',
   'export-workflow',
   'import-workflow',
   'clear-workflow',
-  'generate-seed',
-  'save-workflow',
-  'copy-seed',
+  'select-model',
+  'select-vision-model',
   'import-seed',
-  'select-model'
+  'save-seed'
 ])
 const libraryPage = ref(0)
 const modelPage = ref(0)
+const recentBlueprintPage = ref(0)
+const seedInput = ref('')
 const importInputRef = ref(null)
-const seedImportValue = ref('')
 let activeDragPreview = null
 
 const libraryGames = computed(() =>
@@ -74,8 +83,20 @@ const visibleModelOptions = computed(() => {
 })
 const canModelPageBackward = computed(() => modelPage.value > 0)
 const canModelPageForward = computed(() => modelPage.value < maxModelPage.value)
+const maxRecentBlueprintPage = computed(() =>
+  getBlueprintSidebarMaxPage(props.recentBlueprints, props.maxVisibleRecentBlueprints)
+)
+const visibleRecentBlueprints = computed(() =>
+  getBlueprintSidebarPageItems(props.recentBlueprints, recentBlueprintPage.value, props.maxVisibleRecentBlueprints)
+)
+const canRecentBlueprintPageBackward = computed(() => recentBlueprintPage.value > 0)
+const canRecentBlueprintPageForward = computed(() => recentBlueprintPage.value < maxRecentBlueprintPage.value)
+const hasSeedInput = computed(() => Boolean(String(seedInput.value || '').trim()))
 const loadingPlaceholders = computed(() =>
   Array.from({ length: props.maxVisibleGames }, (_, index) => index)
+)
+const recentBlueprintPlaceholders = computed(() =>
+  Array.from({ length: props.maxVisibleRecentBlueprints }, (_, index) => index)
 )
 
 const moveLibraryPage = (direction) => {
@@ -86,6 +107,15 @@ const moveLibraryPage = (direction) => {
 const moveModelPage = (direction) => {
   const nextPage = modelPage.value + direction
   modelPage.value = Math.min(maxModelPage.value, Math.max(0, nextPage))
+}
+
+const moveRecentBlueprintPage = (direction) => {
+  const nextPage = recentBlueprintPage.value + direction
+  recentBlueprintPage.value = clampBlueprintSidebarPage(
+    nextPage,
+    props.recentBlueprints,
+    props.maxVisibleRecentBlueprints
+  )
 }
 
 const removeDragPreview = () => {
@@ -213,30 +243,22 @@ const endGameDrag = () => {
   window.setTimeout(removeDragPreview, 0)
 }
 
-const seedStateLabel = computed(() => {
-  if (props.ownership === 'source') return '原始版本'
-  if (props.ownership === 'copy') return '副本版本'
-  return '未绑定种子'
-})
-
-const seedHint = computed(() => {
-  if (!props.seed && !props.canGenerateSeed) {
-    return '先创建至少一个节点后再生成种子'
-  }
-
-  if (!props.seed) {
-    return '生成种子后即可保存并分享给其他用户'
-  }
-
-  if (props.ownership === 'source') {
-    return '其他用户导入该种子时，会从你的原始版本创建副本'
-  }
-
-  return '当前是该种子的个人副本，保存时不会覆盖原始作者版本'
-})
-
 const openImportPicker = () => {
   importInputRef.value?.click()
+}
+
+const emitSeedImport = () => {
+  const normalizedSeed = String(seedInput.value || '').trim().toUpperCase()
+  if (!normalizedSeed) return
+  emit('import-seed', normalizedSeed)
+}
+
+const emitSeedSave = () => {
+  emit('save-seed')
+}
+
+const emitCreateBlueprint = () => {
+  emit('create-blueprint')
 }
 
 const onImportFileChange = async (event) => {
@@ -249,14 +271,6 @@ const onImportFileChange = async (event) => {
   emit('import-workflow', rawValue)
 }
 
-const submitSeedImport = () => {
-  const normalizedSeed = String(seedImportValue.value || '').trim().toUpperCase()
-  if (!normalizedSeed) return
-
-  seedImportValue.value = ''
-  emit('import-seed', normalizedSeed)
-}
-
 watch(maxPage, (value) => {
   if (libraryPage.value > value) {
     libraryPage.value = value
@@ -266,6 +280,12 @@ watch(maxPage, (value) => {
 watch(maxModelPage, (value) => {
   if (modelPage.value > value) {
     modelPage.value = value
+  }
+})
+
+watch(maxRecentBlueprintPage, (value) => {
+  if (recentBlueprintPage.value > value) {
+    recentBlueprintPage.value = value
   }
 })
 
@@ -286,6 +306,35 @@ watch(
     if (targetIndex < 0) return
 
     modelPage.value = Math.floor(targetIndex / props.maxVisibleModels)
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.seed,
+  (seedValue) => {
+    seedInput.value = String(seedValue || '')
+
+    const targetPage = findBlueprintSidebarPageBySeed(
+      props.recentBlueprints,
+      seedValue,
+      props.maxVisibleRecentBlueprints
+    )
+    if (targetPage >= 0) {
+      recentBlueprintPage.value = targetPage
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.recentBlueprints,
+  (items) => {
+    recentBlueprintPage.value = clampBlueprintSidebarPage(
+      recentBlueprintPage.value,
+      items,
+      props.maxVisibleRecentBlueprints
+    )
   },
   { immediate: true }
 )
@@ -338,7 +387,7 @@ watch(
           </button>
         </div>
       </div>
-      <div class="bp-model-grid">
+      <div class="bp-model-grid bp-model-grid-fixed">
         <button
           v-for="model in visibleModelOptions"
           :key="model.value"
@@ -350,6 +399,22 @@ watch(
           <img v-if="model.logoSrc" class="bp-model-logo" :src="model.logoSrc" :alt="model.logoAlt || model.name" />
           <span>{{ model.label || model.name }}</span>
         </button>
+      </div>
+      <div class="bp-vision-section">
+        <h4>视觉理解模型</h4>
+        <div class="bp-model-grid">
+          <button
+            v-for="model in props.visionModelOptions"
+            :key="model.value"
+            type="button"
+            class="bp-model-pill bp-control-surface bp-control-button bp-control-button-hover-lift"
+            :class="{ 'is-active': props.selectedVisionModel === model.value }"
+            @click="emit('select-vision-model', model.value)"
+          >
+            <img v-if="model.logoSrc" class="bp-model-logo" :src="model.logoSrc" :alt="model.logoAlt || model.name" />
+            <span>{{ model.label || model.name }}</span>
+          </button>
+        </div>
       </div>
       <button type="button" class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift">
         导入自己的模型
@@ -431,58 +496,120 @@ watch(
       </div>
     </section>
 
-    <section v-if="!props.collapsed" class="bp-sidebar-section">
-      <h3>种子</h3>
-      <div class="bp-seed-box" :class="{ 'is-empty': !props.seed }">
-        {{ props.seed || '未生成种子' }}
+    <section v-if="!props.collapsed" class="bp-sidebar-section bp-sidebar-section-seed">
+      <div class="bp-section-head">
+        <h3>蓝图种子</h3>
       </div>
-      <div class="bp-seed-state-row">
-        <span class="bp-seed-state-chip">{{ seedStateLabel }}</span>
+      <div class="bp-seed-panel bp-control-surface">
+        <div class="bp-seed-current">
+          <span class="bp-seed-label">当前种子</span>
+          <strong>{{ props.seed || '尚未生成' }}</strong>
+        </div>
+        <div class="bp-seed-input-row">
+          <input
+            v-model="seedInput"
+            type="text"
+            class="bp-seed-input"
+            maxlength="32"
+            placeholder="输入其他用户种子"
+            @keydown.enter.prevent="emitSeedImport"
+          />
+          <button
+            type="button"
+            class="bp-seed-action-control bp-seed-open-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
+            :disabled="props.busy || !hasSeedInput"
+            @click="emitSeedImport"
+          >
+            打开
+          </button>
+        </div>
+        <div class="bp-seed-actions">
+          <button
+            type="button"
+            class="bp-seed-action-control bp-seed-icon-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
+            aria-label="新建蓝图"
+            title="新建蓝图"
+            :disabled="props.busy"
+            @click="emitCreateBlueprint"
+          >
+            <i class="fa fa-plus"></i>
+          </button>
+          <button
+            type="button"
+            class="bp-seed-action-control bp-seed-icon-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
+            aria-label="保存"
+            title="保存"
+            :disabled="props.busy"
+            @click="emitSeedSave"
+          >
+            <i class="fa fa-floppy-disk"></i>
+          </button>
+        </div>
       </div>
-      <p class="bp-seed-hint">{{ seedHint }}</p>
-      <div class="bp-seed-import-row">
-        <input
-          v-model="seedImportValue"
-          type="text"
-          class="bp-seed-input"
-          placeholder="输入种子后导入"
-          :disabled="props.busy"
-          @keydown.enter.prevent="submitSeedImport"
-        />
-        <button
-          type="button"
-          class="bp-control-surface bp-control-button bp-control-button-hover-lift bp-seed-import-btn"
-          :disabled="props.busy || !seedImportValue.trim()"
-          @click="submitSeedImport"
-        >
-          导入
-        </button>
+
+      <div class="bp-section-head">
+        <h3>最近蓝图</h3>
+        <div class="bp-chevron-pair">
+          <button type="button" :disabled="props.recentBlueprintsLoading || !canRecentBlueprintPageBackward" @click="moveRecentBlueprintPage(-1)">
+            <i class="fa fa-angle-left"></i>
+          </button>
+          <button type="button" :disabled="props.recentBlueprintsLoading || !canRecentBlueprintPageForward" @click="moveRecentBlueprintPage(1)">
+            <i class="fa fa-angle-right"></i>
+          </button>
+        </div>
       </div>
-      <div class="bp-seed-action-stack">
-        <button
-          type="button"
-          class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
-          :disabled="props.busy || !props.canGenerateSeed"
-          @click="emit('generate-seed')"
-        >
-          {{ props.busy && !props.seed ? '生成中...' : '随机生成种子' }}
-        </button>
-        <button
-          type="button"
-          class="bp-side-wide-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
-          :disabled="props.busy || !props.canSaveWorkflow"
-          @click="emit('save-workflow')"
-        >
-          {{ props.busy && props.seed ? '保存中...' : '保存当前蓝图' }}
-        </button>
-        <button
-          type="button"
-          class="bp-side-wide-btn bp-share-btn bp-control-surface bp-control-button bp-control-button-hover-lift"
-          :disabled="props.busy || !props.canCopySeed"
-          @click="emit('copy-seed')"
-        >
-          复制种子
-        </button>
+      <div class="bp-recent-blueprint-list">
+        <div v-if="props.recentBlueprintsLoading" class="bp-recent-blueprint-loading">
+          <article
+            v-for="item in recentBlueprintPlaceholders"
+            :key="`recent-loading-${item}`"
+            class="bp-recent-blueprint-card bp-recent-blueprint-card-skeleton"
+            aria-hidden="true"
+          >
+            <strong class="bp-library-skeleton-line bp-library-skeleton-line-title"></strong>
+            <small class="bp-library-skeleton-line bp-library-skeleton-line-subtitle"></small>
+            <div class="bp-recent-blueprint-meta">
+              <span class="bp-library-skeleton-line"></span>
+              <span class="bp-library-skeleton-line"></span>
+            </div>
+          </article>
+        </div>
+        <div v-else-if="props.recentBlueprintsError" class="bp-library-empty">
+          {{ props.recentBlueprintsError }}
+        </div>
+        <div v-else-if="!visibleRecentBlueprints.length" class="bp-library-empty">
+          暂时还没有最近蓝图。
+        </div>
+        <template v-else>
+          <article
+            v-for="blueprint in visibleRecentBlueprints"
+            :key="blueprint.seed"
+            class="bp-recent-blueprint-card bp-control-surface"
+            :class="{ 'is-active': String(props.seed || '') === String(blueprint.seed || '') }"
+            @click="emit('import-seed', blueprint.seed)"
+          >
+            <div class="bp-recent-blueprint-copy">
+              <div class="bp-recent-blueprint-title-row">
+                <strong>{{ blueprint.title || blueprint.seed }}</strong>
+                <span>{{ blueprint.seed }}</span>
+              </div>
+              <p v-if="blueprint.summary">{{ blueprint.summary }}</p>
+              <div class="bp-recent-blueprint-meta">
+                <span>{{ blueprint.nodeCount || 0 }} 节点</span>
+                <span>{{ blueprint.edgeCount || 0 }} 连线</span>
+              </div>
+              <small>{{ blueprint.updatedAtLabel || '最近保存' }}</small>
+            </div>
+            <button
+              type="button"
+              class="bp-seed-action-control bp-recent-blueprint-open bp-control-surface bp-control-button bp-control-button-hover-lift"
+              :disabled="props.busy"
+              @click.stop="emit('import-seed', blueprint.seed)"
+            >
+              打开
+            </button>
+          </article>
+        </template>
       </div>
     </section>
 
@@ -615,6 +742,11 @@ watch(
   margin-top: 2px;
 }
 
+.bp-sidebar-section-seed {
+  margin-top: auto;
+  padding-top: clamp(6px, 0.8vw, 8px);
+}
+
 .bp-sidebar-section h3 {
   margin: 0;
   font-size: calc(0.78rem * var(--bp-ui-scale));
@@ -626,6 +758,24 @@ watch(
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(6px, 0.7vw, 8px);
+}
+
+.bp-model-grid-fixed {
+  grid-template-rows: repeat(2, clamp(calc(34px * var(--bp-ui-scale)), 3.3vw, calc(36px * var(--bp-ui-scale))));
+  align-content: start;
+}
+
+.bp-vision-section {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 0.7vw, 8px);
+}
+
+.bp-vision-section h4 {
+  margin: 0;
+  color: var(--bp-muted);
+  font-size: calc(0.7rem * var(--bp-ui-scale));
+  font-weight: 600;
 }
 
 .bp-model-pill {
@@ -707,6 +857,170 @@ watch(
   display: flex;
   flex-direction: column;
   gap: clamp(8px, 0.8vw, 10px);
+}
+
+.bp-seed-panel {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 0.8vw, 10px);
+  padding: clamp(10px, 0.9vw, 12px);
+  border-radius: calc(10px * var(--bp-ui-scale));
+}
+
+.bp-seed-current {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bp-seed-label {
+  color: var(--bp-muted);
+  font-size: calc(0.68rem * var(--bp-ui-scale));
+  font-weight: 600;
+}
+
+.bp-seed-current strong {
+  font-size: calc(0.8rem * var(--bp-ui-scale));
+  line-height: 1.3;
+  word-break: break-all;
+}
+
+.bp-seed-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(8px * var(--bp-ui-scale));
+}
+
+.bp-seed-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(8px * var(--bp-ui-scale));
+}
+
+.bp-seed-input {
+  width: 100%;
+  min-width: 0;
+  min-height: calc(34px * var(--bp-ui-scale));
+  padding: 0 calc(10px * var(--bp-ui-scale));
+  border: 1px solid var(--bp-border);
+  border-radius: calc(8px * var(--bp-ui-scale));
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--bp-text);
+  font-size: calc(0.76rem * var(--bp-ui-scale));
+  text-transform: uppercase;
+}
+
+.bp-seed-action-control {
+  min-height: calc(34px * var(--bp-ui-scale));
+  padding: 0 calc(12px * var(--bp-ui-scale));
+  border-radius: calc(999px * var(--bp-ui-scale));
+  font-size: calc(0.64rem * var(--bp-ui-scale));
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.bp-seed-open-btn,
+.bp-recent-blueprint-open {
+  min-width: calc(72px * var(--bp-ui-scale));
+}
+
+.bp-seed-icon-btn {
+  width: calc(34px * var(--bp-ui-scale));
+  min-width: calc(34px * var(--bp-ui-scale));
+  padding: 0;
+}
+
+.bp-seed-icon-btn i {
+  font-size: calc(0.76rem * var(--bp-ui-scale));
+  line-height: 1;
+}
+
+.bp-recent-blueprint-list,
+.bp-recent-blueprint-loading {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 0.65vw, 8px);
+}
+
+.bp-recent-blueprint-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: clamp(6px, 0.65vw, 8px);
+  min-height: clamp(64px, 5vw, 70px);
+  padding: clamp(8px, 0.75vw, 10px);
+  border-radius: calc(8px * var(--bp-ui-scale));
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.bp-recent-blueprint-card.is-active {
+  border-color: rgba(17, 17, 17, 0.28);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--bp-shadow-md);
+}
+
+.bp-recent-blueprint-copy {
+  min-width: 0;
+}
+
+.bp-recent-blueprint-title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bp-recent-blueprint-title-row strong,
+.bp-recent-blueprint-title-row span,
+.bp-recent-blueprint-copy p,
+.bp-recent-blueprint-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-recent-blueprint-title-row strong {
+  font-size: calc(0.74rem * var(--bp-ui-scale));
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.bp-recent-blueprint-title-row span,
+.bp-recent-blueprint-copy small {
+  color: var(--bp-muted);
+  font-size: calc(0.66rem * var(--bp-ui-scale));
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.bp-recent-blueprint-copy p {
+  margin: calc(4px * var(--bp-ui-scale)) 0;
+  color: var(--bp-text);
+  font-size: calc(0.66rem * var(--bp-ui-scale));
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.bp-recent-blueprint-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(6px * var(--bp-ui-scale));
+  margin-bottom: calc(2px * var(--bp-ui-scale));
+  color: var(--bp-muted);
+  font-size: calc(0.66rem * var(--bp-ui-scale));
+  line-height: 1.15;
+}
+
+.bp-recent-blueprint-open {
+  min-height: calc(26px * var(--bp-ui-scale));
+  padding: 0 calc(10px * var(--bp-ui-scale));
+  font-size: calc(0.64rem * var(--bp-ui-scale));
+}
+
+.bp-recent-blueprint-card-skeleton {
+  cursor: default;
 }
 
 .bp-library-loading {
@@ -841,106 +1155,6 @@ watch(
   100% {
     background-position: -200% 0;
   }
-}
-
-.bp-seed-box {
-  padding: clamp(10px, 1vw, 12px) clamp(12px, 1vw, 14px);
-  border: 1px solid var(--bp-border);
-  border-radius: 8px;
-  background: var(--bp-surface);
-  color: var(--bp-muted);
-  box-shadow: var(--bp-shadow-sm);
-}
-
-.bp-seed-box {
-  min-height: calc(34px * var(--bp-ui-scale));
-  justify-content: center;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: calc(0.9rem * var(--bp-ui-scale));
-  line-height: 1.4;
-  color: var(--bp-text);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  word-break: break-all;
-  text-align: center;
-}
-
-.bp-seed-box.is-empty {
-  color: var(--bp-muted);
-}
-
-.bp-seed-state-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.bp-seed-state-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: calc(24px * var(--bp-ui-scale));
-  padding: 0 calc(10px * var(--bp-ui-scale));
-  border: 1px solid rgba(17, 17, 17, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--bp-text);
-  font-size: calc(0.72rem * var(--bp-ui-scale));
-  font-weight: 600;
-}
-
-.bp-seed-hint {
-  margin: 0;
-  color: var(--bp-muted);
-  font-size: calc(0.74rem * var(--bp-ui-scale));
-  line-height: 1.55;
-}
-
-.bp-seed-import-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: calc(8px * var(--bp-ui-scale));
-}
-
-.bp-seed-input {
-  width: 100%;
-  min-width: 0;
-  min-height: calc(36px * var(--bp-ui-scale));
-  padding: 0 calc(12px * var(--bp-ui-scale));
-  border: 1px solid var(--bp-border);
-  border-radius: calc(8px * var(--bp-ui-scale));
-  background: var(--bp-surface);
-  box-shadow: var(--bp-shadow-sm);
-  color: var(--bp-text);
-  font-size: calc(0.82rem * var(--bp-ui-scale));
-  outline: none;
-}
-
-.bp-seed-input:focus {
-  border-color: rgba(210, 160, 43, 0.68);
-}
-
-.bp-seed-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.bp-seed-import-btn {
-  min-width: calc(64px * var(--bp-ui-scale));
-  min-height: calc(36px * var(--bp-ui-scale));
-  padding-inline: calc(12px * var(--bp-ui-scale));
-  border-radius: calc(8px * var(--bp-ui-scale));
-}
-
-.bp-seed-action-stack {
-  display: flex;
-  flex-direction: column;
-  gap: calc(8px * var(--bp-ui-scale));
-}
-
-.bp-share-btn {
-  justify-content: center;
-  min-height: calc(34px * var(--bp-ui-scale));
-  border-radius: calc(8px * var(--bp-ui-scale));
 }
 
 @media (max-width: 1200px) {

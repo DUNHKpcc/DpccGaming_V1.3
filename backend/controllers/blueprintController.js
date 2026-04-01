@@ -24,6 +24,13 @@ const {
   requestBlueprintRunCancel
 } = require('../utils/blueprintRunControl');
 const { DEFAULT_BUILTIN_MODEL, normalizeBuiltinModelName } = require('../utils/aiProviderConfig');
+const {
+  buildBlueprintPlanningRepairPrompt,
+  buildBlueprintPlannerNodeCatalog,
+  buildBlueprintPlanningPrompt,
+  normalizeBlueprintPlanningResult,
+  resolveBlueprintPlannerModel
+} = require('../utils/blueprintPlanner');
 
 const BLUEPRINT_SEED_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const BLUEPRINT_SEED_PATTERN = /^[A-Z0-9]{8,32}$/;
@@ -309,6 +316,44 @@ const getCopyBySeedAndOwner = async (executor, seed, userId) => {
   );
 
   return rows?.[0] || null;
+};
+
+const clipBlueprintListText = (value = '', maxLength = 72) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+};
+
+const deriveBlueprintListMeta = (workflow = {}) => {
+  const nodes = Array.isArray(workflow?.nodes) ? workflow.nodes : [];
+  const edges = Array.isArray(workflow?.edges) ? workflow.edges : [];
+  const gameNode = nodes.find((node) => node?.kind === 'game' && String(node?.title || '').trim());
+  const outputNode = nodes.find((node) => node?.kind === 'output' && String(node?.content || '').trim());
+  const contentNode = nodes.find((node) => String(node?.content || '').trim());
+  const firstTitledNode = nodes.find((node) => String(node?.title || '').trim());
+
+  const title = clipBlueprintListText(
+    gameNode?.title
+    || outputNode?.title
+    || firstTitledNode?.title
+    || '未命名蓝图',
+    36
+  );
+
+  const summary = clipBlueprintListText(
+    outputNode?.content
+    || contentNode?.content
+    || gameNode?.description
+    || '',
+    92
+  );
+
+  return {
+    title,
+    summary,
+    nodeCount: nodes.length,
+    edgeCount: edges.length
+  };
 };
 
 const parseNullableJson = (rawValue, fallbackValue) => {
@@ -735,6 +780,95 @@ const createBlueprint = async (req, res) => {
   }
 };
 
+const planBlueprintWorkflow = async (req, res) => {
+  const prompt = String(req.body?.prompt || '').trim();
+  const seed = normalizeSeed(req.body?.seed);
+
+  if (!prompt) {
+    return res.status(400).json({ error: '请输入工作流需求后再让 AI 规划。' });
+  }
+
+  try {
+    const workflow = normalizeWorkflowPayload(req.body?.workflow, { requireNodes: false });
+    const requestedModel = normalizeModelName(req.body?.model || DEFAULT_BUILTIN_MODEL);
+    const plannerModel = resolveBlueprintPlannerModel(requestedModel);
+    const availableNodes = Array.isArray(req.body?.availableNodes) && req.body.availableNodes.length
+      ? req.body.availableNodes
+      : buildBlueprintPlannerNodeCatalog();
+    const plannerPrompt = buildBlueprintPlanningPrompt({
+      prompt,
+      workflow,
+      availableNodes,
+      seed
+    });
+
+    const rawReply = await generateAiReply({
+      prompt: plannerPrompt.prompt,
+      gameTitle: 'Blueprint Workflow Planner',
+      roomMessages: [],
+      roomSummary: null,
+      memoryEntries: [],
+      builtinModel: plannerModel,
+      systemDirective: plannerPrompt.systemDirective
+    });
+
+    let plannedResult = null;
+    let repaired = false;
+
+    try {
+      plannedResult = normalizeBlueprintPlanningResult({
+        rawReply,
+        workflow
+      });
+    } catch (error) {
+      if (error?.status !== 400) {
+        throw error;
+      }
+
+      const repairPrompt = buildBlueprintPlanningRepairPrompt({
+        rawReply,
+        workflow
+      });
+
+      const repairedReply = await generateAiReply({
+        prompt: repairPrompt.prompt,
+        gameTitle: 'Blueprint Workflow Planner Repair',
+        roomMessages: [],
+        roomSummary: null,
+        memoryEntries: [],
+        builtinModel: plannerModel,
+        systemDirective: repairPrompt.systemDirective
+      });
+
+      plannedResult = normalizeBlueprintPlanningResult({
+        rawReply: repairedReply,
+        workflow
+      });
+      repaired = true;
+    }
+
+    if (repaired) {
+      plannedResult = {
+        ...plannedResult,
+        warnings: [
+          'AI 首次回复未返回标准工作流，系统已自动修复格式。',
+          ...plannedResult.warnings
+        ]
+      };
+    }
+
+    return res.json({
+      ...plannedResult,
+      model: plannerModel
+    });
+  } catch (error) {
+    console.error('规划蓝图工作流失败:', error);
+    return res.status(error.status || 500).json({
+      error: error.message || '规划蓝图工作流失败'
+    });
+  }
+};
+
 const getBlueprintBySeed = async (req, res) => {
   const userId = Number(req.user?.userId || 0);
   const seed = normalizeSeed(req.params?.seed);
@@ -860,6 +994,53 @@ const listBlueprintRuns = async (req, res) => {
   }
 };
 
+const listRecentBlueprints = async (req, res) => {
+  const userId = Number(req.user?.userId || 0);
+  const limit = normalizeRunListLimit(req.query?.limit);
+
+  try {
+    const pool = getPool();
+    await ensureBlueprintTables(pool);
+
+    const [rows] = await pool.execute(
+      `SELECT c.seed, c.workflow_json, c.created_at, c.updated_at,
+              CASE
+                WHEN s.owner_user_id = ? THEN 'source'
+                ELSE 'copy'
+              END AS ownership
+       FROM blueprint_workflow_copies c
+       LEFT JOIN blueprint_workflow_sources s
+         ON s.seed = c.seed
+       WHERE c.owner_user_id = ?
+       ORDER BY c.updated_at DESC
+       LIMIT ?`,
+      [userId, userId, limit]
+    );
+
+    const blueprints = Array.isArray(rows)
+      ? rows.map((row) => {
+        const workflow = parseStoredWorkflow(row.workflow_json || '{}');
+        const meta = deriveBlueprintListMeta(workflow);
+
+        return {
+          seed: row.seed || '',
+          ownership: row.ownership || 'copy',
+          createdAt: row.created_at || null,
+          updatedAt: row.updated_at || null,
+          ...meta
+        };
+      })
+      : [];
+
+    return res.json({ blueprints });
+  } catch (error) {
+    console.error('获取最近蓝图列表失败:', error);
+    return res.status(error.status || 500).json({
+      error: error.message || '获取最近蓝图列表失败'
+    });
+  }
+};
+
 const getBlueprintRunDetail = async (req, res) => {
   const userId = Number(req.user?.userId || 0);
   const runId = Number(req.params?.runId || 0);
@@ -949,8 +1130,28 @@ const cancelBlueprintRun = async (req, res) => {
   }
 };
 
+const prepareExecutionStreamResponse = (res) => {
+  res.status(200);
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
+
+  if (typeof res.socket?.setNoDelay === 'function') {
+    res.socket.setNoDelay(true);
+  }
+};
+
 const writeExecutionEvent = (res, event, payload = {}) => {
   res.write(`${JSON.stringify({ event, ...payload })}\n`);
+
+  if (typeof res.flush === 'function') {
+    res.flush();
+  }
 };
 
 const enrichBlueprintGameNodeContext = async (node = {}) => {
@@ -1061,6 +1262,7 @@ const executeBlueprintWorkflow = async (req, res) => {
     await ensureBlueprintTables(pool);
     const workflow = normalizeWorkflowPayload(req.body?.workflow, { requireNodes: true });
     const selectedModel = normalizeModelName(req.body?.model);
+    const selectedVisionModel = normalizeModelName(req.body?.visionModel || DEFAULT_BUILTIN_MODEL);
     const plan = buildBlueprintExecutionPlan(workflow);
     const normalizedSeed = normalizeSeed(req.body?.seed);
     const startNodeId = String(req.body?.startNodeId || '').trim();
@@ -1095,17 +1297,12 @@ const executeBlueprintWorkflow = async (req, res) => {
     });
     registerActiveBlueprintRun(runId, { ownerUserId: userId });
 
-    res.status(200);
-    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders();
-    }
+    prepareExecutionStreamResponse(res);
 
     writeExecutionEvent(res, 'workflow-start', {
       runId,
       model: selectedModel,
+      visionModel: selectedVisionModel,
       totalSteps: selectedSteps.length,
       startNodeId: startNodeId || '',
       scope,
@@ -1137,7 +1334,7 @@ const executeBlueprintWorkflow = async (req, res) => {
 
       await upsertBlueprintRunStepRecord(pool, runId, step, {
         status: 'running',
-        model: step.mode === 'source' ? 'source' : selectedModel,
+        model: step.mode === 'source' ? selectedVisionModel : selectedModel,
         startedAt
       });
 
@@ -1147,6 +1344,7 @@ const executeBlueprintWorkflow = async (req, res) => {
         nodeTitle: step.title,
         nodeKind: step.kind,
         mode: step.mode,
+        model: step.mode === 'source' ? selectedVisionModel : selectedModel,
         upstreamNodeIds: step.upstreamNodeIds,
         startedAt
       });
@@ -1164,6 +1362,7 @@ const executeBlueprintWorkflow = async (req, res) => {
           stepResults,
           stepsById: plan.stepsById,
           selectedModel,
+          selectedVisionModel,
           generateAiReply,
           startedAt,
           onProgress: (progressEvent = {}) => {
@@ -1484,12 +1683,16 @@ const executeBlueprintWorkflow = async (req, res) => {
 module.exports = {
   createBlueprint,
   getBlueprintBySeed,
+  planBlueprintWorkflow,
+  listRecentBlueprints,
   saveBlueprintBySeed,
   listBlueprintRuns,
   getBlueprintRunDetail,
   cancelBlueprintRun,
   executeBlueprintWorkflow,
   __test: {
+    prepareExecutionStreamResponse,
+    writeExecutionEvent,
     getBlueprintRunCancellationStateFromStore,
     createBlueprintRunRecord,
     updateBlueprintRunRecord,
