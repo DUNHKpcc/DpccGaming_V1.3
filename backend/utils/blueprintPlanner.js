@@ -11,6 +11,12 @@ const BP_PLANNER_LAYOUT = {
   columnGap: 408,
   rowGap: 238
 };
+const BLUEPRINT_PLANNER_GAME_PLACEHOLDERS = {
+  coverUrl: '/GameImg.jpg',
+  categoryLabel: '动作',
+  engineLabel: 'Cocos',
+  codeTypeLabel: 'TypeScript'
+};
 
 const BLUEPRINT_PLANNER_NODE_CATALOG = [
   { kind: 'game', title: '游戏节点', subtitle: 'Game Source', responsibility: '引用已有游戏素材与上下文，作为工作流源节点。' },
@@ -116,11 +122,12 @@ const normalizePlannedNode = (node = {}, index = 0, existingNodeMap = new Map())
   }
 
   const nodeId = ensureNodeId(node, index);
+  const existingNode = existingNodeMap.get(nodeId) || {};
   const position = Number.isFinite(Number(node?.position?.x)) && Number.isFinite(Number(node?.position?.y))
     ? snapPointToGrid(node.position)
     : resolveFallbackPosition(existingNodeMap, nodeId, index);
 
-  return {
+  const normalizedNode = {
     ...node,
     id: nodeId,
     kind,
@@ -130,6 +137,27 @@ const normalizePlannedNode = (node = {}, index = 0, existingNodeMap = new Map())
     ),
     position
   };
+
+  if (kind === 'game') {
+    normalizedNode.coverUrl = normalizeText(node.coverUrl || existingNode.coverUrl)
+      || BLUEPRINT_PLANNER_GAME_PLACEHOLDERS.coverUrl;
+    normalizedNode.categoryLabel = normalizeText(
+      node.categoryLabel || node.category || existingNode.categoryLabel || existingNode.category
+    ) || BLUEPRINT_PLANNER_GAME_PLACEHOLDERS.categoryLabel;
+    normalizedNode.engineLabel = normalizeText(
+      node.engineLabel || node.engine || existingNode.engineLabel || existingNode.engine || existingNode.game_engine
+    ) || BLUEPRINT_PLANNER_GAME_PLACEHOLDERS.engineLabel;
+    normalizedNode.codeTypeLabel = normalizeText(
+      node.codeTypeLabel
+      || node.codeType
+      || node.code_type
+      || existingNode.codeTypeLabel
+      || existingNode.codeType
+      || existingNode.code_type
+    ) || BLUEPRINT_PLANNER_GAME_PLACEHOLDERS.codeTypeLabel;
+  }
+
+  return normalizedNode;
 };
 
 const normalizePlannedEdge = (edge = {}, index = 0) => ({
@@ -429,11 +457,15 @@ const extractWorkflowCandidate = (payload = {}) => {
 const resolveBlueprintPlannerModel = (requestedModel = '') => {
   const normalizedModel = normalizeText(requestedModel);
 
-  if (normalizedModel === 'GLM-4.5' || normalizedModel === 'Qwen3-CodeMax') {
+  if (
+    normalizedModel === 'DouBaoSeed'
+    || normalizedModel === 'GLM-4.5'
+    || normalizedModel === 'Qwen3-CodeMax'
+  ) {
     return normalizedModel;
   }
 
-  return 'GLM-4.5';
+  return 'DouBaoSeed';
 };
 
 const buildBlueprintPlannerNodeCatalog = () =>

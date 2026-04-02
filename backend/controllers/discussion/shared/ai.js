@@ -26,6 +26,18 @@ const LINKED_RESOURCE_TERMS = [
 const AI_REQUEST_TIMEOUT_MS = 90000;
 const AI_NETWORK_RETRY_COUNT = 1;
 
+const normalizeAiRequestTimeout = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return AI_REQUEST_TIMEOUT_MS;
+  return Math.max(1000, Math.floor(parsed));
+};
+
+const normalizeAiRetryCount = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return AI_NETWORK_RETRY_COUNT;
+  return Math.max(0, Math.floor(parsed));
+};
+
 const parseTextMessageContent = (content) => {
   if (!content) return '';
   if (Array.isArray(content)) {
@@ -254,11 +266,21 @@ const formatAiNetworkErrorMessage = (normalizedModel, endpoint, error) => {
   return `${normalizedModel} 网络请求失败：无法连接 ${endpoint}（${details}）`;
 };
 
-const fetchBuiltinAiResponse = async (requestConfig, payload, { normalizedModel }) => {
+const fetchBuiltinAiResponse = async (
+  requestConfig,
+  payload,
+  {
+    normalizedModel,
+    timeoutMs = AI_REQUEST_TIMEOUT_MS,
+    retryCount = AI_NETWORK_RETRY_COUNT
+  }
+) => {
+  const effectiveTimeoutMs = normalizeAiRequestTimeout(timeoutMs);
+  const effectiveRetryCount = normalizeAiRetryCount(retryCount);
   let attempt = 0;
   let lastError = null;
 
-  while (attempt <= AI_NETWORK_RETRY_COUNT) {
+  while (attempt <= effectiveRetryCount) {
     try {
       return await fetch(requestConfig.endpoint, {
         method: 'POST',
@@ -267,11 +289,11 @@ const fetchBuiltinAiResponse = async (requestConfig, payload, { normalizedModel 
           Authorization: `Bearer ${requestConfig.apiKey}`
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)
+        signal: AbortSignal.timeout(effectiveTimeoutMs)
       });
     } catch (error) {
       lastError = error;
-      if (!isRetryableNetworkError(error) || attempt >= AI_NETWORK_RETRY_COUNT) {
+      if (!isRetryableNetworkError(error) || attempt >= effectiveRetryCount) {
         throw new Error(formatAiNetworkErrorMessage(normalizedModel, requestConfig.endpoint, error));
       }
     }
@@ -290,7 +312,8 @@ const requestBuiltinAiReply = async ({
   memoryEntries,
   systemDirective,
   builtinModel = '',
-  userContentItems = null
+  userContentItems = null,
+  requestOptions = {}
 }) => {
   const requestConfig = buildBuiltinModelRequestConfig(builtinModel);
   const apiKey = requestConfig.apiKey;
@@ -323,7 +346,11 @@ const requestBuiltinAiReply = async ({
     messages: buildProviderMessages(requestConfig.provider, systemText, userText, userContentItems)
   };
 
-  const response = await fetchBuiltinAiResponse(requestConfig, payload, { normalizedModel });
+  const response = await fetchBuiltinAiResponse(requestConfig, payload, {
+    normalizedModel,
+    timeoutMs: requestOptions?.timeoutMs,
+    retryCount: requestOptions?.retryCount
+  });
 
   if (!response.ok) {
     const details = await response.text();
@@ -344,7 +371,8 @@ const generateAiReply = async ({
   roomSummary = null,
   memoryEntries = [],
   systemDirective = '',
-  userContentItems = null
+  userContentItems = null,
+  requestOptions = {}
 }) => {
   const modelName = normalizeBuiltinModelName(builtinModel);
   return requestBuiltinAiReply({
@@ -355,7 +383,8 @@ const generateAiReply = async ({
     memoryEntries,
     systemDirective,
     builtinModel: modelName,
-    userContentItems
+    userContentItems,
+    requestOptions
   });
 };
 

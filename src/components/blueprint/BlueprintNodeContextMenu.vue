@@ -56,11 +56,14 @@ const emit = defineEmits(['rerun-node', 'continue-from-node', 'edit', 'delete'])
 
 <style scoped>
 .bp-node-context-menu {
+  position: absolute;
+  z-index: 24;
   display: flex;
   flex-direction: column;
   gap: calc(4px * var(--bp-ui-scale, 1));
   width: calc(152px * var(--bp-ui-scale, 1));
   padding: calc(8px * var(--bp-ui-scale, 1));
+  pointer-events: auto;
 }
 
 .bp-node-menu-btn.is-danger {

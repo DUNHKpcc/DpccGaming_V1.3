@@ -355,15 +355,33 @@ watch(
       </button>
     </header>
 
-    <button v-if="!props.collapsed" type="button" class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift" @click="emit('export-workflow')">
+    <button
+      v-if="!props.collapsed"
+      type="button"
+      class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift"
+      :disabled="props.busy"
+      @click="emit('export-workflow')"
+    >
       <i class="fa fa-download"></i>
       <span>导出 JSON</span>
     </button>
-    <button v-if="!props.collapsed" type="button" class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift" @click="openImportPicker">
+    <button
+      v-if="!props.collapsed"
+      type="button"
+      class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift"
+      :disabled="props.busy"
+      @click="openImportPicker"
+    >
       <i class="fa fa-upload"></i>
       <span>导入</span>
     </button>
-    <button v-if="!props.collapsed" type="button" class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift" @click="emit('clear-workflow')">
+    <button
+      v-if="!props.collapsed"
+      type="button"
+      class="bp-side-action bp-control-surface bp-control-button bp-control-button-hover-lift"
+      :disabled="props.busy"
+      @click="emit('clear-workflow')"
+    >
       <i class="fa fa-trash"></i>
       <span>清空工作流</span>
     </button>

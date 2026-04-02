@@ -262,19 +262,22 @@ const buildBlueprintOutputPrompt = ({
   const readmeTemplate = buildBlueprintReadmeTemplate({ title });
 
   return [
-    '你要生成一个可直接运行的轻量 H5 网页小游戏，且只能输出严格 JSON。',
+    '你要生成一个可直接浏览器预览的轻量 H5 网页小游戏，且只能输出严格 JSON。',
     '目标文件固定为 files.index.html、files.style.css、files.game.js、files.README.md。',
     '要求：单页、原生 HTML/CSS/JS、无第三方依赖、可直接打开 index.html 运行。',
+    '这是成品游戏，不是运行说明页、总结页、报告页或模板页。',
+    '必须具备完整游戏循环：开始界面、进行中玩法、结束或失败界面、可重开。',
+    '必须存在明确玩家交互，并且交互会改变状态、结果或界面。',
     'index.html 必须引用 style.css 和 game.js，并包含 id="app" 的挂载节点。',
     'README.md 必须包含“## 玩法 / ## 操作 / ## 结构 / ## 运行”四个章节。',
     `游戏规格：\n${JSON.stringify(gameSpec, null, 2)}`,
     `HTML 骨架参考：\n${htmlSkeleton}`,
     `README 结构参考：\n${readmeTemplate}`,
     previousIssues.length
-      ? `上一次生成未通过校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
+      ? `上一次生成未通过成品合同校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
       : '',
     previousFiles
-      ? `上一次生成的文件如下，请基于它修复，不要忽略已有可用部分：\n${JSON.stringify(previousFiles, null, 2)}`
+      ? `上一次生成的文件如下，请保留可用部分并定向修复，不要退化成模板页：\n${JSON.stringify(previousFiles, null, 2)}`
       : '',
     '返回格式示例：{"files":{"index.html":"...","style.css":"...","game.js":"...","README.md":"..."}}'
   ].filter(Boolean).join('\n\n');
@@ -295,7 +298,7 @@ const executeBlueprintOutputStep = async ({
   selectedModel = '',
   generateAiReply,
   startedAt = new Date().toISOString(),
-  maxRepairAttempts = 1,
+  maxRepairAttempts = 3,
   onProgress
 } = {}) => {
   const gameSpec = buildBlueprintGameSpec({ step, node, stepResults, stepsById });
@@ -349,11 +352,11 @@ const executeBlueprintOutputStep = async ({
       emitBlueprintStepProgress(onProgress, {
         progress: 1,
         stage: 'finalize',
-        detail: '输出文件已整理完成并通过合同校验。'
+        detail: '输出文件已整理完成并通过成品游戏合同校验。'
       });
       const normalized = normalizeBlueprintStepResult({
-        summary: '已生成可直接运行的 H5 游戏四文件。',
-        analysis: `输出节点已基于上游规格生成四文件，并通过了 ${REQUIRED_BLUEPRINT_OUTPUT_FILES.length} 文件合同校验。`,
+        summary: '已生成可直接预览的 H5 成品小游戏。',
+        analysis: `输出节点已基于上游规格生成四文件，并通过了成品游戏合同校验。`,
         output: REQUIRED_BLUEPRINT_OUTPUT_FILES.join('\n'),
         rawReply,
         input: JSON.stringify(gameSpec, null, 2),

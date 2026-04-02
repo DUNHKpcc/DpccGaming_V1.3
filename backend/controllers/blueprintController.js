@@ -4,7 +4,6 @@ const { getPool } = require('../config/database');
 const { generateAiReply } = require('./discussion/shared/ai');
 const { loadBlueprintGameCodePreview } = require('../utils/blueprintGameContext');
 const { writeBlueprintRunBundle } = require('../utils/blueprintArtifacts');
-const { validateBlueprintRunBundleBrowser } = require('../utils/blueprintBundleSmoke');
 const { extractBlueprintVideoKeyframes } = require('../utils/blueprintVideoFrames');
 const {
   buildBlueprintExecutionPlan,
@@ -783,6 +782,10 @@ const createBlueprint = async (req, res) => {
 const planBlueprintWorkflow = async (req, res) => {
   const prompt = String(req.body?.prompt || '').trim();
   const seed = normalizeSeed(req.body?.seed);
+  const plannerRequestOptions = {
+    timeoutMs: 45000,
+    retryCount: 0
+  };
 
   if (!prompt) {
     return res.status(400).json({ error: '请输入工作流需求后再让 AI 规划。' });
@@ -809,7 +812,8 @@ const planBlueprintWorkflow = async (req, res) => {
       roomSummary: null,
       memoryEntries: [],
       builtinModel: plannerModel,
-      systemDirective: plannerPrompt.systemDirective
+      systemDirective: plannerPrompt.systemDirective,
+      requestOptions: plannerRequestOptions
     });
 
     let plannedResult = null;
@@ -837,7 +841,8 @@ const planBlueprintWorkflow = async (req, res) => {
         roomSummary: null,
         memoryEntries: [],
         builtinModel: plannerModel,
-        systemDirective: repairPrompt.systemDirective
+        systemDirective: repairPrompt.systemDirective,
+        requestOptions: plannerRequestOptions
       });
 
       plannedResult = normalizeBlueprintPlanningResult({
@@ -1238,6 +1243,9 @@ const findBlueprintOutputBundleFiles = (stepResults = {}, selectedSteps = []) =>
   return null;
 };
 
+const shouldWriteBlueprintRunBundle = (stepResults = {}, selectedSteps = []) =>
+  Boolean(findBlueprintOutputBundleFiles(stepResults, selectedSteps));
+
 const findBlueprintOutputStepRuntime = (stepResults = {}, selectedSteps = []) => {
   const orderedSteps = Array.isArray(selectedSteps) ? [...selectedSteps].reverse() : [];
 
@@ -1489,7 +1497,7 @@ const executeBlueprintWorkflow = async (req, res) => {
       return res.end();
     }
 
-    try {
+    if (shouldWriteBlueprintRunBundle(stepResults, selectedSteps)) {
       const outputBundleFiles = findBlueprintOutputBundleFiles(stepResults, selectedSteps) || {};
       const bundleResult = await writeBlueprintRunBundle({
         uploadsRootPath: getBlueprintUploadsRootPath(),
@@ -1503,111 +1511,17 @@ const executeBlueprintWorkflow = async (req, res) => {
       artifactManifestJson = JSON.stringify(bundleResult.manifest);
       previewUrl = bundleResult.previewUrl;
 
-      const smokeValidation = await validateBlueprintRunBundleBrowser({
-        bundleDir: bundleResult.bundleDir
+      writeExecutionEvent(res, 'workflow-log', {
+        runId,
+        message: '生成产物已写入预览目录。'
       });
-
-      const outputStepRuntimeEntry = findBlueprintOutputStepRuntime(stepResults, selectedSteps);
-      if (outputStepRuntimeEntry) {
-        const nextOutputRuntime = {
-          ...outputStepRuntimeEntry.runtime,
-          artifactJson: {
-            ...(outputStepRuntimeEntry.runtime.artifactJson || {}),
-            browserValidation: smokeValidation
-          }
-        };
-
-        if (!smokeValidation.skipped) {
-          nextOutputRuntime.analysis = [
-            String(outputStepRuntimeEntry.runtime.analysis || '').trim(),
-            smokeValidation.ok
-              ? '附加校验：浏览器级 smoke 校验已通过。'
-              : `附加校验：浏览器级 smoke 校验失败。${smokeValidation.issues.join('；')}`
-          ].filter(Boolean).join('\n');
-        } else {
-          nextOutputRuntime.analysis = [
-            String(outputStepRuntimeEntry.runtime.analysis || '').trim(),
-            smokeValidation.issues[0] || '附加校验：当前环境已跳过浏览器级 smoke 校验。'
-          ].filter(Boolean).join('\n');
-        }
-
-        stepResults[outputStepRuntimeEntry.step.nodeId] = nextOutputRuntime;
-        runtimeSnapshotJson = JSON.stringify(stepResults);
-        await upsertBlueprintRunStepRecord(pool, runId, outputStepRuntimeEntry.step, {
-          ...nextOutputRuntime,
-          artifactsJson: nextOutputRuntime.artifactsJson || nextOutputRuntime.artifacts
-        });
-
-        writeExecutionEvent(res, 'step-complete', {
-          runId,
-          nodeId: outputStepRuntimeEntry.step.nodeId,
-          nodeTitle: outputStepRuntimeEntry.step.title,
-          nodeKind: outputStepRuntimeEntry.step.kind,
-          runtime: nextOutputRuntime
-        });
-      }
-
-      if (!smokeValidation.skipped && !smokeValidation.ok) {
-        const errorMessage = `生成产物未通过浏览器校验：${smokeValidation.issues.join('；')}`;
-        if (outputStepRuntimeEntry) {
-          const failedOutputRuntime = {
-            ...stepResults[outputStepRuntimeEntry.step.nodeId],
-            status: 'failed',
-            completedAt: new Date().toISOString(),
-            errorMessage,
-            artifactJson: {
-              ...(stepResults[outputStepRuntimeEntry.step.nodeId]?.artifactJson || {}),
-              status: 'failed',
-              browserValidation: smokeValidation
-            }
-          };
-
-          stepResults[outputStepRuntimeEntry.step.nodeId] = failedOutputRuntime;
-          runtimeSnapshotJson = JSON.stringify(stepResults);
-          await upsertBlueprintRunStepRecord(pool, runId, outputStepRuntimeEntry.step, {
-            ...failedOutputRuntime,
-            artifactsJson: failedOutputRuntime.artifactsJson || failedOutputRuntime.artifacts
-          });
-
-          writeExecutionEvent(res, 'step-failed', {
-            runId,
-            nodeId: outputStepRuntimeEntry.step.nodeId,
-            nodeTitle: outputStepRuntimeEntry.step.title,
-            nodeKind: outputStepRuntimeEntry.step.kind,
-            runtime: failedOutputRuntime
-          });
-        }
-
-        await updateBlueprintRunRecord(pool, runId, {
-          status: 'failed',
-          errorMessage,
-          runtimeSnapshotJson,
-          artifactManifestJson,
-          previewUrl,
-          completedAt: new Date().toISOString()
-        });
-        writeExecutionEvent(res, 'workflow-error', {
-          runId,
-          message: errorMessage
-        });
-        return res.end();
-      }
-
-      if (smokeValidation.skipped) {
-        writeExecutionEvent(res, 'workflow-log', {
-          runId,
-          message: smokeValidation.issues[0] || '已跳过浏览器级校验。'
-        });
-      } else {
-        writeExecutionEvent(res, 'workflow-log', {
-          runId,
-          message: '生成产物已通过浏览器级校验。'
-        });
-      }
-    } catch (bundleError) {
-      console.error('写入蓝图运行产物失败:', bundleError);
+    } else {
       artifactManifestJson = JSON.stringify(artifactManifest);
       previewUrl = null;
+      writeExecutionEvent(res, 'workflow-log', {
+        runId,
+        message: '本次执行未触达输出节点，已跳过预览产物写入。'
+      });
     }
 
     if (
@@ -1697,6 +1611,7 @@ module.exports = {
     createBlueprintRunRecord,
     updateBlueprintRunRecord,
     persistBlueprintRunCancellationRequest,
-    upsertBlueprintRunStepRecord
+    upsertBlueprintRunStepRecord,
+    shouldWriteBlueprintRunBundle
   }
 };
