@@ -32,6 +32,7 @@ export const useBlueprintCanvasInteractions = ({
   const activeNodeDrag = ref(null)
   const activeEdgeDrag = ref(null)
   const screenToWorldProjector = ref(null)
+  const worldToViewportProjector = ref(null)
   const stageRectGetter = ref(null)
   const focusWorldBoundsFn = ref(null)
 
@@ -313,8 +314,9 @@ export const useBlueprintCanvasInteractions = ({
     appendLog(`已添加${node.title}节点。`)
   }
 
-  const handleCanvasReady = ({ screenToWorldPoint, getStageRect, focusWorldBounds }) => {
+  const handleCanvasReady = ({ screenToWorldPoint, worldToViewportPoint, getStageRect, focusWorldBounds }) => {
     screenToWorldProjector.value = screenToWorldPoint
+    worldToViewportProjector.value = worldToViewportPoint
     stageRectGetter.value = getStageRect
     focusWorldBoundsFn.value = focusWorldBounds
   }
@@ -472,6 +474,7 @@ export const useBlueprintCanvasInteractions = ({
   return {
     isLibraryLoading,
     screenToWorldProjector,
+    worldToViewportProjector,
     stageRectGetter,
     focusWorldBoundsFn,
     activeEdgeDrag,

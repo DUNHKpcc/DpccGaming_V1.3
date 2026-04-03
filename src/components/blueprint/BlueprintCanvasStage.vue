@@ -27,7 +27,8 @@ const {
   centerOnWorld,
   focusWorldBounds,
   onWheel,
-  screenToWorldPoint
+  screenToWorldPoint,
+  worldToViewportPoint
 } = useInfiniteCanvas()
 
 const readDraggedGame = (dataTransfer) =>
@@ -86,6 +87,7 @@ onMounted(() => {
   centerOnWorld()
   emit('canvas-ready', {
     screenToWorldPoint,
+    worldToViewportPoint,
     getStageRect: () => stageRef.value?.getBoundingClientRect() || null,
     focusWorldBounds
   })

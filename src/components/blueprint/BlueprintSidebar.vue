@@ -1054,7 +1054,9 @@ watch(
   gap: clamp(8px, 0.8vw, 10px);
   min-height: clamp(58px, 5vw, 62px);
   padding: clamp(9px, 0.9vw, 11px) clamp(10px, 0.9vw, 12px);
+  border: 1px solid var(--bp-border);
   border-radius: calc(8px * var(--bp-ui-scale));
+  background: var(--bp-surface);
   cursor: grab;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }

@@ -13,6 +13,7 @@ import {
 export const useBlueprintExecution = ({
   authStore,
   selectedModel,
+  hasExplicitModelSelection,
   selectedVisionModel,
   seed,
   blueprintNodes,
@@ -429,7 +430,11 @@ export const useBlueprintExecution = ({
     }
   }
 
-  const streamBlueprintExecution = async ({ startNodeId = '', scope = 'all' } = {}) => {
+  const streamBlueprintExecution = async ({
+    startNodeId = '',
+    scope = 'all',
+    rerunInstruction = ''
+  } = {}) => {
     if (isWorkflowBusy.value) return
 
     if (!blueprintNodes.value.length) {
@@ -451,9 +456,11 @@ export const useBlueprintExecution = ({
         body: JSON.stringify({
           seed: seed.value,
           model: selectedModel.value,
+          modelExplicit: hasExplicitModelSelection?.value === true,
           visionModel: selectedVisionModel.value,
           startNodeId,
           scope,
+          rerunInstruction: String(rerunInstruction || ''),
           runtimeSnapshot: nodeRuntimeMap.value,
           workflow: getWorkflowPayload()
         })
@@ -565,6 +572,7 @@ export const useBlueprintExecution = ({
           workflow: getWorkflowPayload(),
           availableNodes: availablePlannerNodes,
           model: selectedModel.value,
+          modelExplicit: hasExplicitModelSelection?.value === true,
           visionModel: selectedVisionModel.value
         })
       })
@@ -604,6 +612,7 @@ export const useBlueprintExecution = ({
     resetExecutionLogSession()
 
     const scope = options.scope === 'single' ? 'single' : 'branch'
+    const rerunInstruction = String(options.rerunInstruction || '').trim()
     const affectedNodeIds = scope === 'single'
       ? [normalizedNodeId]
       : collectDownstreamNodeIds(normalizedNodeId, true)
@@ -615,10 +624,14 @@ export const useBlueprintExecution = ({
         ? `准备重跑节点「${normalizedNodeId}」。`
         : `准备从节点「${normalizedNodeId}」继续执行到下游。`
     )
+    if (scope === 'single' && rerunInstruction) {
+      appendLog(`本次重跑补充说明：${rerunInstruction}`)
+    }
 
     await streamBlueprintExecution({
       startNodeId: normalizedNodeId,
-      scope: scope === 'single' ? 'single' : 'branch'
+      scope: scope === 'single' ? 'single' : 'branch',
+      rerunInstruction: scope === 'single' ? rerunInstruction : ''
     })
   }
 

@@ -7,8 +7,7 @@ const {
   collectBlueprintUpstreamNodeIds
 } = require('./blueprintExecution');
 const {
-  buildBlueprintHtmlSkeleton,
-  buildBlueprintReadmeTemplate
+  buildBlueprintHtmlSkeleton
 } = require('./blueprintOutputTemplates');
 const {
   REQUIRED_BLUEPRINT_OUTPUT_FILES,
@@ -16,10 +15,65 @@ const {
 } = require('./blueprintOutputValidation');
 
 const OUTPUT_FILE_CONTENT_TYPES = {
-  'index.html': 'text/html; charset=utf-8',
-  'style.css': 'text/css; charset=utf-8',
-  'game.js': 'text/javascript; charset=utf-8',
-  'README.md': 'text/markdown; charset=utf-8'
+  'index.html': 'text/html; charset=utf-8'
+};
+const BLUEPRINT_OUTPUT_PROMPT_PREVIEW_LIMIT = 240;
+const BLUEPRINT_OUTPUT_SECTION_LIMIT = 480;
+const BLUEPRINT_OUTPUT_SOURCE_SNIPPET_LIMIT = 420;
+
+const clipBlueprintPromptText = (value = '', maxLength = 0) => {
+  const text = String(value || '').replace(/\r/g, '').trim();
+  if (!text || !Number.isFinite(Number(maxLength)) || maxLength <= 0 || text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(32, Math.floor(maxLength))).trim()}...`;
+};
+
+const summarizeBlueprintPreviousFiles = (files = {}) =>
+  Object.entries(files || {})
+    .filter(([fileName]) => REQUIRED_BLUEPRINT_OUTPUT_FILES.includes(fileName))
+    .map(([fileName, content]) => {
+      const text = String(content || '').replace(/\r/g, '');
+      return {
+        fileName,
+        charCount: text.length,
+        lineCount: text ? text.split('\n').length : 0,
+        preview: clipBlueprintPromptText(text, BLUEPRINT_OUTPUT_PROMPT_PREVIEW_LIMIT)
+      };
+    });
+
+const compactBlueprintGameSpec = (gameSpec = {}) => {
+  const sections = {};
+
+  Object.entries(gameSpec?.sections || {}).forEach(([kind, section]) => {
+    sections[kind] = {
+      title: String(section?.title || kind || '').trim(),
+      summary: clipBlueprintPromptText(section?.summary || '', 80),
+      analysis: clipBlueprintPromptText(section?.analysis || '', 80),
+      output: clipBlueprintPromptText(section?.output || '', 80)
+    };
+  });
+
+  return {
+    title: String(gameSpec?.title || '').trim(),
+    category: String(gameSpec?.category || '').trim(),
+    engine: String(gameSpec?.engine || '').trim(),
+    codeType: String(gameSpec?.codeType || '').trim(),
+    description: clipBlueprintPromptText(gameSpec?.description || '', 80),
+    theme: clipBlueprintPromptText(gameSpec?.theme || '', 80),
+    coreLoop: clipBlueprintPromptText(gameSpec?.coreLoop || '', 80),
+    uiDirection: clipBlueprintPromptText(gameSpec?.uiDirection || '', 80),
+    technicalDirection: clipBlueprintPromptText(gameSpec?.technicalDirection || '', 80),
+    sourceContext: {
+      coverUrl: String(gameSpec?.sourceContext?.coverUrl || '').trim(),
+      videoUrl: String(gameSpec?.sourceContext?.videoUrl || '').trim(),
+      codeSummary: clipBlueprintPromptText(gameSpec?.sourceContext?.codeSummary || '', 80),
+      codeEntryPath: String(gameSpec?.sourceContext?.codeEntryPath || '').trim(),
+      codeSnippet: clipBlueprintPromptText(gameSpec?.sourceContext?.codeSnippet || '', 220)
+    },
+    sections
+  };
 };
 
 const VISION_FRAME_LIMIT = 4;
@@ -50,6 +104,86 @@ const extractJsonObject = (raw = '') => {
   } catch {
     return null;
   }
+};
+
+const readBlueprintFileContent = (value) => {
+  if (typeof value === 'string') return value;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => readBlueprintFileContent(entry))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (!value || typeof value !== 'object') return '';
+
+  const preferredKeys = ['content', 'text', 'code', 'value', 'source', 'body', 'data'];
+  for (const key of preferredKeys) {
+    if (!(key in value)) continue;
+    const normalized = readBlueprintFileContent(value[key]);
+    if (normalized) return normalized;
+  }
+
+  return '';
+};
+
+const mapBlueprintFileEntries = (entries = []) =>
+  (Array.isArray(entries) ? entries : []).reduce((accumulator, entry) => {
+    if (!entry || typeof entry !== 'object') return accumulator;
+
+    const fileName = String(
+      entry.fileName || entry.name || entry.path || entry.file || ''
+    ).trim();
+    if (!fileName) return accumulator;
+
+    const content = readBlueprintFileContent(entry);
+    if (!content) return accumulator;
+
+    accumulator[fileName] = content;
+    return accumulator;
+  }, {});
+
+const normalizeBlueprintOutputFiles = (candidate = {}) => {
+  if (Array.isArray(candidate)) {
+    return mapBlueprintFileEntries(candidate);
+  }
+
+  if (!candidate || typeof candidate !== 'object') return {};
+
+  return REQUIRED_BLUEPRINT_OUTPUT_FILES.reduce((files, fileName) => {
+    const content = readBlueprintFileContent(candidate[fileName]);
+    if (content) {
+      files[fileName] = content;
+    }
+    return files;
+  }, {});
+};
+
+const extractBlueprintOutputFiles = (rawReply = '') => {
+  const parsed = extractJsonObject(rawReply);
+  if (!parsed || typeof parsed !== 'object') return {};
+
+  const candidates = [
+    parsed?.files,
+    parsed,
+    parsed?.output?.files,
+    parsed?.output,
+    parsed?.bundle?.files,
+    parsed?.bundle,
+    parsed?.artifacts,
+    parsed?.data?.files,
+    parsed?.data
+  ];
+
+  for (const candidate of candidates) {
+    const files = normalizeBlueprintOutputFiles(candidate);
+    if (Object.keys(files).length) {
+      return files;
+    }
+  }
+
+  return {};
 };
 
 const resolveImageMimeType = (filePath = '') => {
@@ -229,7 +363,7 @@ const buildBlueprintGameSpec = ({
   const theme = sections.visual?.output || sections.design?.output || sourceNode.description || '';
   const coreLoop = sections.play?.output || sections.level?.output || sections.progression?.output || '';
   const uiDirection = sections.ui?.output || '';
-  const technicalDirection = sections.language?.output || `${sourceNode.codeTypeLabel || 'JavaScript'} + 原生 HTML/CSS/JS，无外部依赖`;
+  const technicalDirection = sections.language?.output || '优先使用原生 HTML/CSS/JavaScript 直接输出可运行 H5 版本，无外部依赖、无额外构建步骤。';
 
   return {
     title: sourceNode.title || node.title || 'Blueprint H5 Game',
@@ -255,31 +389,37 @@ const buildBlueprintGameSpec = ({
 const buildBlueprintOutputPrompt = ({
   gameSpec = {},
   previousIssues = [],
-  previousFiles = null
+  previousFiles = null,
+  rerunInstruction = ''
 } = {}) => {
   const title = String(gameSpec.title || 'Blueprint H5 Game').trim() || 'Blueprint H5 Game';
   const htmlSkeleton = buildBlueprintHtmlSkeleton({ title });
-  const readmeTemplate = buildBlueprintReadmeTemplate({ title });
+  const normalizedRerunInstruction = String(rerunInstruction || '').trim();
+  const compactGameSpec = compactBlueprintGameSpec(gameSpec);
+  const previousFileSummaries = previousFiles ? summarizeBlueprintPreviousFiles(previousFiles) : [];
 
   return [
     '你要生成一个可直接浏览器预览的轻量 H5 网页小游戏，且只能输出严格 JSON。',
-    '目标文件固定为 files.index.html、files.style.css、files.game.js、files.README.md。',
+    '目标文件固定为 files.index.html。',
     '要求：单页、原生 HTML/CSS/JS、无第三方依赖、可直接打开 index.html 运行。',
+    '默认优先贴近可直接运行的 H5 版本：优先原生 HTML/CSS/JavaScript，不要默认使用 Cocos、TypeScript 或需要额外构建步骤的方案，除非游戏规格或用户说明明确要求。',
     '这是成品游戏，不是运行说明页、总结页、报告页或模板页。',
     '必须具备完整游戏循环：开始界面、进行中玩法、结束或失败界面、可重开。',
     '必须存在明确玩家交互，并且交互会改变状态、结果或界面。',
-    'index.html 必须引用 style.css 和 game.js，并包含 id="app" 的挂载节点。',
-    'README.md 必须包含“## 玩法 / ## 操作 / ## 结构 / ## 运行”四个章节。',
-    `游戏规格：\n${JSON.stringify(gameSpec, null, 2)}`,
+    'index.html 必须包含 id="app" 的挂载节点。',
+    'index.html 必须内嵌完整 <style> 和 <script>，不要依赖外部 css/js 文件。',
+    `游戏规格摘要：\n${JSON.stringify(compactGameSpec, null, 2)}`,
+    normalizedRerunInstruction
+      ? `本次重跑补充说明：\n${normalizedRerunInstruction}\n请把它视为本次输出修订的优先要求，但不要把它写成给用户看的说明文字。`
+      : '',
     `HTML 骨架参考：\n${htmlSkeleton}`,
-    `README 结构参考：\n${readmeTemplate}`,
     previousIssues.length
       ? `上一次生成未通过成品合同校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
       : '',
-    previousFiles
-      ? `上一次生成的文件如下，请保留可用部分并定向修复，不要退化成模板页：\n${JSON.stringify(previousFiles, null, 2)}`
+    previousFileSummaries.length
+      ? `上一次生成的文件摘要如下，请保留可用部分并定向修复，不要退化成模板页：\n${JSON.stringify(previousFileSummaries, null, 2)}`
       : '',
-    '返回格式示例：{"files":{"index.html":"...","style.css":"...","game.js":"...","README.md":"..."}}'
+    '返回格式示例：{"files":{"index.html":"<!doctype html>..."}}'
   ].filter(Boolean).join('\n\n');
 };
 
@@ -299,9 +439,11 @@ const executeBlueprintOutputStep = async ({
   generateAiReply,
   startedAt = new Date().toISOString(),
   maxRepairAttempts = 3,
+  rerunInstruction = '',
   onProgress
 } = {}) => {
   const gameSpec = buildBlueprintGameSpec({ step, node, stepResults, stepsById });
+  const effectiveOutputModel = selectedModel || 'GLM-4.5';
   let attempt = 0;
   let previousFiles = null;
   let previousIssues = [];
@@ -317,7 +459,8 @@ const executeBlueprintOutputStep = async ({
     const prompt = buildBlueprintOutputPrompt({
       gameSpec,
       previousIssues,
-      previousFiles
+      previousFiles,
+      rerunInstruction
     });
     emitBlueprintStepProgress(onProgress, {
       progress: 0.52,
@@ -328,12 +471,15 @@ const executeBlueprintOutputStep = async ({
     });
     const rawReply = await generateAiReply({
       prompt,
-      builtinModel: selectedModel,
+      builtinModel: effectiveOutputModel,
       gameTitle: gameSpec.title || '',
       roomMessages: [],
       roomSummary: null,
       memoryEntries: [],
-      systemDirective: '你是 DpccGaming BluePrint 的输出节点执行器。返回严格 JSON，不要输出 Markdown 代码块或额外说明。'
+      systemDirective: '你是 DpccGaming BluePrint 的输出节点执行器。返回严格 JSON，不要输出 Markdown 代码块或额外说明。',
+      requestOptions: {
+        promptLimit: 12000
+      }
     });
     lastRawReply = rawReply;
 
@@ -342,8 +488,7 @@ const executeBlueprintOutputStep = async ({
       stage: 'parse',
       detail: '模型已返回，正在解析并校验输出文件。'
     });
-    const parsed = extractJsonObject(rawReply) || {};
-    const files = parsed?.files && typeof parsed.files === 'object' ? parsed.files : {};
+    const files = extractBlueprintOutputFiles(rawReply);
     const validation = validateBlueprintOutputBundle(files);
 
     if (validation.ok) {
@@ -356,7 +501,7 @@ const executeBlueprintOutputStep = async ({
       });
       const normalized = normalizeBlueprintStepResult({
         summary: '已生成可直接预览的 H5 成品小游戏。',
-        analysis: `输出节点已基于上游规格生成四文件，并通过了成品游戏合同校验。`,
+        analysis: '输出节点已基于上游规格生成单文件成品页，并通过成品游戏合同校验。',
         output: REQUIRED_BLUEPRINT_OUTPUT_FILES.join('\n'),
         rawReply,
         input: JSON.stringify(gameSpec, null, 2),
@@ -385,7 +530,7 @@ const executeBlueprintOutputStep = async ({
       return buildBlueprintStepRuntime({
         step,
         normalized,
-        model: selectedModel,
+        model: effectiveOutputModel,
         status: 'completed',
         startedAt,
         completedAt,
@@ -437,7 +582,7 @@ const executeBlueprintOutputStep = async ({
   return buildBlueprintStepRuntime({
     step,
     normalized,
-    model: selectedModel,
+    model: effectiveOutputModel,
     status: 'failed',
     startedAt,
     completedAt,
@@ -487,6 +632,7 @@ const executeBlueprintSourceStep = async ({
   generateAiReply
 } = {}) => {
   try {
+    const effectiveModel = selectedModel || 'DouBaoSeed';
     emitBlueprintStepProgress(onProgress, {
       progress: 0.16,
       stage: 'metadata',
@@ -612,6 +758,7 @@ const executeBlueprintAiDomainStep = async ({
   selectedModel = '',
   generateAiReply,
   startedAt = new Date().toISOString(),
+  rerunInstruction = '',
   onProgress
 } = {}) => {
   try {
@@ -623,7 +770,8 @@ const executeBlueprintAiDomainStep = async ({
     const preparedPrompt = buildBlueprintNodePrompt({
       step,
       stepResults,
-      stepsById
+      stepsById,
+      rerunInstruction
     });
     emitBlueprintStepProgress(onProgress, {
       progress: 0.52,
@@ -632,7 +780,7 @@ const executeBlueprintAiDomainStep = async ({
     });
     const rawReply = await generateAiReply({
       prompt: preparedPrompt.prompt,
-      builtinModel: selectedModel,
+      builtinModel: effectiveModel,
       gameTitle: resolveBlueprintGameTitle({
         step,
         stepResults,
@@ -641,7 +789,10 @@ const executeBlueprintAiDomainStep = async ({
       roomMessages: [],
       roomSummary: null,
       memoryEntries: [],
-      systemDirective: preparedPrompt.systemDirective
+      systemDirective: preparedPrompt.systemDirective,
+      requestOptions: {
+        promptLimit: 12000
+      }
     });
     emitBlueprintStepProgress(onProgress, {
       progress: 0.84,
@@ -669,7 +820,7 @@ const executeBlueprintAiDomainStep = async ({
     return buildBlueprintStepRuntime({
       step,
       normalized,
-      model: selectedModel,
+      model: effectiveModel,
       status: 'completed',
       startedAt,
       completedAt,
@@ -679,7 +830,8 @@ const executeBlueprintAiDomainStep = async ({
     const preparedPrompt = buildBlueprintNodePrompt({
       step,
       stepResults,
-      stepsById
+      stepsById,
+      rerunInstruction
     });
     const completedAt = new Date().toISOString();
     const errorMessage = error?.message || '节点执行失败';
@@ -698,7 +850,7 @@ const executeBlueprintAiDomainStep = async ({
     return buildBlueprintStepRuntime({
       step,
       normalized,
-      model: selectedModel,
+      model: effectiveModel,
       status: 'failed',
       startedAt,
       completedAt,
@@ -724,5 +876,11 @@ module.exports = {
   executeBlueprintSourceStep,
   executeBlueprintAiDomainStep,
   executeBlueprintOutputStep,
-  executeBlueprintNodeStep
+  executeBlueprintNodeStep,
+  __test: {
+    buildBlueprintOutputPrompt,
+    extractBlueprintOutputFiles,
+    summarizeBlueprintPreviousFiles,
+    compactBlueprintGameSpec
+  }
 };

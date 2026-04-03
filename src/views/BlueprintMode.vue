@@ -38,7 +38,11 @@ import {
   BLUEPRINT_VISION_MODEL_OPTIONS,
   DEFAULT_BLUEPRINT_VISION_MODEL
 } from '../utils/blueprintVisionModels.js'
-import { apiCall } from '../utils/api'
+import { API_BASE_URL, apiCall } from '../utils/api'
+import {
+  isBlueprintRunActiveForAutoCancel,
+  requestBlueprintRunCancelOnLeave
+} from '../utils/blueprintRunLeave.js'
 
 const gameStore = useGameStore()
 const authStore = useAuthStore()
@@ -72,9 +76,11 @@ const nodeMeasurements = ref({})
 const selectedNodeId = ref('')
 const highlightedNodeId = ref('')
 const activeContextMenu = ref(null)
+const activeRerunPrompt = ref(null)
 const activeEditor = ref(null)
 const activeLibraryGameId = ref('')
 const selectedModel = ref(CHAT_MORE_BUILTIN_MODELS[0] || 'DouBaoSeed')
+const hasExplicitModelSelection = ref(false)
 const selectedVisionModel = ref(DEFAULT_BLUEPRINT_VISION_MODEL)
 const hasWorkflowHydrated = ref(false)
 const lastSavedWorkflowSnapshot = ref(serializeBlueprintWorkflow([], []))
@@ -86,6 +92,7 @@ const hasLogPanelBeenPositioned = ref(false)
 
 const libraryGames = computed(() => gameStore.games || [])
 let highlightTimer = null
+let hasTriggeredLeaveAutoCancel = false
 
 const workflowSnapshot = computed(() =>
   serializeBlueprintWorkflow(blueprintNodes.value, blueprintEdges.value)
@@ -269,6 +276,7 @@ const pulseNode = (nodeId) => {
 
 const closeNodeOverlays = () => {
   activeContextMenu.value = null
+  activeRerunPrompt.value = null
   activeEditor.value = null
 }
 
@@ -308,9 +316,36 @@ const resolveBlueprintErrorMessage = (error, fallbackMessage) => {
   return error?.message || fallbackMessage
 }
 
+const hasActiveBlueprintRunForAutoCancel = () =>
+  isBlueprintRunActiveForAutoCancel({
+    runId: latestRunId.value,
+    status: latestRunStatus.value,
+    runHistoryApiAvailable: runHistoryApiAvailable.value
+  })
+
+const autoCancelBlueprintRunOnLeave = async ({ fireAndForget = false } = {}) => {
+  if (hasTriggeredLeaveAutoCancel) return false
+  if (!hasActiveBlueprintRunForAutoCancel()) return false
+
+  hasTriggeredLeaveAutoCancel = true
+
+  if (fireAndForget) {
+    const authToken = localStorage.getItem('token') || authStore.authToken || ''
+    return requestBlueprintRunCancelOnLeave({
+      runId: latestRunId.value,
+      apiBaseUrl: API_BASE_URL,
+      authToken
+    })
+  }
+
+  await handleCancelLatestRun(latestRunId.value)
+  return true
+}
+
 const executionApi = useBlueprintExecution({
   authStore,
   selectedModel,
+  hasExplicitModelSelection,
   selectedVisionModel,
   seed,
   blueprintNodes,
@@ -375,6 +410,7 @@ const {
 const {
   isLibraryLoading,
   screenToWorldProjector,
+  worldToViewportProjector,
   stageRectGetter,
   focusWorldBoundsFn,
   activeEdgeDrag,
@@ -481,7 +517,7 @@ const handleGlobalPointerDown = (event) => {
     return
   }
 
-  if (target.closest('.bp-node-context-menu, .bp-node-editor-panel, .bp-log-panel, .bp-prompt-dock')) return
+  if (target.closest('.bp-node-context-menu, .bp-node-rerun-prompt, .bp-node-editor-panel, .bp-log-panel, .bp-prompt-dock')) return
   closeNodeOverlays()
 }
 
@@ -490,6 +526,7 @@ const handleSelectModel = (modelValue) => {
   if (nextModel === selectedModel.value) return
 
   selectedModel.value = nextModel
+  hasExplicitModelSelection.value = true
   appendLog(`已切换执行模型为 ${selectedModel.value}。`)
   notificationStore.success('模型已切换', `当前执行模型：${selectedModel.value}`)
 }
@@ -542,8 +579,10 @@ const handleNodeContextMenu = (payload) => {
 
   handleSelectNode(node.id)
   activeEditor.value = null
+  activeRerunPrompt.value = null
   activeContextMenu.value = {
     nodeId: node.id,
+    nodeTitle: node.title || node.id,
     kind: node.kind,
     position: getBlueprintNodeContextMenuPosition(
       viewportPoint,
@@ -555,15 +594,88 @@ const handleNodeContextMenu = (payload) => {
   }
 }
 
+const openNodeRerunPrompt = (menuPayload) => {
+  const nodeId = String(menuPayload?.nodeId || '').trim()
+  if (!nodeId) return
+
+  const node = blueprintNodes.value.find((item) => item.id === nodeId)
+  if (!node) return
+
+  const stageRect = typeof stageRectGetter.value === 'function'
+    ? stageRectGetter.value()
+    : null
+  const anchorPoint = activeContextMenu.value?.position || menuPayload?.position || { x: 0, y: 0 }
+
+  activeContextMenu.value = null
+  activeEditor.value = null
+  activeRerunPrompt.value = {
+    nodeId: node.id,
+    nodeTitle: node.title || node.id,
+    position: getBlueprintNodeContextMenuPosition(anchorPoint, {
+      worldWidth: Number(stageRect?.width) || window.innerWidth,
+      worldHeight: Number(stageRect?.height) || window.innerHeight,
+      width: 320,
+      height: 232
+    }),
+    draft: ''
+  }
+}
+
+const updateRerunPromptDraft = (value) => {
+  if (!activeRerunPrompt.value) return
+
+  activeRerunPrompt.value = {
+    ...activeRerunPrompt.value,
+    draft: String(value || '')
+  }
+}
+
+const submitNodeRerunPrompt = async () => {
+  const promptState = activeRerunPrompt.value
+  if (!promptState?.nodeId) return
+
+  const nodeId = promptState.nodeId
+  const rerunInstruction = String(promptState.draft || '').trim()
+  closeNodeOverlays()
+  await handleExecuteNode(nodeId, {
+    scope: 'single',
+    rerunInstruction
+  })
+}
+
 const openNodeEditor = (nodeId) => {
   const node = blueprintNodes.value.find((item) => item.id === nodeId)
   if (!node || !isBlueprintCompactNodeKind(node.kind)) return
 
+  const stageRect = typeof stageRectGetter.value === 'function'
+    ? stageRectGetter.value()
+    : null
+  const viewportPoint = typeof worldToViewportProjector.value === 'function'
+    ? worldToViewportProjector.value(node.position || {})
+    : null
+  const nodeSize = nodeMeasurements.value[node.id] || null
+  const viewportRect = viewportPoint
+    ? {
+        x: Number(viewportPoint.x) || 0,
+        y: Number(viewportPoint.y) || 0,
+        width: Number(nodeSize?.width) || 0,
+        height: Number(nodeSize?.height) || 0
+      }
+    : null
+
   activeContextMenu.value = null
+  activeRerunPrompt.value = null
   activeEditor.value = {
     nodeId: node.id,
     kind: node.kind,
-    position: getBlueprintNodeEditorPanelPosition(node, nodeMeasurements.value[node.id]),
+    position: getBlueprintNodeEditorPanelPosition(node, nodeMeasurements.value[node.id], {
+      worldWidth: Number(stageRect?.width) || window.innerWidth,
+      worldHeight: Number(stageRect?.height) || window.innerHeight,
+      width: 360,
+      height: 460,
+      viewportPoint,
+      viewportRect
+    }),
     draft: String(node.content || ''),
     runtime: nodeRuntimeMap.value[node.id] || null,
     previewUrl: node.kind === 'output' ? latestPreviewUrl.value : ''
@@ -649,6 +761,15 @@ watch(latestPreviewUrl, (nextPreviewUrl) => {
   }
 })
 
+watch(
+  [latestRunId, latestRunStatus, runHistoryApiAvailable],
+  () => {
+    if (!hasActiveBlueprintRunForAutoCancel()) {
+      hasTriggeredLeaveAutoCancel = false
+    }
+  }
+)
+
 watch(isSidebarCollapsed, () => {
   window.setTimeout(() => {
     logPanelPosition.value = hasLogPanelBeenPositioned.value
@@ -662,6 +783,7 @@ onBeforeUnmount(() => {
     clearTimeout(highlightTimer)
   }
 
+  void autoCancelBlueprintRunOnLeave({ fireAndForget: true })
   cancelActiveExecutionStream()
   clearScheduledLibraryLoad()
   finishNodeDrag({ snapToGrid: false })
@@ -672,8 +794,11 @@ onBeforeUnmount(() => {
 })
 
 onBeforeRouteLeave(() => {
-  if (!isWorkflowDirty.value) return true
-  return window.confirm('当前蓝图有未保存改动，确定退出吗？')
+  if (isWorkflowDirty.value && !window.confirm('当前蓝图有未保存改动，确定退出吗？')) {
+    return false
+  }
+
+  return autoCancelBlueprintRunOnLeave({ fireAndForget: false }).then(() => true)
 })
 </script>
 
@@ -738,6 +863,7 @@ onBeforeRouteLeave(() => {
         :selected-node-id="selectedNodeId"
         :highlighted-node-id="highlightedNodeId"
         :active-context-menu="activeContextMenu"
+        :active-rerun-prompt="activeRerunPrompt"
         :active-editor="activeEditor"
         :log-panel-position="logPanelPosition"
         :latest-run-id="latestRunId"
@@ -765,10 +891,13 @@ onBeforeRouteLeave(() => {
         @context-menu="handleNodeContextMenu"
         @measure-node="handleNodeMeasure"
         @unmount-node="handleNodeUnmount"
-        @rerun-node="handleExecuteNode($event, { scope: 'single' })"
+        @rerun-node="openNodeRerunPrompt"
         @continue-from-node="handleExecuteNode($event, { scope: 'branch' })"
         @edit-node="openNodeEditor"
         @delete-node="handleDeleteNode"
+        @submit-rerun-prompt="submitNodeRerunPrompt"
+        @cancel-rerun-prompt="closeNodeOverlays"
+        @update-rerun-prompt-draft="updateRerunPromptDraft"
         @close-overlays="closeNodeOverlays"
         @save-editor="saveNodeEditor"
         @update-editor-draft="updateNodeEditorDraft"

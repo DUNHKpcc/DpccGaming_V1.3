@@ -67,7 +67,7 @@ export const BLUEPRINT_COMPACT_NODE_META = {
     iconBackground: '#ecf3ff',
     iconColor: '#345f9c',
     contentLabel: '目标语言',
-    contentPlaceholder: '输入 TypeScript、JavaScript、C# 等编程语言'
+    contentPlaceholder: '输入优先的 H5 技术方案，例如：原生 HTML/CSS/JavaScript，可直接运行'
   },
   design: {
     title: '游戏设定',

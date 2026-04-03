@@ -207,12 +207,16 @@ watch(
 
 <style scoped>
 .bp-node-editor-panel {
+  position: absolute;
+  z-index: 26;
   display: flex;
   flex-direction: column;
   width: calc(360px * var(--bp-ui-scale, 1));
-  height: calc(560px * var(--bp-ui-scale, 1));
+  min-height: calc(292px * var(--bp-ui-scale, 1));
+  max-height: min(calc(460px * var(--bp-ui-scale, 1)), 76vh);
   padding: calc(12px * var(--bp-ui-scale, 1));
   box-sizing: border-box;
+  pointer-events: auto;
 }
 
 .bp-node-editor-head {
@@ -263,8 +267,8 @@ watch(
 }
 
 .bp-node-editor-field textarea {
-  min-height: calc(132px * var(--bp-ui-scale, 1));
-  max-height: calc(160px * var(--bp-ui-scale, 1));
+  min-height: calc(96px * var(--bp-ui-scale, 1));
+  max-height: calc(132px * var(--bp-ui-scale, 1));
   resize: vertical;
 }
 
@@ -283,7 +287,7 @@ watch(
 
 .bp-node-editor-runtime {
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   flex-direction: column;
   gap: calc(6px * var(--bp-ui-scale, 1));
@@ -364,8 +368,9 @@ watch(
 .bp-node-editor-runtime-panel {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: 0 1 auto;
+  min-height: calc(88px * var(--bp-ui-scale, 1));
+  max-height: calc(176px * var(--bp-ui-scale, 1));
   gap: calc(6px * var(--bp-ui-scale, 1));
   padding: calc(10px * var(--bp-ui-scale, 1));
   border-radius: calc(12px * var(--bp-ui-scale, 1));

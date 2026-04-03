@@ -21,7 +21,7 @@ const emit = defineEmits(['rerun-node', 'continue-from-node', 'edit', 'delete'])
     <button
       type="button"
       class="bp-node-menu-btn bp-floating-menu-button"
-      @click="emit('rerun-node', props.menu.nodeId)"
+      @click="emit('rerun-node', props.menu)"
     >
       <i class="fa fa-rotate-right"></i>
       <span>重跑该节点</span>

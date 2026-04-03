@@ -25,6 +25,10 @@ const LINKED_RESOURCE_TERMS = [
 ];
 const AI_REQUEST_TIMEOUT_MS = 90000;
 const AI_NETWORK_RETRY_COUNT = 1;
+const DEFAULT_AI_REQUEST_OPTIONS = Object.freeze({
+  timeoutMs: AI_REQUEST_TIMEOUT_MS,
+  retryCount: AI_NETWORK_RETRY_COUNT
+});
 
 const normalizeAiRequestTimeout = (value) => {
   const parsed = Number(value);
@@ -173,7 +177,8 @@ const buildPromptFromAiContext = ({
   recentMessages = [],
   roomSummary = null,
   memoryEntries = [],
-  systemDirective = ''
+  systemDirective = '',
+  promptLimit = 2200
 }) => {
   const recentText = recentMessages
     .map((message) => formatRoomMessageForAi(message))
@@ -199,7 +204,7 @@ const buildPromptFromAiContext = ({
     summaryText ? `房间摘要：\n${summaryText}` : '',
     memoryText ? `检索到的房间记忆：\n${memoryText}` : '',
     recentText ? `最近对话：\n${recentText}` : '',
-    `当前请求：\n${safeLongText(prompt || '', 2200)}`
+    `当前请求：\n${safeLongText(prompt || '', promptLimit)}`
   ].filter(Boolean).join('\n\n');
 };
 
@@ -338,7 +343,8 @@ const requestBuiltinAiReply = async ({
     recentMessages: roomMessages,
     roomSummary,
     memoryEntries,
-    systemDirective
+    systemDirective,
+    promptLimit: requestOptions?.promptLimit
   });
 
   const payload = {
@@ -547,11 +553,15 @@ const createRequestRoomAiReplyBySlot = ({
   };
 
 module.exports = {
+  DEFAULT_AI_REQUEST_OPTIONS,
   buildAiSenderLabel,
   describeMessageForMemory,
   generateAiReply,
   createRequestRoomAiReplyBySlot,
   __test: {
+    AI_REQUEST_TIMEOUT_MS,
+    AI_NETWORK_RETRY_COUNT,
+    buildPromptFromAiContext,
     requestBuiltinAiReply,
     fetchBuiltinAiResponse,
     isRetryableNetworkError,

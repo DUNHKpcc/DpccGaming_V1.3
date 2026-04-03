@@ -1,3 +1,5 @@
+const { normalizeBuiltinModelName } = require('./aiProviderConfig');
+
 const BP_GRID_SIZE = 34;
 const BP_PLANNER_WORLD_CENTER = {
   x: 2400,
@@ -11,11 +13,16 @@ const BP_PLANNER_LAYOUT = {
   columnGap: 408,
   rowGap: 238
 };
+const BLUEPRINT_PLANNER_PROMPT_NODE_LIMIT = 24;
+const BLUEPRINT_PLANNER_PROMPT_EDGE_LIMIT = 36;
+const BLUEPRINT_PLANNER_NODE_CONTENT_LIMIT = 320;
+const BLUEPRINT_PLANNER_RAW_REPLY_LIMIT = 3200;
+const BLUEPRINT_PLANNER_TRUNCATION_SUFFIX = '…（已截断）';
 const BLUEPRINT_PLANNER_GAME_PLACEHOLDERS = {
   coverUrl: '/GameImg.jpg',
   categoryLabel: '动作',
-  engineLabel: 'Cocos',
-  codeTypeLabel: 'TypeScript'
+  engineLabel: 'HTML5',
+  codeTypeLabel: 'JavaScript'
 };
 
 const BLUEPRINT_PLANNER_NODE_CATALOG = [
@@ -41,6 +48,14 @@ const ALLOWED_BLUEPRINT_NODE_KINDS = new Set(BLUEPRINT_PLANNER_NODE_CATALOG.map(
 const BLUEPRINT_PLANNER_NODE_META_BY_KIND = new Map(
   BLUEPRINT_PLANNER_NODE_CATALOG.map((entry) => [entry.kind, entry])
 );
+const SUPPORTED_BLUEPRINT_PLANNER_MODELS = new Set([
+  'DouBaoSeed',
+  'GPT-5.4',
+  'Claude 4.6 opus',
+  'Gemini 3.0 Pro',
+  'GLM-4.5',
+  'Qwen3-CodeMax'
+]);
 
 const createHttpError = (status, message) => {
   const error = new Error(message);
@@ -79,6 +94,14 @@ const extractJsonObject = (raw = '') => {
 
 const normalizeText = (value = '') => String(value || '').trim();
 
+const truncatePlannerText = (value = '', maxLength = 0) => {
+  const text = normalizeText(value);
+  if (!text || !Number.isFinite(Number(maxLength)) || maxLength <= 0) return text;
+  if (text.length <= maxLength) return text;
+  const safeLength = Math.max(32, Math.floor(maxLength));
+  return `${text.slice(0, safeLength)}${BLUEPRINT_PLANNER_TRUNCATION_SUFFIX}`;
+};
+
 const sanitizePlannerContent = (value = '') => {
   const text = String(value || '')
     .replace(/```(?:json)?/gi, '')
@@ -95,6 +118,54 @@ const sanitizePlannerContent = (value = '') => {
     .filter((line) => line && !/^[{}\[\],]+$/.test(line))
     .join('\n')
     .trim();
+};
+
+const buildTerminalOutputNode = (nodes = [], existingOutputNode = null, existingNodeMap = new Map()) => {
+  const outputMeta = BLUEPRINT_PLANNER_NODE_META_BY_KIND.get('output') || {};
+  const nonOutputNodes = nodes.filter((node) => String(node?.kind || '').trim() !== 'output');
+  const referenceNode = nonOutputNodes[nonOutputNodes.length - 1] || nodes[nodes.length - 1] || {};
+  const rightmostX = nonOutputNodes.reduce((maxValue, node) => {
+    const nodeX = Number(node?.position?.x) || 0;
+    return Math.max(maxValue, nodeX);
+  }, 136);
+  const nextPosition = snapPointToGrid({
+    x: rightmostX + BP_PLANNER_LAYOUT.columnGap,
+    y: Number(referenceNode?.position?.y) || 136
+  });
+
+  if (existingOutputNode) {
+    return {
+      ...existingOutputNode,
+      title: normalizeText(existingOutputNode.title) || outputMeta.title || '输出节点',
+      content: sanitizePlannerContent(existingOutputNode.content)
+        || '整合全部上游节点，输出最终可直接运行、可直接预览的 H5 成品游戏文件方案。',
+      position: nextPosition
+    };
+  }
+
+  return normalizePlannedNode({
+    id: `bp-plan-output-${Date.now().toString(36)}`,
+    kind: 'output',
+    title: outputMeta.title || '输出节点',
+    content: '整合全部上游节点，输出最终可直接运行、可直接预览的 H5 成品游戏文件方案。',
+    position: nextPosition
+  }, nodes.length, existingNodeMap);
+};
+
+const ensureTerminalOutputNode = (nodes = [], existingNodeMap = new Map()) => {
+  const normalizedNodes = Array.isArray(nodes) ? [...nodes] : [];
+  const outputNodes = normalizedNodes.filter((node) => String(node?.kind || '').trim() === 'output');
+  const terminalOutputNode = buildTerminalOutputNode(
+    normalizedNodes,
+    outputNodes[outputNodes.length - 1] || null,
+    existingNodeMap
+  );
+  const nextNodes = normalizedNodes.filter((node) => node.id !== terminalOutputNode.id);
+  nextNodes.push(terminalOutputNode);
+  return {
+    nodes: nextNodes,
+    terminalOutputNode
+  };
 };
 
 const ensureNodeId = (node = {}, index = 0) => {
@@ -174,13 +245,13 @@ const normalizeWorkflowShape = (workflow = {}) => ({
 const getPlannerNodeSize = (node = {}) =>
   String(node?.kind || '').trim() === 'game'
     ? {
-        width: BP_PLANNER_LAYOUT.gameWidth,
-        height: BP_PLANNER_LAYOUT.gameHeight
-      }
+      width: BP_PLANNER_LAYOUT.gameWidth,
+      height: BP_PLANNER_LAYOUT.gameHeight
+    }
     : {
-        width: BP_PLANNER_LAYOUT.compactWidth,
-        height: BP_PLANNER_LAYOUT.compactHeight
-      };
+      width: BP_PLANNER_LAYOUT.compactWidth,
+      height: BP_PLANNER_LAYOUT.compactHeight
+    };
 
 const computeWorkflowBounds = (nodes = []) => {
   if (!Array.isArray(nodes) || !nodes.length) return null;
@@ -454,14 +525,55 @@ const extractWorkflowCandidate = (payload = {}) => {
   return normalizeWorkflowShape(payload);
 };
 
-const resolveBlueprintPlannerModel = (requestedModel = '') => {
-  const normalizedModel = normalizeText(requestedModel);
+const buildBlueprintPlannerWorkflowPromptContext = (workflow = {}) => {
+  const normalizedWorkflow = normalizeWorkflowShape(workflow);
+  const nodes = normalizedWorkflow.nodes
+    .slice(0, BLUEPRINT_PLANNER_PROMPT_NODE_LIMIT)
+    .map((node = {}) => {
+      const normalizedNode = {
+        id: normalizeText(node.id),
+        kind: normalizeText(node.kind),
+        title: normalizeText(node.title),
+        position: {
+          x: Number(node?.position?.x) || 0,
+          y: Number(node?.position?.y) || 0
+        }
+      };
+      const truncatedContent = truncatePlannerText(node.content, BLUEPRINT_PLANNER_NODE_CONTENT_LIMIT);
+      if (truncatedContent) {
+        normalizedNode.content = truncatedContent;
+      }
+      return normalizedNode;
+    });
 
-  if (
-    normalizedModel === 'DouBaoSeed'
-    || normalizedModel === 'GLM-4.5'
-    || normalizedModel === 'Qwen3-CodeMax'
-  ) {
+  const edges = normalizedWorkflow.edges
+    .slice(0, BLUEPRINT_PLANNER_PROMPT_EDGE_LIMIT)
+    .map((edge = {}) => ({
+      id: normalizeText(edge.id),
+      fromNodeId: normalizeText(edge.fromNodeId),
+      toNodeId: normalizeText(edge.toNodeId)
+    }));
+
+  const notes = [];
+  if (normalizedWorkflow.nodes.length > nodes.length) {
+    notes.push(`节点过多，已只保留前 ${nodes.length} 个节点作为规划上下文。`);
+  }
+  if (normalizedWorkflow.edges.length > edges.length) {
+    notes.push(`连线过多，已只保留前 ${edges.length} 条连线作为规划上下文。`);
+  }
+
+  return {
+    version: Number(normalizedWorkflow.version) || 1,
+    nodes,
+    edges,
+    notes
+  };
+};
+
+const resolveBlueprintPlannerModel = (requestedModel = '') => {
+  const normalizedModel = normalizeBuiltinModelName(requestedModel);
+
+  if (SUPPORTED_BLUEPRINT_PLANNER_MODELS.has(normalizedModel)) {
     return normalizedModel;
   }
 
@@ -477,7 +589,7 @@ const buildBlueprintPlanningPrompt = ({
   availableNodes = [],
   seed = ''
 } = {}) => {
-  const normalizedWorkflow = normalizeWorkflowShape(workflow);
+  const normalizedWorkflow = buildBlueprintPlannerWorkflowPromptContext(workflow);
   const plannerNodes = Array.isArray(availableNodes) && availableNodes.length
     ? availableNodes
     : buildBlueprintPlannerNodeCatalog();
@@ -487,6 +599,7 @@ const buildBlueprintPlanningPrompt = ({
       '你是 DpccGaming BluePrint 的工作流规划器。',
       '你的任务是根据用户最新需求，直接产出可执行且面向最终可玩产物的蓝图工作流 JSON。',
       '最终目标必须指向一个可直接运行、可直接玩的 H5 小游戏，而不是静态页面、演示稿或半成品说明。',
+      '默认优先选择可直接运行的 H5 实现路径，优先原生 HTML/CSS/JavaScript；除非用户明确要求，否则不要默认规划为 Cocos、TypeScript 或依赖额外构建链的方案。',
       '默认采用增量修改策略：优先保留现有节点和已有节点 id，只在必要时新增、删除或重连节点。',
       '必须返回严格 JSON，不要输出 Markdown 代码块或额外解释。'
     ].join('\n'),
@@ -502,6 +615,8 @@ const buildBlueprintPlanningPrompt = ({
         'workflow 内必须包含 nodes 和 edges。',
         'nodes 中每个节点必须包含 id、kind、title、position，紧凑节点可带 content。',
         '规划结果必须服务于“生成可直接玩的 H5 游戏”这一目标，至少保证 output 节点明确承接最终可执行游戏产物。',
+        '如果用户没有明确指定技术栈，请优先让语言/技术相关节点贴近原生 HTML/CSS/JavaScript 的直接运行 H5 方案，不要默认写成 Cocos 或 TypeScript。',
+        '最后一个节点必须是 output 节点，且 output 节点后面不能再有别的节点。',
         'changes 或 summary 里提到新增、调用、使用的节点，必须真实出现在 workflow.nodes 中，不能只写说明文字。',
         '如果复用现有节点，请尽量保留原 id。',
         '禁止输出不在可用节点清单中的 kind。',
@@ -525,11 +640,12 @@ const buildBlueprintPlanningRepairPrompt = ({
     '请把下面这段回复修复为严格 JSON。',
     '顶级字段只能包含 summary、changes、warnings、workflow。',
     'workflow 内必须包含 nodes 和 edges。',
+    '最后一个节点必须是 output 节点。',
     '如果原回复里没有明确工作流结构，请基于当前工作流做最小增量调整，不要返回空数组。',
     '当前工作流：',
-    JSON.stringify(normalizeWorkflowShape(workflow), null, 2),
+    JSON.stringify(buildBlueprintPlannerWorkflowPromptContext(workflow), null, 2),
     '待修复回复：',
-    String(rawReply || '').trim() || '（空回复）'
+    truncatePlannerText(rawReply, BLUEPRINT_PLANNER_RAW_REPLY_LIMIT) || '（空回复）'
   ].join('\n\n')
 });
 
@@ -565,6 +681,11 @@ const normalizeBlueprintPlanningResult = ({
   if (shouldRelayoutPlannedNodes(nodes)) {
     nodes = relayoutPlannedNodes(nodes, plannedWorkflow.edges);
   }
+  const {
+    nodes: nodesWithTerminalOutput,
+    terminalOutputNode
+  } = ensureTerminalOutputNode(nodes, existingNodeMap);
+  nodes = nodesWithTerminalOutput;
   const validNodeIds = new Set(nodes.map((node) => node.id));
   const edges = plannedWorkflow.edges
     .map((edge, index) => normalizePlannedEdge(edge, index))
@@ -574,6 +695,7 @@ const normalizeBlueprintPlanningResult = ({
       && edge.fromNodeId !== edge.toNodeId
       && validNodeIds.has(edge.fromNodeId)
       && validNodeIds.has(edge.toNodeId)
+      && edge.fromNodeId !== terminalOutputNode.id
     );
   const edgeKeySet = new Set(
     edges.map((edge) => `${edge.fromNodeId}=>${edge.toNodeId}`)

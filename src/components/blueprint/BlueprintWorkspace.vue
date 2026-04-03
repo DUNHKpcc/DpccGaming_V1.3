@@ -21,6 +21,7 @@ const props = defineProps({
   selectedNodeId: { type: String, default: '' },
   highlightedNodeId: { type: String, default: '' },
   activeContextMenu: { type: Object, default: null },
+  activeRerunPrompt: { type: Object, default: null },
   activeEditor: { type: Object, default: null },
   logPanelPosition: { type: Object, required: true },
   latestRunId: { type: String, default: '' },
@@ -55,6 +56,9 @@ const emit = defineEmits([
   'continue-from-node',
   'edit-node',
   'delete-node',
+  'submit-rerun-prompt',
+  'cancel-rerun-prompt',
+  'update-rerun-prompt-draft',
   'close-overlays',
   'save-editor',
   'update-editor-draft',
@@ -109,6 +113,7 @@ const emit = defineEmits([
     <template #overlay>
       <BlueprintOverlayLayer
         :active-context-menu="props.activeContextMenu"
+        :active-rerun-prompt="props.activeRerunPrompt"
         :active-editor="props.activeEditor"
         :log-panel-position="props.logPanelPosition"
         :latest-run-id="props.latestRunId"
@@ -127,6 +132,9 @@ const emit = defineEmits([
         @continue-from-node="emit('continue-from-node', $event)"
         @edit-node="emit('edit-node', $event)"
         @delete-node="emit('delete-node', $event)"
+        @submit-rerun-prompt="emit('submit-rerun-prompt')"
+        @cancel-rerun-prompt="emit('cancel-rerun-prompt')"
+        @update-rerun-prompt-draft="emit('update-rerun-prompt-draft', $event)"
         @close-overlays="emit('close-overlays')"
         @save-editor="emit('save-editor')"
         @update-editor-draft="emit('update-editor-draft', $event)"

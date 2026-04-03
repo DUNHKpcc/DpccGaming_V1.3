@@ -71,6 +71,11 @@ export const useInfiniteCanvas = () => {
     }
   }
 
+  const worldToViewportPoint = ({ x = 0, y = 0 } = {}) => ({
+    x: x * scale.value + offset.value.x,
+    y: y * scale.value + offset.value.y
+  })
+
   const shouldIgnoreCanvasGesture = (event) => {
     if (!(event.target instanceof Element)) return false
     return Boolean(event.target.closest(PAN_GUARD_SELECTOR))
@@ -147,6 +152,7 @@ export const useInfiniteCanvas = () => {
     centerOnWorld,
     focusWorldBounds,
     onWheel,
-    screenToWorldPoint
+    screenToWorldPoint,
+    worldToViewportPoint
   }
 }

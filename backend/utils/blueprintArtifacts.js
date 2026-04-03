@@ -1,8 +1,8 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 
-const BLUEPRINT_BUNDLE_FILES = ['index.html', 'style.css', 'game.js', 'README.md', 'manifest.json'];
-const REQUIRED_GENERATED_FILES = ['index.html', 'style.css', 'game.js', 'README.md'];
+const BLUEPRINT_BUNDLE_FILES = ['index.html', 'manifest.json'];
+const REQUIRED_GENERATED_FILES = ['index.html'];
 
 const resolveUploadsRootPath = (uploadsRootPath = '') => {
   const normalized = String(uploadsRootPath || '').trim();
@@ -50,20 +50,14 @@ const writeBlueprintRunBundle = async ({
   uploadsRootPath = '',
   runId = 0,
   manifest = {},
-  indexHtml,
-  styleCss,
-  gameJs,
-  readmeMd
+  indexHtml
 } = {}) => {
   const bundleDir = getBlueprintRunBundleDir({ uploadsRootPath, runId });
   await fs.mkdir(bundleDir, { recursive: true });
 
   const previewUrl = `/uploads/blueprints/runs/${String(runId || 0)}/index.html`;
   const bundleFiles = {
-    'index.html': String(indexHtml || ''),
-    'style.css': String(styleCss || ''),
-    'game.js': String(gameJs || ''),
-    'README.md': String(readmeMd || '')
+    'index.html': String(indexHtml || '')
   };
 
   assertGeneratedBundleFiles(bundleFiles);
@@ -82,18 +76,6 @@ const writeBlueprintRunBundle = async ({
       'index.html': {
         path: 'index.html',
         contentType: 'text/html; charset=utf-8'
-      },
-      'style.css': {
-        path: 'style.css',
-        contentType: 'text/css; charset=utf-8'
-      },
-      'game.js': {
-        path: 'game.js',
-        contentType: 'text/javascript; charset=utf-8'
-      },
-      'README.md': {
-        path: 'README.md',
-        contentType: 'text/markdown; charset=utf-8'
       },
       'manifest.json': {
         path: 'manifest.json',

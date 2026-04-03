@@ -1,6 +1,7 @@
-const MAX_STEP_SUMMARY_LENGTH = 160;
-const MAX_STEP_ANALYSIS_LENGTH = 480;
-const MAX_STEP_OUTPUT_LENGTH = 2200;
+const MAX_STEP_SUMMARY_LENGTH = 80;
+const MAX_STEP_ANALYSIS_LENGTH = 80;
+const MAX_STEP_OUTPUT_LENGTH = 80;
+const MAX_STEP_VISIBLE_INPUT_LENGTH = 2200;
 
 const BLUEPRINT_NODE_EXECUTION_GUIDE = {
   design: '提炼游戏世界观、核心设定、题材和风格约束。',
@@ -53,6 +54,18 @@ const decodeEscapedBlockText = (value = '') => {
     .replace(/\\"/g, '"');
 };
 
+const stripBlueprintMarkdownLine = (value = '') => String(value || '')
+  .replace(/^#{1,6}\s*/g, '')
+  .replace(/^>\s*/g, '')
+  .replace(/^[-*•]+\s+/g, '')
+  .replace(/^\d+[.)]\s+/g, '')
+  .replace(/^\s*(summary|analysis|output|input|result|process)\s*[:：-]?\s*/i, '')
+  .replace(/\*\*(.*?)\*\*/g, '$1')
+  .replace(/__(.*?)__/g, '$1')
+  .replace(/`([^`]+)`/g, '$1')
+  .replace(/^\s*[-=_]{3,}\s*$/g, '')
+  .trim();
+
 const sanitizeBlueprintPlainText = (value = '', fallback = '') => {
   const text = decodeEscapedBlockText(value)
     .replace(/```(?:json)?/gi, '')
@@ -65,7 +78,7 @@ const sanitizeBlueprintPlainText = (value = '', fallback = '') => {
 
   const collapsed = text
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => stripBlueprintMarkdownLine(line))
     .filter((line) => line && !/^[{}\[\],]+$/.test(line))
     .join('\n')
     .trim();
@@ -75,17 +88,19 @@ const sanitizeBlueprintPlainText = (value = '', fallback = '') => {
 };
 
 const extractJsonObject = (raw = '') => {
-  const text = decodeEscapedBlockText(raw)
+  const rawText = String(raw || '')
     .replace(/```(?:json)?/gi, '')
     .replace(/\r/g, '')
     .trim();
-  if (!text) return null;
+  if (!rawText) return null;
 
   try {
-    return JSON.parse(text);
+    return JSON.parse(rawText);
   } catch {
     // continue
   }
+
+  const text = decodeEscapedBlockText(rawText);
 
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -257,9 +272,8 @@ const formatUpstreamResults = (step = {}, stepResults = {}, stepsById = {}) =>
       if (!runtime || !upstreamStep) return '';
       return [
         `【${upstreamStep.title}】`,
-        runtime.summary ? `摘要：${safeText(runtime.summary, 280)}` : '',
-        runtime.visibleInputText ? `可见输入：\n${safeText(runtime.visibleInputText, 1400)}` : '',
-        runtime.output ? `输出：\n${safeText(runtime.output, 1400)}` : ''
+        runtime.summary ? `摘要：${safeText(runtime.summary, 100)}` : '',
+        runtime.output ? `输出：${safeText(runtime.output, 100)}` : ''
       ].filter(Boolean).join('\n');
     })
     .filter(Boolean)
@@ -281,7 +295,12 @@ const collectBlueprintUpstreamNodeIds = (stepsById = {}, startNodeIds = []) => {
   return visited;
 };
 
-const buildBlueprintNodePrompt = ({ step, stepResults = {}, stepsById = {} }) => {
+const buildBlueprintNodePrompt = ({
+  step,
+  stepResults = {},
+  stepsById = {},
+  rerunInstruction = ''
+}) => {
   const node = step?.node || {};
   const upstreamText = formatUpstreamResults(step, stepResults, stepsById);
   const reachableUpstreamNodeIds = collectBlueprintUpstreamNodeIds(stepsById, step?.upstreamNodeIds || []);
@@ -292,21 +311,28 @@ const buildBlueprintNodePrompt = ({ step, stepResults = {}, stepsById = {} }) =>
     .join('\n\n');
   const nodeGoal = BLUEPRINT_NODE_EXECUTION_GUIDE[node.kind] || '根据当前节点名称和上游结果，整理出可供下游继续使用的结构化结论。';
   const instruction = safeText(node.content || '', 1200);
+  const normalizedRerunInstruction = safeText(rerunInstruction || '', 1200);
   const visibleInput = [
     sourceContext ? `游戏上下文：\n${sourceContext}` : '',
     upstreamText ? `可见上游结果：\n${upstreamText}` : '',
-    instruction ? `当前节点原始要求：\n${instruction}` : '当前节点原始要求：未填写，请按节点类型合理补全。'
+    instruction ? `当前节点原始要求：\n${instruction}` : '当前节点原始要求：未填写，请按节点类型合理补全。',
+    normalizedRerunInstruction ? `本次重跑补充说明：\n${normalizedRerunInstruction}` : ''
   ].filter(Boolean).join('\n\n');
   const prompt = [
     `你正在自动执行 DpccGaming BluePrint 的节点：「${safeText(step.title, 60)}」。`,
     `节点类型：${safeText(node.kind, 30)}。`,
     `节点职责：${nodeGoal}`,
     visibleInput,
+    normalizedRerunInstruction
+      ? '这是本次重跑时用户追加的临时修改要求。请在保留上游约束的前提下，优先按这条补充说明调整当前节点输出，但不要把它当成长期固定节点内容。'
+      : '',
     '请先提炼你从上游拿到了什么，再分析当前节点应该产出什么，最后给出可供下游继续使用的结果。',
     '所有字段都要用干净自然语言表达，不要保留 JSON 片段、字段名、代码围栏、列表前缀或多余符号。',
+    '最终文本必须以简体中文为主，不要输出英文小标题，不要输出 Markdown 标题、星号、井号、项目符号、反引号或其他装饰性符号。',
     '如果当前节点会影响最终产物，请明确服务于“生成可直接玩的浏览器 H5 游戏”，避免输出停留在概念层。',
     '必须返回严格 JSON 对象，不要加 Markdown 代码块。字段只能是 summary、analysis、output。',
-    'summary 用 1 句话概括本节点完成了什么；analysis 用 2 到 4 句解释判断依据；output 输出该节点最终结论，且 output 必须是可继续给下游消费的纯文本。'
+    'summary、analysis、output 都必须简洁精悍，每项尽量控制在 80 字以内。',
+    'summary 用 1 句话概括本节点完成了什么；analysis 用 1 到 2 句解释判断依据；output 输出该节点最终结论，且 output 必须是可继续给下游消费的纯文本。'
   ].join('\n\n');
 
   return {
@@ -347,11 +373,11 @@ const normalizeBlueprintStepResult = (payload = {}, node = {}) => {
   );
   const visibleInputText = safeText(
     normalizedPayload.visibleInputText || normalizedPayload.input || '',
-    MAX_STEP_OUTPUT_LENGTH
+    MAX_STEP_VISIBLE_INPUT_LENGTH
   );
   const input = safeText(
     normalizedPayload.input || visibleInputText,
-    MAX_STEP_OUTPUT_LENGTH
+    MAX_STEP_VISIBLE_INPUT_LENGTH
   );
   const retryCount = Number.isFinite(Number(normalizedPayload.retryCount))
     ? Number(normalizedPayload.retryCount)

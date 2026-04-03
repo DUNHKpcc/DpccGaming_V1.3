@@ -2,9 +2,11 @@
 import BlueprintNodeContextMenu from './BlueprintNodeContextMenu.vue'
 import BlueprintNodeEditorPanel from './BlueprintNodeEditorPanel.vue'
 import BlueprintLogPanel from './BlueprintLogPanel.vue'
+import BlueprintNodeRerunPrompt from './BlueprintNodeRerunPrompt.vue'
 
 const props = defineProps({
   activeContextMenu: { type: Object, default: null },
+  activeRerunPrompt: { type: Object, default: null },
   activeEditor: { type: Object, default: null },
   logPanelPosition: { type: Object, required: true },
   latestRunId: { type: String, default: '' },
@@ -26,6 +28,9 @@ const emit = defineEmits([
   'continue-from-node',
   'edit-node',
   'delete-node',
+  'submit-rerun-prompt',
+  'cancel-rerun-prompt',
+  'update-rerun-prompt-draft',
   'close-overlays',
   'save-editor',
   'update-editor-draft',
@@ -43,6 +48,14 @@ const emit = defineEmits([
     @continue-from-node="emit('continue-from-node', $event)"
     @edit="emit('edit-node', $event)"
     @delete="emit('delete-node', $event)"
+  />
+
+  <BlueprintNodeRerunPrompt
+    v-if="props.activeRerunPrompt"
+    :prompt="props.activeRerunPrompt"
+    @submit="emit('submit-rerun-prompt')"
+    @cancel="emit('cancel-rerun-prompt')"
+    @update:draft="emit('update-rerun-prompt-draft', $event)"
   />
 
   <BlueprintNodeEditorPanel

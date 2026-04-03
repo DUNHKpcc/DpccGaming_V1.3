@@ -1,6 +1,6 @@
 const vm = require('node:vm');
 
-const REQUIRED_BLUEPRINT_OUTPUT_FILES = ['index.html', 'style.css', 'game.js', 'README.md'];
+const REQUIRED_BLUEPRINT_OUTPUT_FILES = ['index.html'];
 
 const GAME_TEMPLATE_PATTERNS = [
   /运行概览/,
@@ -13,13 +13,17 @@ const GAME_TEMPLATE_PATTERNS = [
 const hasAnyPattern = (value = '', patterns = []) =>
   patterns.some((pattern) => pattern.test(value));
 
+const extractInlineScriptContent = (html = '') =>
+  Array.from(String(html || '').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))
+    .map((match) => String(match[1] || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+
 const validateBlueprintOutputBundle = (files = {}) => {
   const issues = [];
   const html = String(files['index.html'] || '');
-  const css = String(files['style.css'] || '');
-  const js = String(files['game.js'] || '');
-  const readme = String(files['README.md'] || '');
-  const combined = `${html}\n${css}\n${js}`;
+  const inlineJs = extractInlineScriptContent(html);
+  const combined = `${html}\n${inlineJs}`;
 
   REQUIRED_BLUEPRINT_OUTPUT_FILES.forEach((fileName) => {
     if (!String(files[fileName] || '').trim()) {
@@ -27,38 +31,33 @@ const validateBlueprintOutputBundle = (files = {}) => {
     }
   });
 
-  if (html && !/style\.css/.test(html)) issues.push('index.html 未引用 style.css');
-  if (html && !/game\.js/.test(html)) issues.push('index.html 未引用 game.js');
   if (html && !/id=["']app["']/.test(html)) issues.push('index.html 缺少 #app 挂载节点');
-  if (css && css.length < 24) issues.push('style.css 内容过少，疑似未生成真实界面样式');
-  if (readme && !/##\s*玩法/.test(readme)) issues.push('README.md 缺少玩法章节');
-  if (readme && !/##\s*操作/.test(readme)) issues.push('README.md 缺少操作章节');
-  if (readme && !/##\s*结构/.test(readme)) issues.push('README.md 缺少结构章节');
-  if (readme && !/##\s*运行/.test(readme)) issues.push('README.md 缺少运行章节');
+  if (html && !/<style\b[^>]*>[\s\S]*?<\/style>/i.test(html)) issues.push('index.html 缺少内联样式');
+  if (html && !/<script\b[^>]*>[\s\S]*?<\/script>/i.test(html)) issues.push('index.html 缺少内联脚本');
 
-  if (js) {
+  if (inlineJs) {
     try {
-      new vm.Script(js);
+      new vm.Script(inlineJs);
     } catch (error) {
-      issues.push(`game.js 语法错误: ${error.message}`);
+      issues.push(`index.html 内联脚本语法错误: ${error.message}`);
     }
 
-    if (!/(document\.getElementById\(['"]app['"]\)|querySelector\(['"]#app['"]\))/.test(js)) {
-      issues.push('game.js 未挂载到 #app');
+    if (!/(document\.getElementById\(['"]app['"]\)|querySelector\(['"]#app['"]\))/.test(inlineJs)) {
+      issues.push('index.html 内联脚本未挂载到 #app');
     }
-    if (!/(start|menu|ready|renderStart|startGame|开始)/i.test(js)) {
+    if (!/(start|menu|ready|renderStart|startGame|开始)/i.test(inlineJs)) {
       issues.push('缺少开始状态');
     }
-    if (!/(playing|gameplay|running|inGame|renderPlay|playState|游玩)/i.test(js)) {
+    if (!/(playing|gameplay|running|inGame|renderPlay|playState|游玩)/i.test(inlineJs)) {
       issues.push('缺少运行中状态');
     }
-    if (!/(gameover|gameOver|fail|lose|victory|win|complete|finish|renderGameOver|结束|失败|胜利)/i.test(js)) {
+    if (!/(gameover|gameOver|fail|lose|victory|win|complete|finish|renderGameOver|结束|失败|胜利)/i.test(inlineJs)) {
       issues.push('缺少结束或失败状态');
     }
-    if (!/(restart|reset|playAgain|restartGame|重新开始)/i.test(js)) {
+    if (!/(restart|reset|playAgain|restartGame|重新开始)/i.test(inlineJs)) {
       issues.push('缺少重开能力');
     }
-    if (!/(addEventListener|onclick|onkeydown|pointerdown|keydown|click)/i.test(js)) {
+    if (!/(addEventListener|onclick|onkeydown|pointerdown|keydown|click)/i.test(inlineJs)) {
       issues.push('缺少玩家交互处理');
     }
   }
