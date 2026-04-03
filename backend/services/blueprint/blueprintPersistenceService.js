@@ -10,7 +10,6 @@ const {
 const repository = require('../../repositories/blueprintRepository');
 const {
   BLUEPRINT_SEED_PATTERN,
-  DEFAULT_BUILTIN_MODEL,
   buildBlueprintPlannerRequestOptions,
   buildBlueprintResponse,
   createHttpError,
@@ -91,7 +90,7 @@ const planBlueprintWorkflow = async ({ body = {} } = {}) => {
   const workflow = normalizeWorkflowPayload(body?.workflow, { requireNodes: false });
   const requestedModel = body?.modelExplicit === false
     ? ''
-    : normalizeModelName(body?.model || DEFAULT_BUILTIN_MODEL);
+    : normalizeModelName(body?.model);
   const plannerModel = resolveBlueprintPlannerModel(requestedModel);
   const availableNodes = Array.isArray(body?.availableNodes) && body.availableNodes.length
     ? body.availableNodes

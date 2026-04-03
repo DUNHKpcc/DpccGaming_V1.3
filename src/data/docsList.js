@@ -1,5 +1,13 @@
 export const docsList = [
   {
+    id: 'blue-print',
+    title: '快速搭建你的工作流',
+    tag: '快速开始',
+    summary: '超快，超详细',
+    cover: '/docsPhoto/OpenClaw/OpenClaw.webp',
+    file: '/doc-files/openclaw.md'
+  },
+  {
     id: 'custom',
     title: '云端OpenClaw部署教程',
     tag: '🦞',

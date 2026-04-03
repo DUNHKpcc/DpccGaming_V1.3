@@ -60,6 +60,7 @@ const modelOptions = CHAT_MORE_BUILTIN_MODELS.map((value) => {
   }
 })
 const visionModelOptions = BLUEPRINT_VISION_MODEL_OPTIONS
+const DEFAULT_BLUEPRINT_EXECUTION_MODEL = 'GLM-4.5'
 
 const BP_LOG_PANEL_WIDTH = 360
 const BP_LOG_PANEL_HEIGHT = 420
@@ -79,7 +80,7 @@ const activeContextMenu = ref(null)
 const activeRerunPrompt = ref(null)
 const activeEditor = ref(null)
 const activeLibraryGameId = ref('')
-const selectedModel = ref(CHAT_MORE_BUILTIN_MODELS[0] || 'DouBaoSeed')
+const selectedModel = ref(DEFAULT_BLUEPRINT_EXECUTION_MODEL)
 const hasExplicitModelSelection = ref(false)
 const selectedVisionModel = ref(DEFAULT_BLUEPRINT_VISION_MODEL)
 const hasWorkflowHydrated = ref(false)
@@ -522,7 +523,7 @@ const handleGlobalPointerDown = (event) => {
 }
 
 const handleSelectModel = (modelValue) => {
-  const nextModel = String(modelValue || 'DouBaoSeed').trim() || 'DouBaoSeed'
+  const nextModel = String(modelValue || DEFAULT_BLUEPRINT_EXECUTION_MODEL).trim() || DEFAULT_BLUEPRINT_EXECUTION_MODEL
   if (nextModel === selectedModel.value) return
 
   selectedModel.value = nextModel

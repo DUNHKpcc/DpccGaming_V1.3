@@ -1,11 +1,9 @@
 const {
-  DEFAULT_BUILTIN_MODEL
-} = require('../utils/aiProviderConfig');
-const {
   getContinuableBlueprintStep,
   summarizeBlueprintRunStatus
 } = require('../utils/blueprintRunState');
 const {
+  DEFAULT_BLUEPRINT_EXECUTION_MODEL,
   parseNullableJson,
   toDatabaseTimestamp
 } = require('../services/blueprint/blueprintCommon');
@@ -213,7 +211,7 @@ const createBlueprintRunRecord = async (executor, payload = {}) => {
       payload.runtimeSnapshotJson || '{}',
       payload.artifactManifestJson || null,
       payload.previewUrl || null,
-      payload.modelName || DEFAULT_BUILTIN_MODEL,
+      payload.modelName || DEFAULT_BLUEPRINT_EXECUTION_MODEL,
       payload.scope || 'all',
       payload.startNodeId || null,
       payload.status || 'running',

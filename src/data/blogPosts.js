@@ -1,6 +1,20 @@
 export const blogPosts = [
   {
     id: 1,
+    title: '蓝图模式现已可用',
+    date: '2026-4-1 SunJiaHao',
+    imageName: 'Docs.webp',
+    summary: '蓝图模式现在已经处于可用状态，赶紧去尝试吧'
+  },
+  {
+    id: 1,
+    title: '团队讨论模式上线',
+    date: '2026-3-15 SunJiaHao',
+    imageName: 'Docs.webp',
+    summary: '团队讨论模式，支持双AI轮询对话'
+  },
+  {
+    id: 1,
     title: '完善AiDocs文档，上传了一些常用的教程',
     date: '2026-3-7 SunJiaHao',
     imageName: 'Docs.webp',

@@ -20,12 +20,14 @@ const repository = require('../../repositories/blueprintRepository');
 const {
   BLUEPRINT_EXECUTION_HEARTBEAT_MS,
   BLUEPRINT_SEED_PATTERN,
-  DEFAULT_BUILTIN_MODEL,
+  DEFAULT_BLUEPRINT_EXECUTION_MODEL,
+  DEFAULT_BLUEPRINT_VISION_MODEL,
   createHttpError,
   getBlueprintUploadsRootPath,
   normalizeBlueprintRerunInstruction,
   normalizeExecutionScope,
   normalizeModelName,
+  normalizeVisionModelName,
   normalizeRunListLimit,
   normalizeSeed,
   normalizeWorkflowPayload
@@ -266,7 +268,7 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
     const selectedModel = body?.modelExplicit === false
       ? ''
       : normalizeModelName(body?.model);
-    const selectedVisionModel = normalizeModelName(body?.visionModel || DEFAULT_BUILTIN_MODEL);
+    const selectedVisionModel = normalizeVisionModelName(body?.visionModel || DEFAULT_BLUEPRINT_VISION_MODEL);
     const plan = buildBlueprintExecutionPlan(workflow);
     const normalizedSeed = normalizeSeed(body?.seed);
     const startNodeId = String(body?.startNodeId || '').trim();
@@ -280,7 +282,7 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
     const selectedSteps = selectBlueprintExecutionSteps(plan, { startNodeId, scope });
     const stepResults = {};
     const startedAt = new Date();
-    const defaultExecutionModel = selectedModel || DEFAULT_BUILTIN_MODEL;
+    const defaultExecutionModel = selectedModel || DEFAULT_BLUEPRINT_EXECUTION_MODEL;
 
     Object.entries(runtimeSnapshot).forEach(([nodeId, runtime]) => {
       if (!plan.stepsById[nodeId] || !runtime || typeof runtime !== 'object') return;

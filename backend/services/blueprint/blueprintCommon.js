@@ -10,9 +10,12 @@ const {
 const BLUEPRINT_SEED_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const BLUEPRINT_SEED_PATTERN = /^[A-Z0-9]{8,32}$/;
 const BLUEPRINT_EXECUTION_HEARTBEAT_MS = 15000;
+const DEFAULT_BLUEPRINT_EXECUTION_MODEL = 'GLM-4.5';
+const DEFAULT_BLUEPRINT_VISION_MODEL = DEFAULT_BUILTIN_MODEL;
 
 const normalizeSeed = (value = '') => String(value || '').trim().toUpperCase();
-const normalizeModelName = (value = '') => normalizeBuiltinModelName(value || DEFAULT_BUILTIN_MODEL);
+const normalizeModelName = (value = '') => normalizeBuiltinModelName(value || DEFAULT_BLUEPRINT_EXECUTION_MODEL);
+const normalizeVisionModelName = (value = '') => normalizeBuiltinModelName(value || DEFAULT_BLUEPRINT_VISION_MODEL);
 const normalizeExecutionScope = (value = '') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'single') return 'single';
@@ -171,6 +174,8 @@ const buildBlueprintResponse = (sourceRow, copyRow, userId) => {
 module.exports = {
   BLUEPRINT_SEED_PATTERN,
   BLUEPRINT_EXECUTION_HEARTBEAT_MS,
+  DEFAULT_BLUEPRINT_EXECUTION_MODEL,
+  DEFAULT_BLUEPRINT_VISION_MODEL,
   DEFAULT_BUILTIN_MODEL,
   buildBlueprintPlannerRequestOptions,
   buildBlueprintResponse,
@@ -181,6 +186,7 @@ module.exports = {
   normalizeBlueprintRerunInstruction,
   normalizeExecutionScope,
   normalizeModelName,
+  normalizeVisionModelName,
   normalizeRunListLimit,
   normalizeSeed,
   normalizeWorkflowPayload,

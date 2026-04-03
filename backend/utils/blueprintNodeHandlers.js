@@ -1,4 +1,8 @@
 const fs = require('node:fs/promises');
+const {
+  DEFAULT_BLUEPRINT_EXECUTION_MODEL,
+  DEFAULT_BLUEPRINT_VISION_MODEL
+} = require('../services/blueprint/blueprintCommon');
 
 const {
   createBlueprintSourceStepOutput,
@@ -628,11 +632,10 @@ const executeBlueprintSourceStep = async ({
   node = {},
   startedAt = new Date().toISOString(),
   onProgress,
-  selectedVisionModel = 'DouBaoSeed',
+  selectedVisionModel = DEFAULT_BLUEPRINT_VISION_MODEL,
   generateAiReply
 } = {}) => {
   try {
-    const effectiveModel = selectedModel || 'DouBaoSeed';
     emitBlueprintStepProgress(onProgress, {
       progress: 0.16,
       stage: 'metadata',
@@ -762,6 +765,7 @@ const executeBlueprintAiDomainStep = async ({
   onProgress
 } = {}) => {
   try {
+    const effectiveModel = selectedModel || DEFAULT_BLUEPRINT_EXECUTION_MODEL;
     emitBlueprintStepProgress(onProgress, {
       progress: 0.16,
       stage: 'prepare',
