@@ -4,7 +4,7 @@ export const docsList = [
     title: '快速搭建你的工作流',
     tag: '快速开始',
     summary: '超快，超详细',
-    cover: '/docsPhoto/OpenClaw/OpenClaw.webp',
+    cover: '/Blog/BluePrint1.webp',
     file: '/doc-files/openclaw.md'
   },
   {
