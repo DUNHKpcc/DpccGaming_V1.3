@@ -28,6 +28,9 @@ const positionStyle = computed(() => ({
 
 const engineIcon = computed(() => getGameEngineIconByValue(props.node.engineLabel))
 const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTypeLabel))
+const playableUrl = computed(() =>
+  String(props.node.previewUrl || props.node.codePackageUrl || '').trim()
+)
 const runtimeStatusLabel = computed(() => {
   if (props.runtime?.status === 'running') return 'AI 思考中'
   if (props.runtime?.status === 'completed') return '已读取'
@@ -113,6 +116,19 @@ const runtimeProgressCopy = computed(() =>
         <small v-if="props.runtime.status === 'running' && runtimeProgressCopy">{{ runtimeProgressCopy }}</small>
         <small v-else-if="props.runtime.summary">{{ props.runtime.summary }}</small>
       </div>
+
+      <a
+        v-if="props.node.isGeneratedPlayable && playableUrl"
+        class="bp-game-node-play-link"
+        :href="playableUrl"
+        target="_blank"
+        rel="noreferrer"
+        data-no-pan
+        @pointerdown.stop
+        @click.stop
+      >
+        立即游玩
+      </a>
     </div>
 
     <BlueprintNodeProgressPanel :runtime="props.runtime" />
@@ -239,6 +255,27 @@ const runtimeProgressCopy = computed(() =>
   padding: calc(8px * var(--bp-ui-scale, 1));
   border-radius: calc(10px * var(--bp-ui-scale, 1));
   background: rgba(243, 247, 255, 0.92);
+}
+
+.bp-game-node-play-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(36px * var(--bp-ui-scale, 1));
+  padding: 0 calc(14px * var(--bp-ui-scale, 1));
+  border-radius: calc(12px * var(--bp-ui-scale, 1));
+  background: linear-gradient(135deg, #1fdb7d, #13b8d6);
+  color: #081018;
+  font-size: calc(0.82rem * var(--bp-ui-scale, 1));
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: 0 12px 20px rgba(19, 184, 214, 0.18);
+}
+
+.bp-game-node-play-link:hover {
+  transform: translateY(calc(-1px * var(--bp-ui-scale, 1)));
+  box-shadow: 0 14px 24px rgba(19, 184, 214, 0.24);
 }
 
 .bp-game-runtime-chip {

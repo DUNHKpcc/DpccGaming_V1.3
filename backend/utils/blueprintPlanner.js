@@ -231,6 +231,29 @@ const normalizePlannedNode = (node = {}, index = 0, existingNodeMap = new Map())
   return normalizedNode;
 };
 
+const partitionSupportedPlannedNodes = (nodes = []) => {
+  const supportedNodes = [];
+  const ignoredNodes = [];
+
+  (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+    const kind = resolvePlannedNodeKind(node);
+    if (ALLOWED_BLUEPRINT_NODE_KINDS.has(kind)) {
+      supportedNodes.push({
+        ...node,
+        kind
+      });
+      return;
+    }
+
+    ignoredNodes.push(node);
+  });
+
+  return {
+    supportedNodes,
+    ignoredNodes
+  };
+};
+
 const normalizePlannedEdge = (edge = {}, index = 0) => ({
   id: normalizeText(edge.id) || `bp-plan-edge-${index + 1}`,
   fromNodeId: normalizeText(edge.fromNodeId),
@@ -420,6 +443,41 @@ const buildPlannerNodeKindMatchers = () =>
 
 const BLUEPRINT_PLANNER_NODE_KIND_MATCHERS = buildPlannerNodeKindMatchers();
 
+const inferPlannerNodeKindFromText = (text = '') => {
+  const normalizedText = String(text || '');
+  if (!normalizedText.trim()) return '';
+
+  let matchedKind = '';
+  let matchedRank = Number.POSITIVE_INFINITY;
+
+  BLUEPRINT_PLANNER_NODE_KIND_MATCHERS.forEach(({ kind, matcher }) => {
+    matcher.lastIndex = 0;
+    const match = matcher.exec(normalizedText);
+    if (match === null) return;
+    if (match.index >= matchedRank) return;
+
+    matchedKind = kind;
+    matchedRank = match.index;
+  });
+
+  return matchedKind;
+};
+
+const resolvePlannedNodeKind = (node = {}) => {
+  const explicitKind = normalizeText(node?.kind);
+  if (ALLOWED_BLUEPRINT_NODE_KINDS.has(explicitKind)) {
+    return explicitKind;
+  }
+
+  const inferredKind = inferPlannerNodeKindFromText([
+    node?.title,
+    node?.subtitle,
+    node?.content
+  ].filter(Boolean).join('\n'));
+
+  return ALLOWED_BLUEPRINT_NODE_KINDS.has(inferredKind) ? inferredKind : '';
+};
+
 const collectMentionedPlannerKinds = (parsed = {}, rawReply = '') => {
   const rankedKinds = new Map();
   const pushKindsFromText = (text = '', baseWeight = 0) => {
@@ -472,12 +530,82 @@ const createFallbackPlannedNode = (kind = '', existingNode = null) => {
   };
 };
 
+const ensurePlayablePlanningScaffold = (plannedNodes = [], existingNodeByKind = new Map()) => {
+  const nextNodes = Array.isArray(plannedNodes) ? [...plannedNodes] : [];
+  const plannedKinds = new Set(
+    nextNodes.map((node) => resolvePlannedNodeKind(node)).filter(Boolean)
+  );
+  const nonOutputNodeCount = nextNodes.filter((node) => resolvePlannedNodeKind(node) !== 'output').length;
+  const minimumPlayableKinds = ['game', 'play', 'language', 'ui'];
+
+  if (nonOutputNodeCount > 1 && plannedKinds.has('game') && plannedKinds.has('play')) {
+    return nextNodes;
+  }
+
+  minimumPlayableKinds.forEach((kind) => {
+    if (plannedKinds.has(kind)) return;
+
+    const fallbackNode = createFallbackPlannedNode(kind, existingNodeByKind.get(kind) || null);
+    if (!fallbackNode) return;
+
+    nextNodes.push(fallbackNode);
+    plannedKinds.add(kind);
+  });
+
+  return nextNodes;
+};
+
+const buildLocalBlueprintPlanningResult = ({
+  prompt = '',
+  workflow = {},
+  warning = ''
+} = {}) => {
+  const existingWorkflow = normalizeWorkflowShape(workflow);
+  const existingNodeByKind = new Map();
+
+  existingWorkflow.nodes.forEach((node) => {
+    const kind = resolvePlannedNodeKind(node);
+    if (!kind || existingNodeByKind.has(kind)) return;
+    existingNodeByKind.set(kind, node);
+  });
+
+  const mentionedKinds = collectMentionedPlannerKinds(
+    {
+      summary: normalizeText(prompt),
+      changes: prompt ? [normalizeText(prompt)] : []
+    },
+    normalizeText(prompt)
+  );
+
+  const seedNodes = mentionedKinds
+    .map((kind) => createFallbackPlannedNode(kind, existingNodeByKind.get(kind) || null))
+    .filter(Boolean);
+
+  const fallbackNodes = ensurePlayablePlanningScaffold(
+    existingWorkflow.nodes.length ? [...existingWorkflow.nodes] : seedNodes,
+    existingNodeByKind
+  );
+
+  return normalizeBlueprintPlanningResult({
+    rawReply: JSON.stringify({
+      summary: 'AI 规划未及时完成，系统已生成基础可运行工作流。',
+      changes: ['已生成最小可运行工作流骨架，并保留 Blueprint 节点执行链。'],
+      warnings: [normalizeText(warning) || 'AI 规划请求超时，已切换为本地兜底。'].filter(Boolean),
+      workflow: {
+        nodes: fallbackNodes,
+        edges: Array.isArray(existingWorkflow.edges) ? existingWorkflow.edges : []
+      }
+    }),
+    workflow: existingWorkflow
+  });
+};
+
 const mergeMentionedNodesIntoWorkflow = (plannedWorkflow = {}, parsed = {}, existingWorkflow = {}, rawReply = '') => {
   const normalizedPlannedWorkflow = normalizeWorkflowShape(plannedWorkflow);
   const normalizedExistingWorkflow = normalizeWorkflowShape(existingWorkflow);
   const plannedNodes = [...normalizedPlannedWorkflow.nodes];
   const plannedKinds = new Set(
-    plannedNodes.map((node) => normalizeText(node?.kind)).filter(Boolean)
+    plannedNodes.map((node) => resolvePlannedNodeKind(node)).filter(Boolean)
   );
   const existingNodeByKind = new Map();
 
@@ -489,7 +617,6 @@ const mergeMentionedNodesIntoWorkflow = (plannedWorkflow = {}, parsed = {}, exis
 
   collectMentionedPlannerKinds(parsed, rawReply).forEach((kind) => {
     if (plannedKinds.has(kind)) return;
-    if (kind === 'game' && !existingNodeByKind.has(kind)) return;
 
     const fallbackNode = createFallbackPlannedNode(kind, existingNodeByKind.get(kind) || null);
     if (!fallbackNode) return;
@@ -498,7 +625,7 @@ const mergeMentionedNodesIntoWorkflow = (plannedWorkflow = {}, parsed = {}, exis
   });
 
   return {
-    nodes: plannedNodes,
+    nodes: ensurePlayablePlanningScaffold(plannedNodes, existingNodeByKind),
     edges: normalizedPlannedWorkflow.edges
   };
 };
@@ -669,13 +796,22 @@ const normalizeBlueprintPlanningResult = ({
     throw createHttpError(400, 'AI 返回了空工作流，无法继续。');
   }
 
+  const {
+    supportedNodes: supportedPlannedNodes,
+    ignoredNodes
+  } = partitionSupportedPlannedNodes(plannedWorkflow.nodes);
+
+  if (!supportedPlannedNodes.length) {
+    throw createHttpError(400, 'AI 返回的工作流节点类型无效，无法继续。');
+  }
+
   const existingNodeMap = new Map(
     existingWorkflow.nodes
       .filter((node) => node?.id)
       .map((node) => [String(node.id), node])
   );
 
-  let nodes = plannedWorkflow.nodes.map((node, index) =>
+  let nodes = supportedPlannedNodes.map((node, index) =>
     normalizePlannedNode(node, index, existingNodeMap)
   );
   if (shouldRelayoutPlannedNodes(nodes)) {
@@ -716,7 +852,7 @@ const normalizeBlueprintPlanningResult = ({
     edgeKeySet.add(edgeKey);
   });
 
-  return {
+  const result = {
     summary: normalizeText(parsed.summary) || 'AI 已根据需求更新工作流。',
     changes: Array.isArray(parsed.changes)
       ? parsed.changes.map((item) => normalizeText(item)).filter(Boolean)
@@ -730,12 +866,22 @@ const normalizeBlueprintPlanningResult = ({
       edges
     }
   };
+
+  if (ignoredNodes.length) {
+    result.warnings = [
+      ...result.warnings,
+      `已忽略 ${ignoredNodes.length} 个不受支持或缺少 kind 的规划节点。`
+    ];
+  }
+
+  return result;
 };
 
 module.exports = {
   buildBlueprintPlanningRepairPrompt,
   buildBlueprintPlannerNodeCatalog,
   buildBlueprintPlanningPrompt,
+  buildLocalBlueprintPlanningResult,
   normalizeBlueprintPlanningResult,
   resolveBlueprintPlannerModel
 };

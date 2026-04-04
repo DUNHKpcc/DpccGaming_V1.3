@@ -579,9 +579,7 @@ onMounted(async () => {
 }
 
 [data-theme="light"] .docs-page {
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.16), transparent 54%),
-    radial-gradient(circle at bottom, rgba(148, 163, 184, 0.18), #eef3fb);
+  background:rgb(223, 222, 222);
 }
 
 [data-theme="light"] .docs-card {
@@ -738,6 +736,14 @@ onMounted(async () => {
 
 [data-theme="light"] .markdown-content :deep(img) {
   border: 1px solid rgba(148, 163, 184, 0.36);
+}
+
+.docs-card-featured .docs-card-breadcrumb {
+  color: #000;
+}
+
+.docs-card-featured .docs-card-title {
+  color: #000;
 }
 
 @container (max-width: 560px) {

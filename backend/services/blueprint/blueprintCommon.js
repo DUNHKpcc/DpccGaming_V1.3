@@ -12,6 +12,8 @@ const BLUEPRINT_SEED_PATTERN = /^[A-Z0-9]{8,32}$/;
 const BLUEPRINT_EXECUTION_HEARTBEAT_MS = 15000;
 const DEFAULT_BLUEPRINT_EXECUTION_MODEL = 'GLM-4.5';
 const DEFAULT_BLUEPRINT_VISION_MODEL = DEFAULT_BUILTIN_MODEL;
+const BLUEPRINT_PLANNER_TIMEOUT_MS = 25000;
+const BLUEPRINT_PLANNER_RETRY_COUNT = 0;
 
 const normalizeSeed = (value = '') => String(value || '').trim().toUpperCase();
 const normalizeModelName = (value = '') => normalizeBuiltinModelName(value || DEFAULT_BLUEPRINT_EXECUTION_MODEL);
@@ -33,7 +35,9 @@ const normalizeBlueprintRerunInstruction = (value = '') => {
   return text.slice(0, 1200);
 };
 const buildBlueprintPlannerRequestOptions = () => ({
-  ...DEFAULT_AI_REQUEST_OPTIONS
+  ...DEFAULT_AI_REQUEST_OPTIONS,
+  timeoutMs: BLUEPRINT_PLANNER_TIMEOUT_MS,
+  retryCount: BLUEPRINT_PLANNER_RETRY_COUNT
 });
 
 const createHttpError = (status, message) => {
@@ -86,6 +90,9 @@ const normalizeWorkflowPayload = (input, { requireNodes = true } = {}) => {
 
   const nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
   const edges = Array.isArray(parsed?.edges) ? parsed.edges : [];
+  const meta = parsed?.meta && typeof parsed.meta === 'object' && !Array.isArray(parsed.meta)
+    ? parsed.meta
+    : {};
 
   if (requireNodes && nodes.length === 0) {
     throw createHttpError(400, '请先创建至少一个节点，再生成或保存种子');
@@ -94,7 +101,8 @@ const normalizeWorkflowPayload = (input, { requireNodes = true } = {}) => {
   return {
     version: Number(parsed?.version) || 1,
     nodes,
-    edges
+    edges,
+    meta
   };
 };
 

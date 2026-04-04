@@ -1,7 +1,7 @@
 const { getPool } = require('../../config/database');
 const { generateAiReply } = require('../../controllers/discussion/shared/ai');
 const {
-  buildBlueprintPlanningRepairPrompt,
+  buildLocalBlueprintPlanningResult,
   buildBlueprintPlannerNodeCatalog,
   buildBlueprintPlanningPrompt,
   normalizeBlueprintPlanningResult,
@@ -101,68 +101,67 @@ const planBlueprintWorkflow = async ({ body = {} } = {}) => {
     availableNodes,
     seed
   });
-
-  const rawReply = await generateAiReply({
-    prompt: plannerPrompt.prompt,
-    gameTitle: 'Blueprint Workflow Planner',
-    roomMessages: [],
-    roomSummary: null,
-    memoryEntries: [],
-    builtinModel: plannerModel,
-    systemDirective: plannerPrompt.systemDirective,
-    requestOptions: plannerRequestOptions
-  });
-
-  let plannedResult = null;
-  let repaired = false;
-
   try {
-    plannedResult = normalizeBlueprintPlanningResult({
-      rawReply,
-      workflow
-    });
-  } catch (error) {
-    if (error?.status !== 400) {
-      throw error;
-    }
-
-    const repairPrompt = buildBlueprintPlanningRepairPrompt({
-      rawReply,
-      workflow
-    });
-
-    const repairedReply = await generateAiReply({
-      prompt: repairPrompt.prompt,
-      gameTitle: 'Blueprint Workflow Planner Repair',
+    const rawReply = await generateAiReply({
+      prompt: plannerPrompt.prompt,
+      gameTitle: 'Blueprint Workflow Planner',
       roomMessages: [],
       roomSummary: null,
       memoryEntries: [],
       builtinModel: plannerModel,
-      systemDirective: repairPrompt.systemDirective,
+      systemDirective: plannerPrompt.systemDirective,
       requestOptions: plannerRequestOptions
     });
 
-    plannedResult = normalizeBlueprintPlanningResult({
-      rawReply: repairedReply,
-      workflow
-    });
-    repaired = true;
-  }
+    let plannedResult = null;
 
-  if (repaired) {
-    plannedResult = {
+    try {
+      plannedResult = normalizeBlueprintPlanningResult({
+        rawReply,
+        workflow
+      });
+    } catch (error) {
+      if (error?.status !== 400) {
+        throw error;
+      }
+
+      plannedResult = buildLocalBlueprintPlanningResult({
+        prompt,
+        workflow,
+        warning: 'AI 首次回复未返回可解析工作流，系统已切换为本地兜底。'
+      });
+    }
+
+    return {
       ...plannedResult,
-      warnings: [
-        'AI 首次回复未返回标准工作流，系统已自动修复格式。',
-        ...plannedResult.warnings
-      ]
+      workflow: {
+        ...(plannedResult.workflow || {}),
+        meta: {
+          ...(workflow?.meta && typeof workflow.meta === 'object' ? workflow.meta : {}),
+          plannedPrompt: prompt
+        }
+      },
+      model: plannerModel
+    };
+  } catch (error) {
+    const plannedResult = buildLocalBlueprintPlanningResult({
+      prompt,
+      workflow,
+      warning: error?.message || 'AI 规划请求失败，系统已切换为本地兜底。'
+    });
+
+    return {
+      ...plannedResult,
+      workflow: {
+        ...(plannedResult.workflow || {}),
+        meta: {
+          ...(workflow?.meta && typeof workflow.meta === 'object' ? workflow.meta : {}),
+          plannedPrompt: prompt
+        }
+      },
+      model: plannerModel
     };
   }
-
-  return {
-    ...plannedResult,
-    model: plannerModel
-  };
 };
 
 const getBlueprintBySeed = async ({ userId, seed } = {}) => {

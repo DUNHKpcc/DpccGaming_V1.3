@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { apiCall } from '../../utils/api'
-import { parseBlueprintWorkflow, serializeBlueprintWorkflow } from '../../utils/blueprintNodes.js'
+import { parseBlueprintWorkflow } from '../../utils/blueprintNodes.js'
 
 export const useBlueprintPersistence = ({
   route,
@@ -193,8 +193,9 @@ export const useBlueprintPersistence = ({
       return
     }
 
-    blueprintNodes.value = []
-    blueprintEdges.value = []
+    applyWorkflowPayload({ nodes: [], edges: [], meta: {} }, {
+      persistSnapshot: true
+    })
     resetExecutionLogSession()
     resetBlueprintRuntime()
     nodeMeasurements.value = {}
@@ -204,7 +205,6 @@ export const useBlueprintPersistence = ({
     plannerPromptDraft.value = ''
     seed.value = ''
     closeNodeOverlays()
-    updateWorkflowSavedSnapshot({ nodes: [], edges: [] })
     await syncSeedToRoute('')
   }
 
@@ -225,7 +225,7 @@ export const useBlueprintPersistence = ({
 
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
     downloadWorkflow(
-      serializeBlueprintWorkflow(blueprintNodes.value, blueprintEdges.value),
+      JSON.stringify(buildWorkflowPayload(), null, 2),
       `blueprint-workflow-${stamp}.json`
     )
     appendLog('已导出当前工作流 JSON。')
@@ -242,9 +242,9 @@ export const useBlueprintPersistence = ({
     }
 
     try {
-      const { nodes, edges } = parseBlueprintWorkflow(rawValue)
+      const { nodes, edges, meta } = parseBlueprintWorkflow(rawValue)
 
-      applyWorkflowPayload({ nodes, edges }, {
+      applyWorkflowPayload({ nodes, edges, meta }, {
         persistSnapshot: true,
         focusNodes: true
       })
@@ -269,8 +269,9 @@ export const useBlueprintPersistence = ({
       return
     }
 
-    blueprintNodes.value = []
-    blueprintEdges.value = []
+    applyWorkflowPayload({ nodes: [], edges: [], meta: {} }, {
+      persistSnapshot: true
+    })
     resetExecutionLogSession()
     resetBlueprintRuntime()
     nodeMeasurements.value = {}

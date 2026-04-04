@@ -542,11 +542,12 @@ export const parseBlueprintGameDragData = (rawValue) => {
   }
 }
 
-export const serializeBlueprintWorkflow = (nodes = [], edges = []) =>
+export const serializeBlueprintWorkflow = (nodes = [], edges = [], meta = {}) =>
   JSON.stringify({
     version: 1,
     nodes,
-    edges
+    edges,
+    meta: meta && typeof meta === 'object' && !Array.isArray(meta) ? meta : {}
   }, null, 2)
 
 export const parseBlueprintWorkflow = (rawValue) => {
@@ -557,6 +558,9 @@ export const parseBlueprintWorkflow = (rawValue) => {
   const parsed = JSON.parse(rawValue)
   const nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : []
   const edges = Array.isArray(parsed?.edges) ? parsed.edges : []
+  const meta = parsed?.meta && typeof parsed.meta === 'object' && !Array.isArray(parsed.meta)
+    ? parsed.meta
+    : {}
 
   const normalizedNodes = nodes
     .filter((node) => node?.id && node?.position && (
@@ -627,6 +631,7 @@ export const parseBlueprintWorkflow = (rawValue) => {
 
   return {
     nodes: normalizedNodes,
-    edges: normalizedEdges
+    edges: normalizedEdges,
+    meta
   }
 }

@@ -73,6 +73,7 @@ const seed = ref('')
 const isSidebarCollapsed = ref(false)
 const blueprintNodes = ref([])
 const blueprintEdges = ref([])
+const workflowMeta = ref({})
 const nodeMeasurements = ref({})
 const selectedNodeId = ref('')
 const highlightedNodeId = ref('')
@@ -84,7 +85,7 @@ const selectedModel = ref(DEFAULT_BLUEPRINT_EXECUTION_MODEL)
 const hasExplicitModelSelection = ref(false)
 const selectedVisionModel = ref(DEFAULT_BLUEPRINT_VISION_MODEL)
 const hasWorkflowHydrated = ref(false)
-const lastSavedWorkflowSnapshot = ref(serializeBlueprintWorkflow([], []))
+const lastSavedWorkflowSnapshot = ref(serializeBlueprintWorkflow([], [], {}))
 const logPanelPosition = ref({
   x: BP_LOG_PANEL_SAFE_LEFT,
   y: BP_LOG_PANEL_SAFE_TOP
@@ -96,7 +97,7 @@ let highlightTimer = null
 let hasTriggeredLeaveAutoCancel = false
 
 const workflowSnapshot = computed(() =>
-  serializeBlueprintWorkflow(blueprintNodes.value, blueprintEdges.value)
+  serializeBlueprintWorkflow(blueprintNodes.value, blueprintEdges.value, workflowMeta.value)
 )
 const isWorkflowBusy = computed(() =>
   workflowLoadState.value === 'loading'
@@ -253,7 +254,8 @@ const updateWorkflowSavedSnapshot = (workflow = null) => {
   if (workflow) {
     lastSavedWorkflowSnapshot.value = serializeBlueprintWorkflow(
       Array.isArray(workflow.nodes) ? workflow.nodes : [],
-      Array.isArray(workflow.edges) ? workflow.edges : []
+      Array.isArray(workflow.edges) ? workflow.edges : [],
+      workflow?.meta && typeof workflow.meta === 'object' ? workflow.meta : {}
     )
     return
   }
@@ -282,11 +284,12 @@ const closeNodeOverlays = () => {
 }
 
 const applyWorkflowPayload = (workflow = {}, options = {}) => {
-  const { nodes, edges } = parseBlueprintWorkflow(JSON.stringify(workflow || {}))
+  const { nodes, edges, meta } = parseBlueprintWorkflow(JSON.stringify(workflow || {}))
   const selectionState = getBlueprintSelectionState(nodes)
 
   blueprintNodes.value = nodes
   blueprintEdges.value = edges
+  workflowMeta.value = meta
   executionApi?.resetBlueprintRuntime()
   executionApi?.resetLatestRunTracking()
   nodeMeasurements.value = {}
@@ -296,7 +299,7 @@ const applyWorkflowPayload = (workflow = {}, options = {}) => {
   closeNodeOverlays()
 
   if (options.persistSnapshot) {
-    updateWorkflowSavedSnapshot({ nodes, edges })
+    updateWorkflowSavedSnapshot({ nodes, edges, meta })
   }
 
   if (options.focusNodes) {
@@ -306,7 +309,11 @@ const applyWorkflowPayload = (workflow = {}, options = {}) => {
 
 const buildWorkflowPayload = () => {
   executionApi?.mergeRuntimeOutputsIntoBlueprintNodes()
-  return JSON.parse(serializeBlueprintWorkflow(blueprintNodes.value, blueprintEdges.value))
+  return JSON.parse(serializeBlueprintWorkflow(
+    blueprintNodes.value,
+    blueprintEdges.value,
+    workflowMeta.value
+  ))
 }
 
 const resolveBlueprintErrorMessage = (error, fallbackMessage) => {

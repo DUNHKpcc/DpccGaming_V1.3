@@ -141,7 +141,7 @@ const normalizeWorkflow = (workflow = {}) => ({
 
 const buildBlueprintExecutionPlan = (workflow = {}) => {
   const normalized = normalizeWorkflow(workflow);
-  const nodes = normalized.nodes.filter((node) => node?.id);
+  const nodes = normalized.nodes.filter((node) => node?.id && node?.isGeneratedPlayable !== true);
   const edges = normalized.edges.filter((edge) => edge?.fromNodeId && edge?.toNodeId);
   const nodesById = {};
   const inputEdges = {};
@@ -430,5 +430,8 @@ module.exports = {
   collectBlueprintUpstreamNodeIds,
   createBlueprintSourceStepOutput,
   buildBlueprintNodePrompt,
-  normalizeBlueprintStepResult
+  normalizeBlueprintStepResult,
+  __test: {
+    BLUEPRINT_NODE_EXECUTION_GUIDE
+  }
 };

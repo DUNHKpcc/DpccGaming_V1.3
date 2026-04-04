@@ -113,10 +113,53 @@ const enrichBlueprintGameNodeContext = async (node = {}) => {
   };
 };
 
+const normalizeBlueprintExecutionMode = (value = '') =>
+  String(value || '').trim().toLowerCase() === 'planned' ? 'planned' : 'default';
+
 const clipBlueprintArtifactText = (value = '', maxLength = 420) => {
   const text = String(value || '').trim();
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}...`;
+};
+
+const buildGeneratedPlayableNodePayload = ({
+  runId = 0,
+  previewUrl = '',
+  stepResults = {},
+  selectedSteps = [],
+  plannedPrompt = ''
+} = {}) => {
+  const outputStep = [...(Array.isArray(selectedSteps) ? selectedSteps : [])]
+    .reverse()
+    .find((step) => step?.kind === 'output');
+  const outputRuntime = outputStep ? stepResults?.[outputStep.nodeId] : null;
+  if (!outputRuntime || String(outputRuntime.artifactType || '') !== 'file-bundle') {
+    return null;
+  }
+
+  const gameSpec = outputRuntime?.artifactJson?.gameSpec || {};
+  const title = String(
+    gameSpec?.title
+    || outputStep?.title
+    || plannedPrompt
+    || `Blueprint Run ${Number(runId || 0)}`
+  ).trim();
+
+  return {
+    id: `blueprint-output-${Number(runId || 0)}`,
+    title: title || `Blueprint Run ${Number(runId || 0)}`,
+    category: 'other',
+    description: String(plannedPrompt || outputRuntime.summary || '').trim(),
+    engineLabel: 'HTML5',
+    codeTypeLabel: 'JavaScript',
+    codeSummary: 'Blueprint planned 模式生成的可直接游玩 H5 成品。',
+    codeEntryPath: 'index.html',
+    codePackageUrl: String(previewUrl || '').trim(),
+    previewUrl: String(previewUrl || '').trim(),
+    isGeneratedPlayable: true,
+    generatedFromRunId: Number(runId || 0),
+    generatedFromNodeId: String(outputStep?.nodeId || '')
+  };
 };
 
 const buildBlueprintRunArtifactManifest = ({
@@ -270,6 +313,8 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
       : normalizeModelName(body?.model);
     const selectedVisionModel = normalizeVisionModelName(body?.visionModel || DEFAULT_BLUEPRINT_VISION_MODEL);
     const plan = buildBlueprintExecutionPlan(workflow);
+    const executionMode = normalizeBlueprintExecutionMode(body?.executionMode);
+    const plannedPrompt = String(workflow?.meta?.plannedPrompt || '').trim();
     const normalizedSeed = normalizeSeed(body?.seed);
     const startNodeId = String(body?.startNodeId || '').trim();
     const scope = normalizeExecutionScope(body?.scope);
@@ -313,6 +358,7 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
       runId,
       model: defaultExecutionModel,
       visionModel: selectedVisionModel,
+      executionMode,
       totalSteps: selectedSteps.length,
       startNodeId: startNodeId || '',
       scope,
@@ -393,6 +439,8 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
           node: executionNode,
           stepResults,
           stepsById: plan.stepsById,
+          executionMode,
+          plannedPrompt,
           selectedModel,
           selectedVisionModel,
           generateAiReply,
@@ -581,9 +629,22 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
       completedAt
     });
 
+    const generatedPlayableNode = executionMode === 'planned'
+      ? buildGeneratedPlayableNodePayload({
+          runId,
+          previewUrl,
+          stepResults,
+          selectedSteps,
+          plannedPrompt
+        })
+      : null;
+
     writeExecutionEvent(res, 'workflow-complete', {
       runId,
       model: selectedModel,
+      executionMode,
+      previewUrl,
+      generatedPlayableNode,
       totalSteps: selectedSteps.length,
       startNodeId: startNodeId || '',
       scope,

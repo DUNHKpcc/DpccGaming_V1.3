@@ -104,9 +104,7 @@ const posts = blogPosts.map(p => ({
 }
 
 [data-theme="light"] .blog-page {
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 54%),
-    radial-gradient(circle at bottom, rgba(148, 163, 184, 0.2), #eef3fb);
+  background:rgb(223, 222, 222);
 }
 
 .content-wrapper {

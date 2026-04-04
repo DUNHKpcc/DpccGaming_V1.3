@@ -45,18 +45,6 @@ const validateBlueprintOutputBundle = (files = {}) => {
     if (!/(document\.getElementById\(['"]app['"]\)|querySelector\(['"]#app['"]\))/.test(inlineJs)) {
       issues.push('index.html 内联脚本未挂载到 #app');
     }
-    if (!/(start|menu|ready|renderStart|startGame|开始)/i.test(inlineJs)) {
-      issues.push('缺少开始状态');
-    }
-    if (!/(playing|gameplay|running|inGame|renderPlay|playState|游玩)/i.test(inlineJs)) {
-      issues.push('缺少运行中状态');
-    }
-    if (!/(gameover|gameOver|fail|lose|victory|win|complete|finish|renderGameOver|结束|失败|胜利)/i.test(inlineJs)) {
-      issues.push('缺少结束或失败状态');
-    }
-    if (!/(restart|reset|playAgain|restartGame|重新开始)/i.test(inlineJs)) {
-      issues.push('缺少重开能力');
-    }
     if (!/(addEventListener|onclick|onkeydown|pointerdown|keydown|click)/i.test(inlineJs)) {
       issues.push('缺少玩家交互处理');
     }
