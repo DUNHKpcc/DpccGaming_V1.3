@@ -17,6 +17,8 @@ The new rule is simple:
 
 Success means the database only contains Blueprint runs that are traceable to a saved seed context owned or imported by the current user.
 
+This spec intentionally prefers strict deletion over partial retention. If a historical run cannot be proven to belong to a saved Blueprint context, it should be treated as invalid and removed.
+
 ## Non-Goals
 
 - Do not redesign the Blueprint canvas, runtime cards, or seed sidebar UI.
@@ -38,6 +40,13 @@ A Blueprint execution may persist only when all of the following are true:
   - the workflow was previously imported and therefore created a user copy
 
 If any of those checks fail, execution must remain session-only and must not write durable run data.
+
+More concretely:
+
+- `seed = ''`, `NULL`, malformed, or not found in source storage means non-persistent execution
+- a source row without matching ownership or user copy means non-persistent execution
+- the current request `workflow` payload does not by itself make a run persistable; only saved seed context does
+- persistence is a policy decision at execution start and must not change midway through a run
 
 ### Unsaved Runs Must Behave As Ephemeral Sessions
 
@@ -61,6 +70,23 @@ The following features remain available only when a run is persisted:
 
 The frontend should degrade gracefully when the current execution is not persistent instead of treating that state as an error.
 
+## Data Integrity Rules
+
+### Saved Workflow Is Defined By Storage, Not Canvas State
+
+The frontend may have a visually complete canvas and even a seed-looking value in memory, but that is not sufficient for durable run storage.
+
+The backend remains authoritative. A workflow counts as saved only when its seed relationship is already represented in Blueprint persistence tables.
+
+### Cleanup And Runtime Gating Must Share The Same Validity Model
+
+The system must not use one rule for deciding whether to persist a new run and a different rule for deleting old runs.
+
+Required invariant:
+
+- if a `{ run.seed, run.owner_user_id }` pair would not pass the current persistence gate, that run is invalid and should be cleanup-eligible
+- if a run would pass the current persistence gate, cleanup must preserve it
+
 ## Architecture Changes
 
 ### Introduce A Single Persistence Gate
@@ -77,11 +103,21 @@ Recommended shape:
 - return a structured result such as `{ shouldPersist, normalizedSeed, sourceExists, hasUserCopy, isSourceOwner }`
 - use that helper inside `executeBlueprintWorkflow(...)`
 
+Recommended helper semantics:
+
+- malformed seed: return `shouldPersist = false` without throwing
+- missing seed: return `shouldPersist = false`
+- source exists and owner matches: return `shouldPersist = true`
+- source exists and user copy exists: return `shouldPersist = true`
+- source missing: return `shouldPersist = false`
+- source exists but user is neither owner nor copy holder: return `shouldPersist = false`
+
 That helper becomes the single policy source for:
 
 - whether to call `createBlueprintRunRecord(...)`
 - whether to call `upsertBlueprintRunStepRecord(...)`
 - whether cancellation-state reads should hit the store
+- whether historical cleanup should preserve or delete a run
 
 ### Keep Execution Logic Shared Across Persistent And Ephemeral Runs
 
@@ -96,6 +132,12 @@ Suggested behavior:
 - only allocate `runId` and register active run control if `persistRun` is true
 - guard every persistence write behind `persistRun`
 - keep stream payload shape compatible, but allow `runId` to be empty for ephemeral runs
+
+Recommended stream contract addition:
+
+- include a boolean field such as `persistent: true | false` on `workflow-start`
+- frontend should treat `persistent: false` as authoritative even if a stale local `seed` exists
+- subsequent step events may omit this field once the start event has established the mode
 
 This avoids duplicating execution logic while making persistence policy explicit.
 
@@ -114,6 +156,8 @@ New rules:
 - if the current execution is persistent, existing `/runs/:runId/cancel` behavior remains
 - auto-cancel on route leave should only call the backend when the current run is persistent
 - run-history hydration should be skipped when no durable `runId` exists
+- ephemeral runs must not be added into `sessionRunIds` as if they were durable history records
+- `latestRunId` may legitimately remain empty during an active execution, and UI logic must accept that state
 
 The UI should still surface that execution stopped; it just should not attempt persistence APIs that cannot succeed.
 
@@ -132,6 +176,17 @@ Rows should be considered invalid and deleted when either condition is true:
   - no matching source row for that seed, or
   - no matching user copy and the run owner is not the source owner
 
+Concrete examples of invalid rows:
+
+- a run created before the user ever saved the current canvas to a seed
+- a run with a seed string that never existed in `blueprint_workflow_sources`
+- a run owned by user B for a seed where only user A owns the source and user B has no copy row
+
+Concrete examples of valid rows:
+
+- the source owner ran their own saved seed
+- another user imported the seed, which created a copy row, and later ran that copy-backed workflow
+
 Cleanup order:
 
 1. identify invalid run ids
@@ -144,6 +199,16 @@ Recommended trigger:
 
 - execute cleanup as part of Blueprint table readiness/bootstrap, after table creation succeeds
 - keep the cleanup bounded to Blueprint tables only
+- ensure bootstrap cleanup runs once per server process, not once per request after readiness is established
+
+Recommended repository API shape:
+
+- `resolveBlueprintRunPersistenceEligibility(executor, { seed, userId })`
+- `findInvalidBlueprintRunIds(executor, { limit? })`
+- `deleteBlueprintRunsCascade(executor, runIds)`
+- `cleanupInvalidBlueprintRuns(executor)`
+
+The cleanup helper should be composable so it can be tested directly without relying only on table bootstrap side effects.
 
 ## Data Flow
 
@@ -160,10 +225,11 @@ Recommended trigger:
 
 1. frontend submits execution request with workflow that has no saved seed context
 2. backend marks the run as non-persistent
-3. backend executes the same workflow loop without durable run writes
-4. frontend receives stream events and updates local runtime state
-5. frontend skips history/detail/cancel persistence flows
-6. when the page is refreshed or left, the ephemeral run disappears without leaving database residue
+3. backend emits `workflow-start` with `persistent: false` and no durable `runId`
+4. backend executes the same workflow loop without durable run writes
+5. frontend receives stream events and updates local runtime state
+6. frontend skips history/detail/cancel persistence flows
+7. when the page is refreshed or left, the ephemeral run disappears without leaving database residue
 
 ## Error Handling
 
@@ -171,6 +237,8 @@ Recommended trigger:
 - persistence-disabled execution should not throw solely because history APIs are unavailable
 - backend cancellation endpoint should keep returning `404` for unknown durable runs; frontend should avoid calling it for ephemeral runs
 - cleanup failures should be logged clearly, but must not prevent Blueprint table initialization from succeeding unless the failure indicates data corruption that blocks safe operation
+- if cleanup partially deletes step rows but fails before deleting run rows, the operation should roll back or retry as a single transactional unit
+- the system should log when a run is intentionally executed in non-persistent mode so future debugging can distinguish policy from bugs
 
 ## Acceptance Criteria
 
@@ -181,6 +249,7 @@ The work is complete when all of the following are true:
 - executing a saved Blueprint workflow still creates durable run and step history
 - frontend execution UX still works for unsaved workflows in the current session
 - frontend does not attempt durable run detail, history continuation, or cancel flows for ephemeral runs
+- frontend receives an explicit persistent/non-persistent signal from the execution stream
 - historical invalid Blueprint runs and their steps are deleted automatically
 - cleanup is idempotent and does not delete valid saved-run history
 
@@ -192,6 +261,8 @@ The work is complete when all of the following are true:
 - verify step upserts are skipped for non-persistent runs
 - verify a valid saved seed still persists run and step records
 - verify cancellation-store reads and active-run registration occur only for persistent runs
+- verify `workflow-start` marks ephemeral runs with `persistent: false`
+- verify `workflow-start` marks durable runs with `persistent: true`
 
 ### Cleanup Tests
 
@@ -201,18 +272,21 @@ The work is complete when all of the following are true:
 - verify cleanup leaves valid source-owner runs intact
 - verify cleanup leaves valid imported-copy runs intact
 - verify running cleanup twice produces the same final database state
+- verify cleanup executes transactionally for runs and steps
 
 ### Frontend Regression Tests
 
 - verify unsaved execution no longer tries to hydrate `/blueprints/runs/:runId`
 - verify route-leave auto-cancel only triggers persistent cancel requests
 - verify saved runs still populate recent history normally
+- verify ephemeral runs do not get appended into durable session history state
 
 ## Risks And Constraints
 
 - some existing UI state assumes `latestRunId` always exists after execution starts; those assumptions need to be removed carefully
 - automatic cleanup must use the same validity rules as execution persistence gating, or the system will drift
 - making unsaved runs ephemeral means users lose refresh-time recoverability for those runs by design; that is consistent with the product rule
+- bootstrap cleanup should remain bounded so it does not create noticeable startup latency on large history tables
 
 ## Next Step
 
