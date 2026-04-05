@@ -1,7 +1,7 @@
 const { getPool } = require('../../config/database');
 const { generateAiReply } = require('../../controllers/discussion/shared/ai');
 const {
-  buildLocalBlueprintPlanningResult,
+  buildBlueprintPlanningRepairPrompt,
   buildBlueprintPlannerNodeCatalog,
   buildBlueprintPlanningPrompt,
   normalizeBlueprintPlanningResult,
@@ -21,6 +21,106 @@ const {
   normalizeWorkflowPayload,
   parseStoredWorkflow
 } = require('./blueprintCommon');
+
+const BLUEPRINT_PLAN_LOG_PREFIX = '[blueprint:plan]';
+
+const summarizeBlueprintPlannerNodesForLog = (workflow = {}) =>
+  (Array.isArray(workflow?.nodes) ? workflow.nodes : []).map((node = {}) => ({
+    id: String(node?.id || '').trim(),
+    kind: String(node?.kind || '').trim(),
+    title: String(node?.title || '').trim()
+  }));
+
+const buildBlueprintPlannerAiReplyLogPayload = ({
+  prompt = '',
+  seed = '',
+  plannerModel = '',
+  workflow = {},
+  rawReply = ''
+} = {}) => ({
+  seed: String(seed || '').trim(),
+  model: String(plannerModel || '').trim(),
+  prompt: String(prompt || '').trim(),
+  existingNodeCount: Array.isArray(workflow?.nodes) ? workflow.nodes.length : 0,
+  existingEdgeCount: Array.isArray(workflow?.edges) ? workflow.edges.length : 0,
+  existingNodes: summarizeBlueprintPlannerNodesForLog(workflow),
+  rawReply: String(rawReply || '')
+});
+
+const buildBlueprintPlannerResultLogPayload = ({
+  result = {},
+  fallbackReason = ''
+} = {}) => ({
+  summary: String(result?.summary || '').trim(),
+  warnings: Array.isArray(result?.warnings) ? result.warnings : [],
+  fallbackReason: String(fallbackReason || '').trim(),
+  nodeCount: Array.isArray(result?.workflow?.nodes) ? result.workflow.nodes.length : 0,
+  edgeCount: Array.isArray(result?.workflow?.edges) ? result.workflow.edges.length : 0,
+  nodes: summarizeBlueprintPlannerNodesForLog(result?.workflow || {})
+});
+
+const resolveBlueprintPlannerRequestModel = (body = {}) => {
+  const requestedModel = normalizeModelName(body?.model);
+  return resolveBlueprintPlannerModel(requestedModel);
+};
+
+const normalizeOrRepairBlueprintPlanningResult = async ({
+  prompt = '',
+  workflow = {},
+  plannerModel = '',
+  rawReply = '',
+  requestRepair
+} = {}) => {
+  try {
+    return {
+      result: normalizeBlueprintPlanningResult({
+        rawReply,
+        workflow
+      }),
+      repaired: false,
+      fallbackUsed: false
+    };
+  } catch (error) {
+    if (error?.status !== 400) {
+      throw error;
+    }
+
+    if (typeof requestRepair !== 'function') {
+      throw error;
+    }
+
+    const repairPrompt = buildBlueprintPlanningRepairPrompt({
+      rawReply,
+      workflow
+    });
+
+    const repairedReply = await requestRepair({
+      prompt: repairPrompt.prompt,
+      systemDirective: repairPrompt.systemDirective,
+      plannerModel,
+      originalPrompt: prompt,
+      rawReply
+    });
+
+    const result = normalizeBlueprintPlanningResult({
+      rawReply: repairedReply,
+      workflow
+    });
+
+    return {
+      result: {
+        ...result,
+        warnings: [
+          'AI 首次回复未返回标准工作流，系统已自动修复格式。',
+          ...(Array.isArray(result?.warnings) ? result.warnings : [])
+        ]
+      },
+      repaired: true,
+      fallbackUsed: false,
+      repairedReply
+    };
+  }
+};
 
 const createBlueprint = async ({ userId, body = {} } = {}) => {
   const clientSeed = normalizeSeed(body?.seed);
@@ -88,10 +188,7 @@ const planBlueprintWorkflow = async ({ body = {} } = {}) => {
   }
 
   const workflow = normalizeWorkflowPayload(body?.workflow, { requireNodes: false });
-  const requestedModel = body?.modelExplicit === false
-    ? ''
-    : normalizeModelName(body?.model);
-  const plannerModel = resolveBlueprintPlannerModel(requestedModel);
+  const plannerModel = resolveBlueprintPlannerRequestModel(body);
   const availableNodes = Array.isArray(body?.availableNodes) && body.availableNodes.length
     ? body.availableNodes
     : buildBlueprintPlannerNodeCatalog();
@@ -101,67 +198,92 @@ const planBlueprintWorkflow = async ({ body = {} } = {}) => {
     availableNodes,
     seed
   });
-  try {
-    const rawReply = await generateAiReply({
-      prompt: plannerPrompt.prompt,
-      gameTitle: 'Blueprint Workflow Planner',
-      roomMessages: [],
-      roomSummary: null,
-      memoryEntries: [],
-      builtinModel: plannerModel,
-      systemDirective: plannerPrompt.systemDirective,
-      requestOptions: plannerRequestOptions
-    });
+  const rawReply = await generateAiReply({
+    prompt: plannerPrompt.prompt,
+    gameTitle: 'Blueprint Workflow Planner',
+    roomMessages: [],
+    roomSummary: null,
+    memoryEntries: [],
+    builtinModel: plannerModel,
+    systemDirective: plannerPrompt.systemDirective,
+    requestOptions: plannerRequestOptions
+  });
 
-    let plannedResult = null;
+  console.info(
+    `${BLUEPRINT_PLAN_LOG_PREFIX} 收到 AI 规划回复`,
+    buildBlueprintPlannerAiReplyLogPayload({
+      prompt,
+      seed,
+      plannerModel,
+      workflow,
+      rawReply
+    })
+  );
 
-    try {
-      plannedResult = normalizeBlueprintPlanningResult({
-        rawReply,
-        workflow
-      });
-    } catch (error) {
-      if (error?.status !== 400) {
-        throw error;
-      }
+  const {
+    result: plannedResult,
+    repaired,
+    repairedReply
+  } = await normalizeOrRepairBlueprintPlanningResult({
+    prompt,
+    workflow,
+    plannerModel,
+    rawReply,
+    requestRepair: async ({ prompt: repairPrompt, systemDirective }) => {
+      console.warn(
+        `${BLUEPRINT_PLAN_LOG_PREFIX} AI 规划回复不可解析，开始请求修复`,
+        buildBlueprintPlannerAiReplyLogPayload({
+          prompt,
+          seed,
+          plannerModel,
+          workflow,
+          rawReply
+        })
+      );
 
-      plannedResult = buildLocalBlueprintPlanningResult({
-        prompt,
-        workflow,
-        warning: 'AI 首次回复未返回可解析工作流，系统已切换为本地兜底。'
+      return generateAiReply({
+        prompt: repairPrompt,
+        gameTitle: 'Blueprint Workflow Planner Repair',
+        roomMessages: [],
+        roomSummary: null,
+        memoryEntries: [],
+        builtinModel: plannerModel,
+        systemDirective,
+        requestOptions: plannerRequestOptions
       });
     }
+  });
 
-    return {
-      ...plannedResult,
-      workflow: {
-        ...(plannedResult.workflow || {}),
-        meta: {
-          ...(workflow?.meta && typeof workflow.meta === 'object' ? workflow.meta : {}),
-          plannedPrompt: prompt
-        }
-      },
-      model: plannerModel
-    };
-  } catch (error) {
-    const plannedResult = buildLocalBlueprintPlanningResult({
-      prompt,
-      workflow,
-      warning: error?.message || 'AI 规划请求失败，系统已切换为本地兜底。'
-    });
-
-    return {
-      ...plannedResult,
-      workflow: {
-        ...(plannedResult.workflow || {}),
-        meta: {
-          ...(workflow?.meta && typeof workflow.meta === 'object' ? workflow.meta : {}),
-          plannedPrompt: prompt
-        }
-      },
-      model: plannerModel
-    };
+  if (repaired) {
+    console.info(
+      `${BLUEPRINT_PLAN_LOG_PREFIX} AI 规划修复完成`,
+      {
+        repairedReply: String(repairedReply || ''),
+        ...buildBlueprintPlannerResultLogPayload({
+          result: plannedResult
+        })
+      }
+    );
+  } else {
+    console.info(
+      `${BLUEPRINT_PLAN_LOG_PREFIX} AI 规划归一化完成`,
+      buildBlueprintPlannerResultLogPayload({
+        result: plannedResult
+      })
+    );
   }
+
+  return {
+    ...plannedResult,
+    workflow: {
+      ...(plannedResult.workflow || {}),
+      meta: {
+        ...(workflow?.meta && typeof workflow.meta === 'object' ? workflow.meta : {}),
+        plannedPrompt: prompt
+      }
+    },
+    model: plannerModel
+  };
 };
 
 const getBlueprintBySeed = async ({ userId, seed } = {}) => {
@@ -292,6 +414,10 @@ module.exports = {
   saveBlueprintBySeed,
   listRecentBlueprints,
   __test: {
-    buildBlueprintPlannerRequestOptions
+    buildBlueprintPlannerRequestOptions,
+    buildBlueprintPlannerAiReplyLogPayload,
+    buildBlueprintPlannerResultLogPayload,
+    normalizeOrRepairBlueprintPlanningResult,
+    resolveBlueprintPlannerRequestModel
   }
 };

@@ -18,3 +18,4 @@ index.html
 docs/
 .worktrees/
 backend/tests
+tests/

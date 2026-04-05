@@ -138,7 +138,7 @@ const buildTerminalOutputNode = (nodes = [], existingOutputNode = null, existing
       ...existingOutputNode,
       title: normalizeText(existingOutputNode.title) || outputMeta.title || '输出节点',
       content: sanitizePlannerContent(existingOutputNode.content)
-        || '整合全部上游节点，输出最终可直接运行、可直接预览的 H5 成品游戏文件方案。',
+        || '整合全部上游节点，输出最终可直接运行的单页 HTML 文档页方案。',
       position: nextPosition
     };
   }
@@ -147,7 +147,7 @@ const buildTerminalOutputNode = (nodes = [], existingOutputNode = null, existing
     id: `bp-plan-output-${Date.now().toString(36)}`,
     kind: 'output',
     title: outputMeta.title || '输出节点',
-    content: '整合全部上游节点，输出最终可直接运行、可直接预览的 H5 成品游戏文件方案。',
+    content: '整合全部上游节点，输出最终可直接运行的单页 HTML 文档页方案。',
     position: nextPosition
   }, nodes.length, existingNodeMap);
 };
@@ -530,31 +530,6 @@ const createFallbackPlannedNode = (kind = '', existingNode = null) => {
   };
 };
 
-const ensurePlayablePlanningScaffold = (plannedNodes = [], existingNodeByKind = new Map()) => {
-  const nextNodes = Array.isArray(plannedNodes) ? [...plannedNodes] : [];
-  const plannedKinds = new Set(
-    nextNodes.map((node) => resolvePlannedNodeKind(node)).filter(Boolean)
-  );
-  const nonOutputNodeCount = nextNodes.filter((node) => resolvePlannedNodeKind(node) !== 'output').length;
-  const minimumPlayableKinds = ['game', 'play', 'language', 'ui'];
-
-  if (nonOutputNodeCount > 1 && plannedKinds.has('game') && plannedKinds.has('play')) {
-    return nextNodes;
-  }
-
-  minimumPlayableKinds.forEach((kind) => {
-    if (plannedKinds.has(kind)) return;
-
-    const fallbackNode = createFallbackPlannedNode(kind, existingNodeByKind.get(kind) || null);
-    if (!fallbackNode) return;
-
-    nextNodes.push(fallbackNode);
-    plannedKinds.add(kind);
-  });
-
-  return nextNodes;
-};
-
 const buildLocalBlueprintPlanningResult = ({
   prompt = '',
   workflow = {},
@@ -581,15 +556,12 @@ const buildLocalBlueprintPlanningResult = ({
     .map((kind) => createFallbackPlannedNode(kind, existingNodeByKind.get(kind) || null))
     .filter(Boolean);
 
-  const fallbackNodes = ensurePlayablePlanningScaffold(
-    existingWorkflow.nodes.length ? [...existingWorkflow.nodes] : seedNodes,
-    existingNodeByKind
-  );
+  const fallbackNodes = existingWorkflow.nodes.length ? [...existingWorkflow.nodes] : seedNodes;
 
   return normalizeBlueprintPlanningResult({
     rawReply: JSON.stringify({
-      summary: 'AI 规划未及时完成，系统已生成基础可运行工作流。',
-      changes: ['已生成最小可运行工作流骨架，并保留 Blueprint 节点执行链。'],
+      summary: 'AI 规划未及时完成，系统已生成基础工作流。',
+      changes: ['已保留可识别的规划线索，并补齐最终输出节点。'],
       warnings: [normalizeText(warning) || 'AI 规划请求超时，已切换为本地兜底。'].filter(Boolean),
       workflow: {
         nodes: fallbackNodes,
@@ -625,7 +597,7 @@ const mergeMentionedNodesIntoWorkflow = (plannedWorkflow = {}, parsed = {}, exis
   });
 
   return {
-    nodes: ensurePlayablePlanningScaffold(plannedNodes, existingNodeByKind),
+    nodes: plannedNodes,
     edges: normalizedPlannedWorkflow.edges
   };
 };
@@ -724,8 +696,8 @@ const buildBlueprintPlanningPrompt = ({
   return {
     systemDirective: [
       '你是 DpccGaming BluePrint 的工作流规划器。',
-      '你的任务是根据用户最新需求，直接产出可执行且面向最终可玩产物的蓝图工作流 JSON。',
-      '最终目标必须指向一个可直接运行、可直接玩的 H5 小游戏，而不是静态页面、演示稿或半成品说明。',
+      '你的任务是根据用户最新需求，直接产出可执行且面向最终 HTML 文档页产物的蓝图工作流 JSON。',
+      '最终目标必须指向一个可直接运行的单页 HTML 文档页，而不是多文件工程、半成品说明或空白模板。',
       '默认优先选择可直接运行的 H5 实现路径，优先原生 HTML/CSS/JavaScript；除非用户明确要求，否则不要默认规划为 Cocos、TypeScript 或依赖额外构建链的方案。',
       '默认采用增量修改策略：优先保留现有节点和已有节点 id，只在必要时新增、删除或重连节点。',
       '必须返回严格 JSON，不要输出 Markdown 代码块或额外解释。'
@@ -741,7 +713,7 @@ const buildBlueprintPlanningPrompt = ({
         '输出 JSON 结构只能包含 summary、changes、warnings、workflow 四个顶级字段。',
         'workflow 内必须包含 nodes 和 edges。',
         'nodes 中每个节点必须包含 id、kind、title、position，紧凑节点可带 content。',
-        '规划结果必须服务于“生成可直接玩的 H5 游戏”这一目标，至少保证 output 节点明确承接最终可执行游戏产物。',
+        '规划结果必须服务于“生成可直接运行的 HTML 文档页”这一目标，至少保证 output 节点明确承接最终 index.html 产物。',
         '如果用户没有明确指定技术栈，请优先让语言/技术相关节点贴近原生 HTML/CSS/JavaScript 的直接运行 H5 方案，不要默认写成 Cocos 或 TypeScript。',
         '最后一个节点必须是 output 节点，且 output 节点后面不能再有别的节点。',
         'changes 或 summary 里提到新增、调用、使用的节点，必须真实出现在 workflow.nodes 中，不能只写说明文字。',

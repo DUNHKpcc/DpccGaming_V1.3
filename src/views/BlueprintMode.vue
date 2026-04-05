@@ -121,9 +121,13 @@ const canContinueFailedRun = computed(() =>
   && !isWorkflowBusy.value
 )
 const canCancelLatestRun = computed(() =>
-  runHistoryApiAvailable.value
-  && Boolean(latestRunId.value)
-  && ['running', 'cancel_requested'].includes(String(latestRunStatus.value || ''))
+  activeRunIsPersistent.value
+    ? (
+        runHistoryApiAvailable.value
+        && Boolean(latestRunId.value)
+        && ['running', 'cancel_requested'].includes(String(latestRunStatus.value || ''))
+      )
+    : workflowLoadState.value === 'executing'
 )
 
 const latestOutputRuntime = computed(() => {
@@ -325,7 +329,8 @@ const resolveBlueprintErrorMessage = (error, fallbackMessage) => {
 }
 
 const hasActiveBlueprintRunForAutoCancel = () =>
-  isBlueprintRunActiveForAutoCancel({
+  activeRunIsPersistent.value
+  && isBlueprintRunActiveForAutoCancel({
     runId: latestRunId.value,
     status: latestRunStatus.value,
     runHistoryApiAvailable: runHistoryApiAvailable.value
@@ -397,6 +402,7 @@ const {
   hasSessionRunHistory,
   sessionRunIds,
   runHistoryApiAvailable,
+  activeRunIsPersistent,
   isPlannerRunning,
   appendLog,
   resetLatestRunTracking,

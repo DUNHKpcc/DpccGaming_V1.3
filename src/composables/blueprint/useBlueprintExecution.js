@@ -5,10 +5,19 @@ import {
   normalizeBlueprintPlannerPrompt
 } from '../../utils/blueprintPlanner.js'
 import {
+  createGameBlueprintNode,
+  upsertGeneratedPlayableBlueprintEdge
+} from '../../utils/blueprintNodes.js'
+import {
   PROGRESS_STAGE_LABELS,
   buildProgressTrail,
   resolvePersistableRuntimeText
 } from '../../utils/blueprintRuntime.js'
+import {
+  applyWorkflowStartSessionState,
+  shouldHydratePersistentRunDetail,
+  shouldUsePersistentRunCancel
+} from '../../utils/blueprintRunSessionState.js'
 
 export const useBlueprintExecution = ({
   authStore,
@@ -42,12 +51,19 @@ export const useBlueprintExecution = ({
   const hasSessionRunHistory = ref(false)
   const sessionRunIds = ref([])
   const runHistoryApiAvailable = ref(true)
+  const activeRunIsPersistent = ref(false)
 
   const availablePlannerNodes = buildBlueprintPlannerAvailableNodes()
   const isPlannerRunning = computed(() => workflowLoadState.value === 'planning')
 
   let logIdCounter = 0
   let activeExecutionController = null
+  let generatedPlayableEdgeCounter = 0
+
+  const createGeneratedPlayableEdgeId = () => {
+    generatedPlayableEdgeCounter += 1
+    return `bp-generated-edge-${Date.now().toString(36)}-${generatedPlayableEdgeCounter}`
+  }
 
   const resetLatestRunTracking = () => {
     latestRunId.value = ''
@@ -55,6 +71,7 @@ export const useBlueprintExecution = ({
     latestRunContinuation.value = null
     latestFailedNodeId.value = ''
     latestRunDetail.value = null
+    activeRunIsPersistent.value = false
   }
 
   const cancelActiveExecutionStream = () => {
@@ -62,6 +79,92 @@ export const useBlueprintExecution = ({
 
     activeExecutionController.abort()
     activeExecutionController = null
+  }
+
+  const resolveGeneratedPlayableNodePosition = (sourceNodeId = '') => {
+    const sourceNode = blueprintNodes.value.find((node) => String(node.id || '') === String(sourceNodeId || ''))
+    if (sourceNode?.position) {
+      return {
+        x: Number(sourceNode.position.x || 0) + 336,
+        y: Number(sourceNode.position.y || 0)
+      }
+    }
+
+    const rightMostNode = blueprintNodes.value.reduce((currentRightMost, node) => {
+      if (!currentRightMost) return node
+      return Number(node?.position?.x || 0) > Number(currentRightMost?.position?.x || 0)
+        ? node
+        : currentRightMost
+    }, null)
+
+    return {
+      x: Number(rightMostNode?.position?.x || 96) + 336,
+      y: Number(rightMostNode?.position?.y || 96)
+    }
+  }
+
+  const upsertGeneratedPlayableNode = (payload = {}) => {
+    const generatedGameId = String(payload.id || '').trim()
+    if (!generatedGameId) return ''
+
+    const existingNode = blueprintNodes.value.find((node) =>
+      node?.kind === 'game'
+      && (
+        String(node.gameId || '') === generatedGameId
+        || String(node.generatedFromRunId || '') === String(payload.generatedFromRunId || '')
+      ))
+
+    const baseNode = createGameBlueprintNode(
+      {
+        id: generatedGameId,
+        title: payload.title,
+        category: payload.category,
+        description: payload.description,
+        engineLabel: payload.engineLabel,
+        codeTypeLabel: payload.codeTypeLabel,
+        codeSummary: payload.codeSummary,
+        codeEntryPath: payload.codeEntryPath,
+        codePackageUrl: payload.codePackageUrl,
+        coverUrl: payload.coverUrl
+      },
+      existingNode?.position || resolveGeneratedPlayableNodePosition(payload.generatedFromNodeId),
+      () => existingNode?.id || `bp-generated-game-${generatedGameId}`
+    )
+
+    const nextNode = {
+      ...baseNode,
+      previewUrl: String(payload.previewUrl || payload.codePackageUrl || ''),
+      isGeneratedPlayable: true,
+      generatedFromRunId: payload.generatedFromRunId || '',
+      generatedFromNodeId: payload.generatedFromNodeId || ''
+    }
+
+    if (existingNode) {
+      blueprintNodes.value = blueprintNodes.value.map((node) =>
+        node.id === existingNode.id
+          ? { ...node, ...nextNode, position: node.position || nextNode.position }
+          : node
+      )
+      return existingNode.id
+    }
+
+    blueprintNodes.value = [...blueprintNodes.value, nextNode]
+    return nextNode.id
+  }
+
+  const connectGeneratedPlayableNodeToSource = (sourceNodeId = '', generatedNodeId = '') => {
+    const result = upsertGeneratedPlayableBlueprintEdge(
+      blueprintEdges.value,
+      sourceNodeId,
+      generatedNodeId,
+      createGeneratedPlayableEdgeId
+    )
+
+    if (result.created) {
+      blueprintEdges.value = result.edges
+    }
+
+    return result.created
   }
 
   const resetExecutionLogSession = () => {
@@ -314,16 +417,26 @@ export const useBlueprintExecution = ({
 
   const handleBlueprintExecutionEvent = (event = {}) => {
     if (event.event === 'workflow-start') {
-      hasSessionRunHistory.value = true
+      const sessionState = applyWorkflowStartSessionState({
+        latestRunId: latestRunId.value,
+        hasSessionRunHistory: hasSessionRunHistory.value,
+        sessionRunIds: sessionRunIds.value,
+        latestRunStatus: latestRunStatus.value,
+        latestRunContinuation: latestRunContinuation.value,
+        latestFailedNodeId: latestFailedNodeId.value,
+        latestRunDetail: latestRunDetail.value,
+        activeRunIsPersistent: activeRunIsPersistent.value
+      }, event)
+
+      hasSessionRunHistory.value = sessionState.hasSessionRunHistory
+      sessionRunIds.value = sessionState.sessionRunIds
       isLogPanelHistoryHidden.value = false
-      latestRunId.value = String(event.runId || '')
-      if (latestRunId.value && !sessionRunIds.value.includes(latestRunId.value)) {
-        sessionRunIds.value = [latestRunId.value, ...sessionRunIds.value]
-      }
-      latestRunStatus.value = 'running'
-      latestRunContinuation.value = null
-      latestFailedNodeId.value = ''
-      latestRunDetail.value = null
+      latestRunId.value = sessionState.latestRunId
+      latestRunStatus.value = sessionState.latestRunStatus
+      latestRunContinuation.value = sessionState.latestRunContinuation
+      latestFailedNodeId.value = sessionState.latestFailedNodeId
+      latestRunDetail.value = sessionState.latestRunDetail
+      activeRunIsPersistent.value = sessionState.activeRunIsPersistent
       appendLog(`开始自动执行工作流，模型：${event.model || selectedModel.value}，视觉理解模型：${event.visionModel || selectedVisionModel.value}。`)
       return
     }
@@ -403,6 +516,18 @@ export const useBlueprintExecution = ({
       latestRunStatus.value = 'completed'
       latestRunContinuation.value = null
       latestFailedNodeId.value = ''
+      if (event.executionMode === 'planned' && event.generatedPlayableNode) {
+        const generatedNodeId = upsertGeneratedPlayableNode(event.generatedPlayableNode)
+        if (generatedNodeId) {
+          connectGeneratedPlayableNodeToSource(
+            event.generatedPlayableNode.generatedFromNodeId,
+            generatedNodeId
+          )
+          selectedNodeId.value = generatedNodeId
+          pulseNode(generatedNodeId)
+          appendLog('已将本次 planned 模式生成的 H5 成品落成可游玩节点。')
+        }
+      }
       appendLog('工作流已自动顺序执行完成。')
       return
     }
@@ -433,7 +558,8 @@ export const useBlueprintExecution = ({
   const streamBlueprintExecution = async ({
     startNodeId = '',
     scope = 'all',
-    rerunInstruction = ''
+    rerunInstruction = '',
+    executionMode = 'default'
   } = {}) => {
     if (isWorkflowBusy.value) return
 
@@ -460,6 +586,7 @@ export const useBlueprintExecution = ({
           visionModel: selectedVisionModel.value,
           startNodeId,
           scope,
+          executionMode,
           rerunInstruction: String(rerunInstruction || ''),
           runtimeSnapshot: nodeRuntimeMap.value,
           workflow: getWorkflowPayload()
@@ -525,7 +652,11 @@ export const useBlueprintExecution = ({
       }
 
       await fetchRunHistory()
-      if (runHistoryApiAvailable.value && latestRunId.value) {
+      if (shouldHydratePersistentRunDetail({
+        runHistoryApiAvailable: runHistoryApiAvailable.value,
+        latestRunId: latestRunId.value,
+        activeRunIsPersistent: activeRunIsPersistent.value
+      })) {
         try {
           await syncLatestRunDetail(latestRunId.value, { hydrate: true })
         } catch (error) {
@@ -597,7 +728,7 @@ export const useBlueprintExecution = ({
 
       workflowLoadState.value = 'idle'
       appendLog('开始自动执行更新后的工作流。')
-      await streamBlueprintExecution({ scope: 'all' })
+      await streamBlueprintExecution({ scope: 'all', executionMode: 'planned' })
     } catch (error) {
       appendLog(resolveBlueprintErrorMessage(error, '工作流规划失败，请稍后重试。'), 'error')
       planningStatusLabel.value = 'AI 正在规划工作流...'
@@ -700,13 +831,31 @@ export const useBlueprintExecution = ({
 
   const handleCancelLatestRun = async (runId = latestRunId.value) => {
     const targetRunId = String(runId || latestRunId.value || '').trim()
+    if (!activeRunIsPersistent.value) {
+      if (!activeExecutionController) {
+        appendLog('当前没有可取消的运行记录。', 'warning')
+        return
+      }
+
+      cancelActiveExecutionStream()
+      latestRunStatus.value = 'cancelled'
+      latestRunContinuation.value = null
+      latestFailedNodeId.value = ''
+      appendLog('当前未保存工作流的执行已在本地取消。')
+      return
+    }
+
     if (!targetRunId) {
       appendLog('当前没有可取消的运行记录。', 'warning')
       return
     }
 
     try {
-      if (!runHistoryApiAvailable.value) {
+      if (!shouldUsePersistentRunCancel({
+        runHistoryApiAvailable: runHistoryApiAvailable.value,
+        latestRunId: targetRunId,
+        activeRunIsPersistent: activeRunIsPersistent.value
+      })) {
         appendLog('当前服务端暂未提供运行取消接口。', 'warning')
         return
       }
@@ -746,6 +895,7 @@ export const useBlueprintExecution = ({
     hasSessionRunHistory,
     sessionRunIds,
     runHistoryApiAvailable,
+    activeRunIsPersistent,
     isPlannerRunning,
     appendLog,
     resetLatestRunTracking,

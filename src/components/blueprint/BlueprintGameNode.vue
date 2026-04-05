@@ -31,6 +31,9 @@ const codeTypeIcon = computed(() => getGameCodeTypeIconByValue(props.node.codeTy
 const playableUrl = computed(() =>
   String(props.node.previewUrl || props.node.codePackageUrl || '').trim()
 )
+const isGeneratedPlayable = computed(() =>
+  Boolean(props.node.isGeneratedPlayable && playableUrl.value)
+)
 const runtimeStatusLabel = computed(() => {
   if (props.runtime?.status === 'running') return 'AI 思考中'
   if (props.runtime?.status === 'completed') return '已读取'
@@ -55,7 +58,8 @@ const runtimeProgressCopy = computed(() =>
     :class="{
       'is-selected': props.selected,
       'is-highlighted': props.highlighted,
-      'is-running': props.runtime?.status === 'running'
+      'is-running': props.runtime?.status === 'running',
+      'is-generated-playable': isGeneratedPlayable
     }"
     :style="positionStyle"
     data-no-pan
@@ -70,8 +74,15 @@ const runtimeProgressCopy = computed(() =>
     <BlueprintNodeAiBadge :runtime="props.runtime" />
 
     <div class="bp-game-node-cover-wrap" data-no-pan>
+      <iframe
+        v-if="props.node.isGeneratedPlayable && playableUrl"
+        class="bp-game-node-preview-frame"
+        :src="playableUrl"
+        :title="`${props.node.title} 运行预览`"
+        loading="lazy"
+      ></iframe>
       <video
-        v-if="props.node.hasVideo && props.node.videoUrl"
+        v-else-if="props.node.hasVideo && props.node.videoUrl"
         class="bp-game-node-cover"
         :src="props.node.videoUrl"
         :poster="props.node.coverUrl"
@@ -88,17 +99,17 @@ const runtimeProgressCopy = computed(() =>
         :alt="props.node.title"
         draggable="false"
       />
-      <span class="bp-game-node-badge">游戏节点</span>
+      <span class="bp-game-node-badge">{{ isGeneratedPlayable ? '运行节点' : '游戏节点' }}</span>
     </div>
 
     <div class="bp-game-node-body" data-no-pan>
       <strong>{{ props.node.title }}</strong>
-      <p>{{ props.node.categoryLabel }}</p>
+      <p>{{ isGeneratedPlayable ? '输出节点生成的可运行预览' : props.node.categoryLabel }}</p>
 
-      <div class="bp-game-node-meta">
+      <div class="bp-game-node-meta" :class="{ 'is-generated-playable': isGeneratedPlayable }">
         <span class="bp-game-node-chip">
           <img v-if="engineIcon" :src="engineIcon" alt="" />
-          <span>{{ props.node.engineLabel }}</span>
+          <span>{{ isGeneratedPlayable ? '运行框' : props.node.engineLabel }}</span>
         </span>
         <span class="bp-game-node-chip">
           <img v-if="codeTypeIcon" :src="codeTypeIcon" alt="" />
@@ -149,6 +160,10 @@ const runtimeProgressCopy = computed(() =>
   overflow: visible;
 }
 
+.bp-game-node.is-generated-playable {
+  width: calc(428px * var(--bp-ui-scale, 1));
+}
+
 .bp-game-node::before {
   content: '';
   position: absolute;
@@ -179,11 +194,24 @@ const runtimeProgressCopy = computed(() =>
   background: #efefef;
 }
 
+.bp-game-node.is-generated-playable .bp-game-node-cover-wrap {
+  height: calc(244px * var(--bp-ui-scale, 1));
+  background: #050505;
+}
+
 .bp-game-node-cover {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.bp-game-node-preview-frame {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  background: #000;
 }
 
 .bp-game-node-badge {
@@ -228,6 +256,11 @@ const runtimeProgressCopy = computed(() =>
   gap: calc(8px * var(--bp-ui-scale, 1));
 }
 
+.bp-game-node-meta.is-generated-playable .bp-game-node-chip {
+  background: #fff;
+  border-color: rgba(17, 17, 17, 0.12);
+}
+
 .bp-game-node-chip {
   display: inline-flex;
   align-items: center;
@@ -264,18 +297,21 @@ const runtimeProgressCopy = computed(() =>
   min-height: calc(36px * var(--bp-ui-scale, 1));
   padding: 0 calc(14px * var(--bp-ui-scale, 1));
   border-radius: calc(12px * var(--bp-ui-scale, 1));
-  background: linear-gradient(135deg, #1fdb7d, #13b8d6);
-  color: #081018;
+  background: #111111;
+  color: #ffffff;
+  border: 1px solid #111111;
   font-size: calc(0.82rem * var(--bp-ui-scale, 1));
   font-weight: 700;
   text-decoration: none;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
-  box-shadow: 0 12px 20px rgba(19, 184, 214, 0.18);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.14);
 }
 
 .bp-game-node-play-link:hover {
   transform: translateY(calc(-1px * var(--bp-ui-scale, 1)));
-  box-shadow: 0 14px 24px rgba(19, 184, 214, 0.24);
+  background: #ffffff;
+  color: #111111;
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
 }
 
 .bp-game-runtime-chip {

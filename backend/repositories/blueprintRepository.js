@@ -3,13 +3,16 @@ const {
   summarizeBlueprintRunStatus
 } = require('../utils/blueprintRunState');
 const {
+  BLUEPRINT_SEED_PATTERN,
   DEFAULT_BLUEPRINT_EXECUTION_MODEL,
+  normalizeSeed,
   parseNullableJson,
   toDatabaseTimestamp
 } = require('../services/blueprint/blueprintCommon');
 
 let blueprintTablesReady = false;
 let blueprintTablesInitPromise = null;
+let blueprintRunCleanupReady = false;
 
 const ensureBlueprintTableColumn = async (executor, tableName, columnName, columnDefinition) => {
   try {
@@ -143,6 +146,22 @@ const ensureBlueprintTables = async (pool) => {
     await ensureBlueprintTableColumn(pool, 'blueprint_workflow_run_steps', 'artifact_json', 'artifact_json LONGTEXT DEFAULT NULL');
     await ensureBlueprintTableColumn(pool, 'blueprint_workflow_run_steps', 'artifacts_json', 'artifacts_json LONGTEXT DEFAULT NULL');
     await ensureBlueprintTableColumn(pool, 'blueprint_workflow_run_steps', 'retry_count', 'retry_count INT NOT NULL DEFAULT 0');
+
+    if (!blueprintRunCleanupReady) {
+      const cleanupConnection = typeof pool?.getConnection === 'function'
+        ? await pool.getConnection()
+        : pool;
+
+      try {
+        await cleanupInvalidBlueprintRuns(cleanupConnection);
+        blueprintRunCleanupReady = true;
+      } catch (error) {
+        console.error('清理无效 Blueprint 运行记录失败:', error);
+      } finally {
+        cleanupConnection?.release?.();
+      }
+    }
+
     blueprintTablesReady = true;
   } finally {
     blueprintTablesInitPromise = null;
@@ -171,6 +190,124 @@ const getCopyBySeedAndOwner = async (executor, seed, userId) => {
   );
 
   return rows?.[0] || null;
+};
+
+const resolveBlueprintRunPersistenceEligibility = async (executor, { seed, userId } = {}) => {
+  const normalizedSeed = normalizeSeed(seed);
+  const numericUserId = Number(userId || 0);
+
+  if (!normalizedSeed || !BLUEPRINT_SEED_PATTERN.test(normalizedSeed) || !numericUserId) {
+    return {
+      shouldPersist: false,
+      normalizedSeed: normalizedSeed || '',
+      sourceExists: false,
+      hasUserCopy: false,
+      isSourceOwner: false
+    };
+  }
+
+  const sourceRow = await getSourceBySeed(executor, normalizedSeed);
+  if (!sourceRow) {
+    return {
+      shouldPersist: false,
+      normalizedSeed,
+      sourceExists: false,
+      hasUserCopy: false,
+      isSourceOwner: false
+    };
+  }
+
+  const isSourceOwner = Number(sourceRow.owner_user_id || 0) === numericUserId;
+  const copyRow = isSourceOwner ? null : await getCopyBySeedAndOwner(executor, normalizedSeed, numericUserId);
+  const hasUserCopy = Boolean(copyRow);
+
+  return {
+    shouldPersist: isSourceOwner || hasUserCopy,
+    normalizedSeed,
+    sourceExists: true,
+    hasUserCopy,
+    isSourceOwner
+  };
+};
+
+const findInvalidBlueprintRunIds = async (executor, { limit = 500 } = {}) => {
+  const normalizedLimit = Math.max(1, Math.floor(Number(limit) || 500));
+  const [rows] = await executor.execute(
+    `SELECT r.id
+     FROM blueprint_workflow_runs r
+     LEFT JOIN blueprint_workflow_sources s
+       ON s.seed = r.seed
+     LEFT JOIN blueprint_workflow_copies c
+       ON c.seed = r.seed
+      AND c.owner_user_id = r.owner_user_id
+     WHERE r.seed IS NULL
+        OR r.seed = ''
+        OR s.id IS NULL
+        OR (s.owner_user_id <> r.owner_user_id AND c.id IS NULL)
+     ORDER BY r.id ASC
+     LIMIT ?`,
+    [normalizedLimit]
+  );
+
+  return Array.isArray(rows)
+    ? rows
+      .map((row) => Number(row?.id || 0))
+      .filter((id) => id > 0)
+    : [];
+};
+
+const deleteBlueprintRunsCascade = async (executor, runIds = []) => {
+  const normalizedRunIds = Array.isArray(runIds)
+    ? runIds.map((runId) => Number(runId || 0)).filter((runId) => runId > 0)
+    : [];
+
+  if (!normalizedRunIds.length) {
+    return { deletedRunCount: 0 };
+  }
+
+  const placeholders = normalizedRunIds.map(() => '?').join(', ');
+  await executor.execute(
+    `DELETE FROM blueprint_workflow_run_steps
+     WHERE run_id IN (${placeholders})`,
+    normalizedRunIds
+  );
+  await executor.execute(
+    `DELETE FROM blueprint_workflow_runs
+     WHERE id IN (${placeholders})`,
+    normalizedRunIds
+  );
+
+  return { deletedRunCount: normalizedRunIds.length };
+};
+
+const cleanupInvalidBlueprintRuns = async (executor, { limit = 500 } = {}) => {
+  if (!executor || typeof executor.execute !== 'function') {
+    return { deletedRunCount: 0 };
+  }
+
+  const supportsTransaction = typeof executor.beginTransaction === 'function'
+    && typeof executor.commit === 'function'
+    && typeof executor.rollback === 'function';
+
+  if (supportsTransaction) {
+    await executor.beginTransaction();
+  }
+
+  try {
+    const invalidRunIds = await findInvalidBlueprintRunIds(executor, { limit });
+    const result = await deleteBlueprintRunsCascade(executor, invalidRunIds);
+
+    if (supportsTransaction) {
+      await executor.commit();
+    }
+
+    return result;
+  } catch (error) {
+    if (supportsTransaction) {
+      await executor.rollback();
+    }
+    throw error;
+  }
 };
 
 const getBlueprintRunCancellationStateFromStore = async (executor, runId) => {
@@ -502,6 +639,10 @@ module.exports = {
   ensureBlueprintTables,
   getSourceBySeed,
   getCopyBySeedAndOwner,
+  resolveBlueprintRunPersistenceEligibility,
+  findInvalidBlueprintRunIds,
+  deleteBlueprintRunsCascade,
+  cleanupInvalidBlueprintRuns,
   getBlueprintRunCancellationStateFromStore,
   persistBlueprintRunCancellationRequest,
   createBlueprintRunRecord,

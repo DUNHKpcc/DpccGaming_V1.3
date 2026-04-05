@@ -452,6 +452,18 @@ export const upsertBlueprintEdge = (edges = [], fromNodeId, toNodeId, createId =
   }
 }
 
+export const upsertGeneratedPlayableBlueprintEdge = (
+  edges = [],
+  outputNodeId = '',
+  generatedGameNodeId = '',
+  createId = () => ''
+) => upsertBlueprintEdge(
+  edges,
+  String(outputNodeId || '').trim(),
+  String(generatedGameNodeId || '').trim(),
+  createId
+)
+
 export const getBlueprintNodePortPoint = (node = {}, portType = 'output', measuredDimensions = null) => {
   const fallbackDimensions = BP_NODE_DIMENSIONS[node.kind] || BP_NODE_DIMENSIONS.game
   const dimensions = {

@@ -221,6 +221,44 @@ const findBlueprintOutputBundleFiles = (stepResults = {}, selectedSteps = []) =>
 const shouldWriteBlueprintRunBundle = (stepResults = {}, selectedSteps = []) =>
   Boolean(findBlueprintOutputBundleFiles(stepResults, selectedSteps));
 
+const resolveBlueprintExecutionPersistence = async ({
+  pool,
+  seed,
+  userId
+} = {}) => {
+  const eligibility = await repository.resolveBlueprintRunPersistenceEligibility(pool, {
+    seed,
+    userId
+  });
+
+  return {
+    ...eligibility,
+    persistRun: Boolean(eligibility?.shouldPersist)
+  };
+};
+
+const buildWorkflowStartEventPayload = ({
+  runId = 0,
+  persistRun = false,
+  model = '',
+  visionModel = '',
+  executionMode = 'default',
+  totalSteps = 0,
+  startNodeId = '',
+  scope = 'all',
+  startedAt = ''
+} = {}) => ({
+  runId: persistRun ? Number(runId || 0) : '',
+  persistent: Boolean(persistRun),
+  model,
+  visionModel,
+  executionMode,
+  totalSteps,
+  startNodeId: startNodeId || '',
+  scope,
+  startedAt
+});
+
 const listBlueprintRuns = async ({ userId, query = {} } = {}) => {
   const seed = normalizeSeed(query?.seed);
   const limit = normalizeRunListLimit(query?.limit);
@@ -300,6 +338,7 @@ const cancelBlueprintRun = async ({ userId, runId } = {}) => {
 
 const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
   let runId = 0;
+  let persistRun = false;
   let runtimeSnapshotJson = '{}';
   let artifactManifestJson = null;
   let previewUrl = null;
@@ -339,23 +378,41 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
     });
 
     runtimeSnapshotJson = JSON.stringify(stepResults);
-    runId = await repository.createBlueprintRunRecord(pool, {
-      seed: BLUEPRINT_SEED_PATTERN.test(normalizedSeed) ? normalizedSeed : null,
-      ownerUserId: userId,
-      workflowJson: JSON.stringify(workflow),
-      runtimeSnapshotJson,
-      modelName: selectedModel,
-      scope,
-      startNodeId,
-      status: 'running',
-      startedAt
+    const persistence = await resolveBlueprintExecutionPersistence({
+      pool,
+      seed: normalizedSeed,
+      userId
     });
-    registerActiveBlueprintRun(runId, { ownerUserId: userId });
+    persistRun = persistence.persistRun;
+
+    if (persistRun) {
+      runId = await repository.createBlueprintRunRecord(pool, {
+        seed: BLUEPRINT_SEED_PATTERN.test(normalizedSeed) ? normalizedSeed : null,
+        ownerUserId: userId,
+        workflowJson: JSON.stringify(workflow),
+        runtimeSnapshotJson,
+        modelName: selectedModel,
+        scope,
+        startNodeId,
+        status: 'running',
+        startedAt
+      });
+      registerActiveBlueprintRun(runId, { ownerUserId: userId });
+    } else {
+      console.info('[blueprint:run] executing in non-persistent mode', {
+        seed: normalizedSeed || '',
+        userId: Number(userId || 0),
+        executionMode,
+        scope,
+        startNodeId: startNodeId || ''
+      });
+    }
 
     prepareExecutionStreamResponse(res);
 
-    writeExecutionEvent(res, 'workflow-start', {
+    writeExecutionEvent(res, 'workflow-start', buildWorkflowStartEventPayload({
       runId,
+      persistRun,
       model: defaultExecutionModel,
       visionModel: selectedVisionModel,
       executionMode,
@@ -363,22 +420,24 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
       startNodeId: startNodeId || '',
       scope,
       startedAt: startedAt.toISOString()
-    });
+    }));
 
     for (const step of selectedSteps) {
       if (
-        isBlueprintRunCancellationRequested(runId)
-        || await repository.getBlueprintRunCancellationStateFromStore(pool, runId)
+        (persistRun && isBlueprintRunCancellationRequested(runId))
+        || (persistRun && await repository.getBlueprintRunCancellationStateFromStore(pool, runId))
       ) {
         const cancelledAt = new Date().toISOString();
-        await repository.updateBlueprintRunRecord(pool, runId, {
-          status: 'cancelled',
-          errorMessage: '运行已取消。',
-          runtimeSnapshotJson,
-          completedAt: cancelledAt
-        });
+        if (persistRun) {
+          await repository.updateBlueprintRunRecord(pool, runId, {
+            status: 'cancelled',
+            errorMessage: '运行已取消。',
+            runtimeSnapshotJson,
+            completedAt: cancelledAt
+          });
+        }
         writeExecutionEvent(res, 'workflow-cancelled', {
-          runId,
+          runId: persistRun ? runId : '',
           cancelledAt
         });
         return res.end();
@@ -391,11 +450,13 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
         ? selectedVisionModel
         : (step.kind === 'output' ? (selectedModel || 'GLM-4.5') : defaultExecutionModel);
 
-      await repository.upsertBlueprintRunStepRecord(pool, runId, step, {
-        status: 'running',
-        model: stepModel,
-        startedAt: stepStartedAt
-      });
+      if (persistRun) {
+        await repository.upsertBlueprintRunStepRecord(pool, runId, step, {
+          status: 'running',
+          model: stepModel,
+          startedAt: stepStartedAt
+        });
+      }
 
       writeExecutionEvent(res, 'step-start', {
         runId,
@@ -508,21 +569,25 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
 
       stepResults[step.nodeId] = stepRuntime;
       runtimeSnapshotJson = JSON.stringify(stepResults);
-      await repository.upsertBlueprintRunStepRecord(pool, runId, step, {
-        ...stepRuntime,
-        artifactsJson: stepRuntime.artifactsJson || stepRuntime.artifacts
-      });
+      if (persistRun) {
+        await repository.upsertBlueprintRunStepRecord(pool, runId, step, {
+          ...stepRuntime,
+          artifactsJson: stepRuntime.artifactsJson || stepRuntime.artifacts
+        });
+      }
 
       if (stepRuntime.status === 'failed') {
-        await repository.updateBlueprintRunRecord(pool, runId, {
-          status: 'failed',
-          errorMessage: stepRuntime.errorMessage || '节点执行失败',
-          runtimeSnapshotJson,
-          completedAt: stepRuntime.completedAt || new Date().toISOString()
-        });
+        if (persistRun) {
+          await repository.updateBlueprintRunRecord(pool, runId, {
+            status: 'failed',
+            errorMessage: stepRuntime.errorMessage || '节点执行失败',
+            runtimeSnapshotJson,
+            completedAt: stepRuntime.completedAt || new Date().toISOString()
+          });
+        }
 
         writeExecutionEvent(res, 'step-failed', {
-          runId,
+          runId: persistRun ? runId : '',
           nodeId: step.nodeId,
           nodeTitle: step.title,
           nodeKind: step.kind,
@@ -560,18 +625,20 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
     });
 
     if (
-      isBlueprintRunCancellationRequested(runId)
-      || await repository.getBlueprintRunCancellationStateFromStore(pool, runId)
+      (persistRun && isBlueprintRunCancellationRequested(runId))
+      || (persistRun && await repository.getBlueprintRunCancellationStateFromStore(pool, runId))
     ) {
       const cancelledAt = new Date().toISOString();
-      await repository.updateBlueprintRunRecord(pool, runId, {
-        status: 'cancelled',
-        errorMessage: '运行已取消。',
-        runtimeSnapshotJson,
-        completedAt: cancelledAt
-      });
+      if (persistRun) {
+        await repository.updateBlueprintRunRecord(pool, runId, {
+          status: 'cancelled',
+          errorMessage: '运行已取消。',
+          runtimeSnapshotJson,
+          completedAt: cancelledAt
+        });
+      }
       writeExecutionEvent(res, 'workflow-cancelled', {
-        runId,
+        runId: persistRun ? runId : '',
         cancelledAt
       });
       return res.end();
@@ -602,32 +669,36 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
     }
 
     if (
-      isBlueprintRunCancellationRequested(runId)
-      || await repository.getBlueprintRunCancellationStateFromStore(pool, runId)
+      (persistRun && isBlueprintRunCancellationRequested(runId))
+      || (persistRun && await repository.getBlueprintRunCancellationStateFromStore(pool, runId))
     ) {
       const cancelledAt = new Date().toISOString();
-      await repository.updateBlueprintRunRecord(pool, runId, {
-        status: 'cancelled',
-        errorMessage: '运行已取消。',
-        runtimeSnapshotJson,
-        artifactManifestJson,
-        previewUrl,
-        completedAt: cancelledAt
-      });
+      if (persistRun) {
+        await repository.updateBlueprintRunRecord(pool, runId, {
+          status: 'cancelled',
+          errorMessage: '运行已取消。',
+          runtimeSnapshotJson,
+          artifactManifestJson,
+          previewUrl,
+          completedAt: cancelledAt
+        });
+      }
       writeExecutionEvent(res, 'workflow-cancelled', {
-        runId,
+        runId: persistRun ? runId : '',
         cancelledAt
       });
       return res.end();
     }
 
-    await repository.updateBlueprintRunRecord(pool, runId, {
-      status: 'completed',
-      runtimeSnapshotJson,
-      artifactManifestJson,
-      previewUrl,
-      completedAt
-    });
+    if (persistRun) {
+      await repository.updateBlueprintRunRecord(pool, runId, {
+        status: 'completed',
+        runtimeSnapshotJson,
+        artifactManifestJson,
+        previewUrl,
+        completedAt
+      });
+    }
 
     const generatedPlayableNode = executionMode === 'planned'
       ? buildGeneratedPlayableNodePayload({
@@ -640,7 +711,7 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
       : null;
 
     writeExecutionEvent(res, 'workflow-complete', {
-      runId,
+      runId: persistRun ? runId : '',
       model: selectedModel,
       executionMode,
       previewUrl,
@@ -654,7 +725,7 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
   } catch (error) {
     console.error('执行蓝图工作流失败:', error);
 
-    if (runId) {
+    if (persistRun && runId) {
       try {
         await repository.updateBlueprintRunRecord(getPool(), runId, {
           status: 'failed',
@@ -678,7 +749,7 @@ const executeBlueprintWorkflow = async ({ userId, body = {}, res } = {}) => {
     });
     return res.end();
   } finally {
-    if (runId) {
+    if (persistRun && runId) {
       clearActiveBlueprintRun(runId);
     }
   }

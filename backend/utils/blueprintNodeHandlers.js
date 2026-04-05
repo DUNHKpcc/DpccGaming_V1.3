@@ -469,13 +469,12 @@ const buildBlueprintOutputPrompt = ({
   const previousFileSummaries = previousFiles ? summarizeBlueprintPreviousFiles(previousFiles) : [];
 
   return [
-    '你要生成一个可直接浏览器预览的轻量 H5 网页小游戏，优先返回严格 JSON。',
+    '你要生成一个可直接浏览器预览的单页 HTML 文档页，优先返回严格 JSON。',
     '目标文件固定为 files.index.html。',
     '要求：单页、原生 HTML/CSS/JS、无第三方依赖、可直接打开 index.html 运行。',
-    '默认优先贴近可直接运行的 H5 版本：优先原生 HTML/CSS/JavaScript，不要默认使用 Cocos、TypeScript 或需要额外构建步骤的方案，除非游戏规格或用户说明明确要求。',
-    '这是成品游戏，不是运行说明页、总结页、报告页或模板页。',
-    '必须具备完整游戏循环：开始界面、进行中玩法、结束或失败界面、可重开。',
-    '必须存在明确玩家交互，并且交互会改变状态、结果或界面。',
+    '默认优先贴近可直接运行的 H5 版本：优先原生 HTML/CSS/JavaScript，不要默认使用 Cocos、TypeScript 或需要额外构建步骤的方案，除非规格或用户说明明确要求。',
+    '这是一个结构完整的 HTML 文档页，可以是说明页、展示页、模板页或整理后的内容页，但不能只是空白骨架。',
+    '页面必须有清晰的信息结构，例如标题区、正文区、模块区或说明区。',
     'index.html 必须包含 id="app" 的挂载节点。',
     'index.html 必须内嵌完整 <style> 和 <script>，不要依赖外部 css/js 文件。',
     '优先返回格式：{"files":{"index.html":"<!doctype html>..."}}。',
@@ -486,10 +485,10 @@ const buildBlueprintOutputPrompt = ({
       : '',
     `HTML 骨架参考：\n${htmlSkeleton}`,
     previousIssues.length
-      ? `上一次生成未通过成品合同校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
+      ? `上一次生成未通过 HTML 页面合同校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
       : '',
     previousFileSummaries.length
-      ? `上一次生成的文件摘要如下，请保留可用部分并定向修复，不要退化成模板页：\n${JSON.stringify(previousFileSummaries, null, 2)}`
+      ? `上一次生成的文件摘要如下，请保留可用部分并定向修复：\n${JSON.stringify(previousFileSummaries, null, 2)}`
       : '',
     '返回格式示例：{"files":{"index.html":"<!doctype html>..."}}'
   ].filter(Boolean).join('\n\n');
@@ -506,24 +505,23 @@ const buildBlueprintPlannedOutputPrompt = ({
   const previousFileSummaries = previousFiles ? summarizeBlueprintPreviousFiles(previousFiles) : [];
 
   return [
-    '你要直接根据用户原始需求生成一个可直接浏览器预览和游玩的轻量 H5 网页小游戏，优先返回严格 JSON。',
-    '不要结合任何前置节点分析、规格汇总、世界观拆解或技术建议；只围绕下面这条用户原始需求做成品游戏。',
-    `用户原始需求：${normalizedPlannedPrompt || '生成一个可直接玩的 H5 小游戏'}`,
+    '你要直接根据用户原始需求生成一个可直接浏览器预览的单页 HTML 文档页，优先返回严格 JSON。',
+    '不要结合任何前置节点分析、规格汇总、世界观拆解或技术建议；只围绕下面这条用户原始需求做最终页面。',
+    `用户原始需求：${normalizedPlannedPrompt || '生成一个单页 HTML 文档页'}`,
     '目标文件固定为 files.index.html。',
     '要求：单页、原生 HTML/CSS/JavaScript、无第三方依赖、无额外构建步骤、可直接打开 index.html 运行。',
-    '这是成品游戏，不是演示页、说明页、模板页、概念稿或静态展示网页。',
-    '必须优先保证可在线游玩：玩家操作会驱动状态变化，存在目标、反馈、失败或结束状态，并支持重新开始。',
-    '如果用户需求是已有经典玩法或明确题材，例如 2048、贪吃蛇、扫雷、塔防，请直接实现该玩法的可玩版本，不要改写成概念说明页。',
+    '这是一个结构完整的 HTML 文档页，可以是说明页、概览页、模板页或静态展示网页，但不能只是空白占位。',
+    '页面必须包含清晰的信息结构和可阅读内容，不要求游戏循环、失败状态或重开逻辑。',
     'index.html 必须包含 id="app" 的挂载节点。',
     'index.html 必须内嵌完整 <style> 和 <script>，不要依赖外部 css/js 文件。',
     '优先返回格式：{"files":{"index.html":"<!doctype html>..."}}。',
     '如果无法稳定返回 JSON，就直接返回完整的 index.html 源码；不要附加解释、总结或多文件输出。',
     `HTML 骨架参考：\n${htmlSkeleton}`,
     previousIssues.length
-      ? `上一次生成未通过成品合同校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
+      ? `上一次生成未通过 HTML 页面合同校验，必须修复这些问题：\n- ${previousIssues.join('\n- ')}`
       : '',
     previousFileSummaries.length
-      ? `上一次生成的文件摘要如下，请定向修复并继续保持成品可玩性：\n${JSON.stringify(previousFileSummaries, null, 2)}`
+      ? `上一次生成的文件摘要如下，请定向修复并继续保持页面完整性：\n${JSON.stringify(previousFileSummaries, null, 2)}`
       : '',
     '返回格式示例：{"files":{"index.html":"<!doctype html>..."}}'
   ].filter(Boolean).join('\n\n');
@@ -595,7 +593,7 @@ const executeBlueprintOutputStep = async ({
       roomMessages: [],
       roomSummary: null,
       memoryEntries: [],
-      systemDirective: '你是 DpccGaming BluePrint 的输出节点执行器。优先返回 {"files":{"index.html":"..."}}；如果无法稳定返回 JSON，则直接返回完整可运行的 index.html，不要附加额外说明。',
+      systemDirective: '你是 DpccGaming BluePrint 的输出节点执行器。优先返回 {"files":{"index.html":"..."}}；如果无法稳定返回 JSON，则直接返回完整可运行的 index.html 文档页，不要附加额外说明。',
       requestOptions: {
         promptLimit: 12000
       }
@@ -616,13 +614,13 @@ const executeBlueprintOutputStep = async ({
       emitBlueprintStepProgress(onProgress, {
         progress: 1,
         stage: 'finalize',
-        detail: '输出文件已整理完成并通过成品游戏合同校验。'
+        detail: '输出文件已整理完成并通过 HTML 页面合同校验。'
       });
       const normalized = normalizeBlueprintStepResult({
-        summary: '已生成可直接预览的 H5 成品小游戏。',
+        summary: '已生成可直接预览的单页 HTML 文档页。',
         analysis: usePlannedPromptDirectly
-          ? '输出节点已直接根据 planned 模式原始提示词生成单文件成品页，并通过成品游戏合同校验。'
-          : '输出节点已基于上游规格生成单文件成品页，并通过成品游戏合同校验。',
+          ? '输出节点已直接根据 planned 模式原始提示词生成单文件 HTML 页面，并通过页面合同校验。'
+          : '输出节点已基于上游规格生成单文件 HTML 页面，并通过页面合同校验。',
         output: REQUIRED_BLUEPRINT_OUTPUT_FILES.join('\n'),
         rawReply,
         input: usePlannedPromptDirectly ? normalizedPlannedPrompt : JSON.stringify(gameSpec, null, 2),
