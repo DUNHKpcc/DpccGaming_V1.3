@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useNotificationStore } from '../stores/notification'
 import BlueprintSidebar from '../components/blueprint/BlueprintSidebar.vue'
+import BlueprintTutorialModal from '../components/blueprint/BlueprintTutorialModal.vue'
 import BlueprintWorkspace from '../components/blueprint/BlueprintWorkspace.vue'
 import { useBlueprintCanvasInteractions } from '../composables/blueprint/useBlueprintCanvasInteractions.js'
 import { useBlueprintExecution } from '../composables/blueprint/useBlueprintExecution.js'
@@ -43,6 +44,14 @@ import {
   isBlueprintRunActiveForAutoCancel,
   requestBlueprintRunCancelOnLeave
 } from '../utils/blueprintRunLeave.js'
+import {
+  BLUEPRINT_TUTORIAL_STEPS,
+  getBlueprintTutorialPrefetchQueue,
+  normalizeBlueprintTutorialStepIndex,
+  readBlueprintTutorialDismissed,
+  shouldAutoOpenBlueprintTutorial,
+  writeBlueprintTutorialDismissed
+} from '../utils/blueprintTutorial.js'
 
 const gameStore = useGameStore()
 const authStore = useAuthStore()
@@ -91,10 +100,18 @@ const logPanelPosition = ref({
   y: BP_LOG_PANEL_SAFE_TOP
 })
 const hasLogPanelBeenPositioned = ref(false)
+const isTutorialVisible = ref(false)
+const tutorialStepIndex = ref(0)
+const tutorialDontShowAgain = ref(false)
+const hasEvaluatedTutorialAutoOpen = ref(false)
+const tutorialAssetState = ref(
+  Object.fromEntries(BLUEPRINT_TUTORIAL_STEPS.map((step) => [step.gifSrc, 'idle']))
+)
 
 const libraryGames = computed(() => gameStore.games || [])
 let highlightTimer = null
 let hasTriggeredLeaveAutoCancel = false
+const tutorialAssetPromises = new Map()
 
 const workflowSnapshot = computed(() =>
   serializeBlueprintWorkflow(blueprintNodes.value, blueprintEdges.value, workflowMeta.value)
@@ -204,6 +221,19 @@ const latestPreviewUrl = computed(() => {
   }
 })
 
+const activeTutorialStep = computed(() =>
+  BLUEPRINT_TUTORIAL_STEPS[normalizeBlueprintTutorialStepIndex(tutorialStepIndex.value)]
+    || null
+)
+
+const activeTutorialAssetState = computed(() => {
+  const gifSrc = activeTutorialStep.value?.gifSrc
+  return gifSrc ? tutorialAssetState.value[gifSrc] || 'idle' : 'idle'
+})
+
+const isActiveTutorialStepLoaded = computed(() => activeTutorialAssetState.value === 'loaded')
+const isActiveTutorialStepErrored = computed(() => activeTutorialAssetState.value === 'error')
+
 const clampLogPanelPosition = (position = {}) => {
   const stageRect = typeof stageRectGetter.value === 'function'
     ? stageRectGetter.value()
@@ -252,6 +282,110 @@ const getViewportAnchoredLogPanelPosition = () => {
 const positionLogPanelInViewport = () => {
   logPanelPosition.value = getViewportAnchoredLogPanelPosition()
   hasLogPanelBeenPositioned.value = true
+}
+
+const updateTutorialAssetState = (gifSrc, status) => {
+  if (!gifSrc) return
+
+  tutorialAssetState.value = {
+    ...tutorialAssetState.value,
+    [gifSrc]: status
+  }
+}
+
+const loadTutorialAsset = (gifSrc) => {
+  if (!gifSrc) return Promise.resolve(false)
+
+  if (tutorialAssetState.value[gifSrc] === 'loaded') {
+    return Promise.resolve(true)
+  }
+
+  if (tutorialAssetPromises.has(gifSrc)) {
+    return tutorialAssetPromises.get(gifSrc)
+  }
+
+  updateTutorialAssetState(gifSrc, 'loading')
+
+  const promise = new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof window.Image !== 'function') {
+      updateTutorialAssetState(gifSrc, 'error')
+      resolve(false)
+      return
+    }
+
+    const image = new window.Image()
+    image.decoding = 'async'
+    image.onload = () => {
+      updateTutorialAssetState(gifSrc, 'loaded')
+      tutorialAssetPromises.delete(gifSrc)
+      resolve(true)
+    }
+    image.onerror = () => {
+      updateTutorialAssetState(gifSrc, 'error')
+      tutorialAssetPromises.delete(gifSrc)
+      resolve(false)
+    }
+    image.src = gifSrc
+  })
+
+  tutorialAssetPromises.set(gifSrc, promise)
+  return promise
+}
+
+const primeBlueprintTutorialAssets = (activeIndex) => {
+  const normalizedIndex = normalizeBlueprintTutorialStepIndex(activeIndex)
+  const activeStep = BLUEPRINT_TUTORIAL_STEPS[normalizedIndex]
+  const gifSources = [
+    activeStep?.gifSrc,
+    ...getBlueprintTutorialPrefetchQueue(normalizedIndex)
+  ].filter(Boolean)
+
+  gifSources.forEach((gifSrc, index) => {
+    window.setTimeout(() => {
+      void loadTutorialAsset(gifSrc)
+    }, index * 50)
+  })
+}
+
+const updateTutorialDontShowAgain = (value) => {
+  tutorialDontShowAgain.value = Boolean(value)
+  writeBlueprintTutorialDismissed(tutorialDontShowAgain.value)
+}
+
+const openBlueprintTutorial = async () => {
+  tutorialStepIndex.value = 0
+  isTutorialVisible.value = true
+  await nextTick()
+  primeBlueprintTutorialAssets(0)
+}
+
+const maybeOpenBlueprintTutorial = async () => {
+  if (hasEvaluatedTutorialAutoOpen.value) return
+
+  tutorialDontShowAgain.value = readBlueprintTutorialDismissed()
+  hasEvaluatedTutorialAutoOpen.value = true
+
+  if (!shouldAutoOpenBlueprintTutorial({
+    hasHydrated: hasWorkflowHydrated.value,
+    dismissed: tutorialDontShowAgain.value
+  })) {
+    return
+  }
+
+  await openBlueprintTutorial()
+}
+
+const handleTutorialPrevious = () => {
+  tutorialStepIndex.value = normalizeBlueprintTutorialStepIndex(tutorialStepIndex.value - 1)
+}
+
+const handleTutorialNext = () => {
+  tutorialStepIndex.value = normalizeBlueprintTutorialStepIndex(tutorialStepIndex.value + 1)
+}
+
+const handleTutorialComplete = () => {
+  writeBlueprintTutorialDismissed(tutorialDontShowAgain.value)
+  isTutorialVisible.value = false
 }
 
 const updateWorkflowSavedSnapshot = (workflow = null) => {
@@ -751,6 +885,7 @@ onMounted(async () => {
     hasWorkflowHydrated.value = true
   }
 
+  await maybeOpenBlueprintTutorial()
   await fetchRecentBlueprints()
 })
 
@@ -790,6 +925,11 @@ watch(isSidebarCollapsed, () => {
       ? getViewportAnchoredLogPanelPosition()
       : clampLogPanelPosition(logPanelPosition.value)
   }, 0)
+})
+
+watch(tutorialStepIndex, (nextIndex) => {
+  if (!isTutorialVisible.value) return
+  primeBlueprintTutorialAssets(nextIndex)
 })
 
 onBeforeUnmount(() => {
@@ -920,6 +1060,20 @@ onBeforeRouteLeave(() => {
         @continue-latest-run="handleContinueFromFailedRun"
       />
     </main>
+
+    <BlueprintTutorialModal
+      :visible="isTutorialVisible"
+      :step="activeTutorialStep"
+      :step-index="tutorialStepIndex"
+      :total-steps="BLUEPRINT_TUTORIAL_STEPS.length"
+      :current-step-loaded="isActiveTutorialStepLoaded"
+      :current-step-errored="isActiveTutorialStepErrored"
+      :dont-show-again="tutorialDontShowAgain"
+      @previous="handleTutorialPrevious"
+      @next="handleTutorialNext"
+      @complete="handleTutorialComplete"
+      @update:dont-show-again="updateTutorialDontShowAgain"
+    />
   </div>
 </template>
 
