@@ -3,26 +3,26 @@ export const BLUEPRINT_TUTORIAL_STORAGE_KEY = 'dpcc-blueprint-tutorial-dismissed
 export const BLUEPRINT_TUTORIAL_STEPS = [
   {
     id: 'blueprint-step-1',
-    title: '第一步：认识蓝图画布',
-    description: '这里先放第一步教学文案，你可以直接在 blueprintTutorial.js 里修改成正式说明。',
+    title: '第一步：AI模型配置',
+    description: '配置你的蓝图执行模型',
     gifSrc: '/teaching/blueprint/blueprint1.gif'
   },
   {
     id: 'blueprint-step-2',
-    title: '第二步：拖入节点开始搭建',
-    description: '这里先放第二步教学文案，你可以直接在 blueprintTutorial.js 里修改成正式说明。',
+    title: '第二步：拖添加游戏库模仿节点',
+    description: '将游戏节点拖入画布（长按拖入右侧画布）',
     gifSrc: '/teaching/blueprint/blueprint2.gif'
   },
   {
     id: 'blueprint-step-3',
-    title: '第三步：编辑节点并串联流程',
-    description: '这里先放第三步教学文案，你可以直接在 blueprintTutorial.js 里修改成正式说明。',
+    title: '第三步：别忘记保存哦⚠️',
+    description: '点击左侧保存即可生成专属种子，可向小伙伴分享哦',
     gifSrc: '/teaching/blueprint/blueprint3.gif'
   },
   {
     id: 'blueprint-step-4',
-    title: '第四步：执行并查看结果',
-    description: '这里先放第四步教学文案，你可以直接在 blueprintTutorial.js 里修改成正式说明。',
+    title: '第四步：运行你的节点🎉',
+    description: '点击右上角节点运行，即可让AI执行当前流程',
     gifSrc: '/teaching/blueprint/blueprint4.gif'
   }
 ]

@@ -45,6 +45,10 @@ import {
   requestBlueprintRunCancelOnLeave
 } from '../utils/blueprintRunLeave.js'
 import {
+  shouldBlockBlueprintRouteLeave,
+  shouldWarnBeforeBlueprintBrowserUnload
+} from '../utils/blueprintNavigationGuards.js'
+import {
   BLUEPRINT_TUTORIAL_STEPS,
   getBlueprintTutorialPrefetchQueue,
   normalizeBlueprintTutorialStepIndex,
@@ -864,7 +868,11 @@ const handleWindowResize = () => {
 }
 
 const handleBeforeUnload = (event) => {
-  if (!isWorkflowDirty.value) return
+  if (!shouldWarnBeforeBlueprintBrowserUnload({
+    isWorkflowDirty: isWorkflowDirty.value
+  })) {
+    return
+  }
 
   event.preventDefault()
   event.returnValue = ''
@@ -948,11 +956,12 @@ onBeforeUnmount(() => {
 })
 
 onBeforeRouteLeave(() => {
-  if (isWorkflowDirty.value && !window.confirm('当前蓝图有未保存改动，确定退出吗？')) {
+  if (shouldBlockBlueprintRouteLeave()) {
     return false
   }
 
-  return autoCancelBlueprintRunOnLeave({ fireAndForget: false }).then(() => true)
+  void autoCancelBlueprintRunOnLeave({ fireAndForget: true })
+  return true
 })
 </script>
 
