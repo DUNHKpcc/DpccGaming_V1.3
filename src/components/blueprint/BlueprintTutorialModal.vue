@@ -1,4 +1,6 @@
 <script setup>
+import { nextTick, ref, watch } from 'vue'
+
 const props = defineProps({
   visible: { type: Boolean, default: false },
   step: { type: Object, default: null },
@@ -16,9 +18,31 @@ const emit = defineEmits([
   'update:dont-show-again'
 ])
 
+const videoElement = ref(null)
+
 const updateDontShowAgain = (event) => {
   emit('update:dont-show-again', Boolean(event?.target?.checked))
 }
+
+const playCurrentStepVideo = async () => {
+  await nextTick()
+  const video = videoElement.value
+  if (!video) return
+
+  const playPromise = video.play()
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(() => {})
+  }
+}
+
+watch(
+  () => [props.visible, props.step?.id],
+  ([visible]) => {
+    if (!visible) return
+    void playCurrentStepVideo()
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -43,20 +67,31 @@ const updateDontShowAgain = (event) => {
           </button>
 
           <div class="bp-tutorial__media-shell">
+            <video
+              v-if="props.step"
+              ref="videoElement"
+              :key="props.step.id"
+              class="bp-tutorial__media"
+              :poster="props.step.posterSrc"
+              autoplay
+              muted
+              loop
+              playsinline
+              preload="metadata"
+            >
+              <source
+                v-for="source in props.step.videoSources"
+                :key="source.src"
+                :src="source.src"
+                :type="source.type"
+              />
+            </video>
             <div v-if="!props.currentStepLoaded && !props.currentStepErrored" class="bp-tutorial__media-placeholder">
               <span>教学动图加载中...</span>
             </div>
             <div v-else-if="props.currentStepErrored" class="bp-tutorial__media-placeholder is-error">
               <span>教学动图加载失败，请稍后重试。</span>
             </div>
-            <img
-              v-else
-              class="bp-tutorial__media"
-              :src="props.step.gifSrc"
-              :alt="props.step.title"
-              loading="eager"
-              decoding="async"
-            />
           </div>
 
           <button
@@ -204,14 +239,18 @@ const updateDontShowAgain = (event) => {
 
 .bp-tutorial__media {
   display: block;
-  object-fit: cover;
-  object-position: top center;
+  object-fit: contain;
+  object-position: center;
+  background: #fff;
 }
 
 .bp-tutorial__media-placeholder {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   padding: 20px;
+  background: rgba(255, 255, 255, 0.68);
   color: #444;
   font-size: 0.92rem;
   text-align: center;

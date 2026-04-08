@@ -109,7 +109,7 @@ const tutorialStepIndex = ref(0)
 const tutorialDontShowAgain = ref(false)
 const hasEvaluatedTutorialAutoOpen = ref(false)
 const tutorialAssetState = ref(
-  Object.fromEntries(BLUEPRINT_TUTORIAL_STEPS.map((step) => [step.gifSrc, 'idle']))
+  Object.fromEntries(BLUEPRINT_TUTORIAL_STEPS.map((step) => [step.id, 'idle']))
 )
 
 const libraryGames = computed(() => gameStore.games || [])
@@ -231,8 +231,8 @@ const activeTutorialStep = computed(() =>
 )
 
 const activeTutorialAssetState = computed(() => {
-  const gifSrc = activeTutorialStep.value?.gifSrc
-  return gifSrc ? tutorialAssetState.value[gifSrc] || 'idle' : 'idle'
+  const stepId = activeTutorialStep.value?.id
+  return stepId ? tutorialAssetState.value[stepId] || 'idle' : 'idle'
 })
 
 const isActiveTutorialStepLoaded = computed(() => activeTutorialAssetState.value === 'loaded')
@@ -288,66 +288,141 @@ const positionLogPanelInViewport = () => {
   hasLogPanelBeenPositioned.value = true
 }
 
-const updateTutorialAssetState = (gifSrc, status) => {
-  if (!gifSrc) return
+const updateTutorialAssetState = (stepId, status) => {
+  if (!stepId) return
 
   tutorialAssetState.value = {
     ...tutorialAssetState.value,
-    [gifSrc]: status
+    [stepId]: status
   }
 }
 
-const loadTutorialAsset = (gifSrc) => {
-  if (!gifSrc) return Promise.resolve(false)
+const loadTutorialAsset = (step) => {
+  const stepId = step?.id
+  if (!stepId) return Promise.resolve(false)
 
-  if (tutorialAssetState.value[gifSrc] === 'loaded') {
+  if (tutorialAssetState.value[stepId] === 'loaded') {
     return Promise.resolve(true)
   }
 
-  if (tutorialAssetPromises.has(gifSrc)) {
-    return tutorialAssetPromises.get(gifSrc)
+  if (tutorialAssetPromises.has(stepId)) {
+    return tutorialAssetPromises.get(stepId)
   }
 
-  updateTutorialAssetState(gifSrc, 'loading')
+  updateTutorialAssetState(stepId, 'loading')
 
   const promise = new Promise((resolve) => {
     if (typeof window === 'undefined' || typeof window.Image !== 'function') {
-      updateTutorialAssetState(gifSrc, 'error')
+      updateTutorialAssetState(stepId, 'error')
       resolve(false)
       return
     }
 
-    const image = new window.Image()
-    image.decoding = 'async'
-    image.onload = () => {
-      updateTutorialAssetState(gifSrc, 'loaded')
-      tutorialAssetPromises.delete(gifSrc)
-      resolve(true)
+    const mediaStatus = {
+      posterDone: !step.posterSrc,
+      posterLoaded: false,
+      videoDone: !Array.isArray(step.videoSources) || step.videoSources.length === 0,
+      videoLoaded: false
     }
-    image.onerror = () => {
-      updateTutorialAssetState(gifSrc, 'error')
-      tutorialAssetPromises.delete(gifSrc)
-      resolve(false)
+    let hasResolved = false
+
+    const finish = (status, result) => {
+      if (hasResolved) return
+      hasResolved = true
+      updateTutorialAssetState(stepId, status)
+      tutorialAssetPromises.delete(stepId)
+      resolve(result)
     }
-    image.src = gifSrc
+
+    const settle = () => {
+      if (mediaStatus.videoLoaded) {
+        finish('loaded', true)
+        return
+      }
+
+      if (mediaStatus.videoDone && !mediaStatus.videoLoaded) {
+        if (mediaStatus.posterLoaded) {
+          finish('loaded', true)
+          return
+        }
+
+        finish('error', false)
+      }
+    }
+
+    if (step.posterSrc) {
+      const image = new window.Image()
+      image.decoding = 'async'
+      image.onload = () => {
+        mediaStatus.posterDone = true
+        mediaStatus.posterLoaded = true
+        settle()
+      }
+      image.onerror = () => {
+        mediaStatus.posterDone = true
+        settle()
+      }
+      image.src = step.posterSrc
+    }
+
+    if (!mediaStatus.videoDone && typeof document !== 'undefined') {
+      const video = document.createElement('video')
+      video.preload = 'auto'
+      video.muted = true
+      video.playsInline = true
+
+      const handleVideoLoaded = () => {
+        mediaStatus.videoDone = true
+        mediaStatus.videoLoaded = true
+        cleanupVideo()
+        settle()
+      }
+
+      const handleVideoError = () => {
+        mediaStatus.videoDone = true
+        cleanupVideo()
+        settle()
+      }
+
+      const cleanupVideo = () => {
+        video.removeEventListener('loadeddata', handleVideoLoaded)
+        video.removeEventListener('error', handleVideoError)
+        video.removeAttribute('src')
+        video.load()
+      }
+
+      video.addEventListener('loadeddata', handleVideoLoaded, { once: true })
+      video.addEventListener('error', handleVideoError, { once: true })
+
+      step.videoSources.forEach((source) => {
+        const sourceElement = document.createElement('source')
+        sourceElement.src = source.src
+        sourceElement.type = source.type
+        video.appendChild(sourceElement)
+      })
+
+      video.load()
+      return
+    }
+
+    settle()
   })
 
-  tutorialAssetPromises.set(gifSrc, promise)
+  tutorialAssetPromises.set(stepId, promise)
   return promise
 }
 
 const primeBlueprintTutorialAssets = (activeIndex) => {
   const normalizedIndex = normalizeBlueprintTutorialStepIndex(activeIndex)
-  const activeStep = BLUEPRINT_TUTORIAL_STEPS[normalizedIndex]
-  const gifSources = [
-    activeStep?.gifSrc,
+  const preloadSteps = [
+    BLUEPRINT_TUTORIAL_STEPS[normalizedIndex],
     ...getBlueprintTutorialPrefetchQueue(normalizedIndex)
-  ].filter(Boolean)
+  ].filter(Boolean).slice(0, 2)
 
-  gifSources.forEach((gifSrc, index) => {
+  preloadSteps.forEach((step, index) => {
     window.setTimeout(() => {
-      void loadTutorialAsset(gifSrc)
-    }, index * 50)
+      void loadTutorialAsset(step)
+    }, index * 120)
   })
 }
 
