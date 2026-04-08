@@ -7,7 +7,6 @@ public/Blog
 .vscode/sftp.json
 public/docsPhoto
 dist/
-public/
 output/
 .playwright-cli/
 .env.example
