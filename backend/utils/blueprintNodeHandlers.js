@@ -1,7 +1,10 @@
 const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const {
   DEFAULT_BLUEPRINT_EXECUTION_MODEL,
-  DEFAULT_BLUEPRINT_VISION_MODEL
+  DEFAULT_BLUEPRINT_VISION_MODEL,
+  buildBlueprintExecutionRequestOptions
 } = require('../services/blueprint/blueprintCommon');
 
 const {
@@ -11,16 +14,20 @@ const {
   collectBlueprintUpstreamNodeIds
 } = require('./blueprintExecution');
 const {
+  buildBlueprintFallbackPlayableGameHtml,
   buildBlueprintHtmlSkeleton
 } = require('./blueprintOutputTemplates');
 const {
   REQUIRED_BLUEPRINT_OUTPUT_FILES,
-  validateBlueprintOutputBundle
+  validateBlueprintOutputBundle,
+  validateBlueprintPlayableBundle
 } = require('./blueprintOutputValidation');
+const { validateBlueprintRunBundleBrowser } = require('./blueprintBundleSmoke');
 
 const OUTPUT_FILE_CONTENT_TYPES = {
   'index.html': 'text/html; charset=utf-8'
 };
+const BLUEPRINT_EXECUTION_REQUEST_OPTIONS = buildBlueprintExecutionRequestOptions();
 const BLUEPRINT_OUTPUT_PROMPT_PREVIEW_LIMIT = 240;
 const BLUEPRINT_OUTPUT_SECTION_LIMIT = 480;
 const BLUEPRINT_OUTPUT_SOURCE_SNIPPET_LIMIT = 420;
@@ -114,9 +121,8 @@ const normalizeBlueprintHtmlDocument = (value = '') => {
   const html = String(value || '').trim();
   if (!html) return '';
 
-  if (!/(<!doctype\s+html\b|<html\b)/i.test(html)) return '';
+  if (!/^(<!doctype\s+html\b|<html\b)/i.test(html)) return '';
   if (!/<body\b[\s\S]*<\/body>/i.test(html)) return '';
-  if (!/<script\b[^>]*>[\s\S]*?<\/script>/i.test(html)) return '';
 
   return html;
 };
@@ -206,6 +212,29 @@ const normalizeBlueprintOutputFiles = (candidate = {}) => {
   }
 
   if (!candidate || typeof candidate !== 'object') return {};
+
+  const singleFileName = String(
+    candidate.fileName || candidate.name || candidate.path || candidate.file || ''
+  ).trim();
+  if (singleFileName) {
+    const content = readBlueprintFileContent(candidate);
+    if (content) {
+      return {
+        [singleFileName]: content
+      };
+    }
+  }
+
+  const htmlAliasContent = readBlueprintFileContent(
+    candidate['index.html']
+    || candidate.indexHtml
+    || candidate.html
+  );
+  if (htmlAliasContent) {
+    return {
+      'index.html': htmlAliasContent
+    };
+  }
 
   return REQUIRED_BLUEPRINT_OUTPUT_FILES.reduce((files, fileName) => {
     const content = readBlueprintFileContent(candidate[fileName]);
@@ -344,7 +373,8 @@ const analyzeBlueprintSourceVision = async ({
     memoryEntries: [],
     builtinModel: selectedVisionModel,
     systemDirective: '你是 DpccGaming BluePrint 的视觉理解节点分析器。你会读取游戏关键帧截图，并返回严格 JSON。',
-    userContentItems
+    userContentItems,
+    requestOptions: BLUEPRINT_EXECUTION_REQUEST_OPTIONS
   });
 
   const parsed = extractJsonObject(rawReply);
@@ -469,12 +499,12 @@ const buildBlueprintOutputPrompt = ({
   const previousFileSummaries = previousFiles ? summarizeBlueprintPreviousFiles(previousFiles) : [];
 
   return [
-    '你要生成一个可直接浏览器预览的单页 HTML 文档页，优先返回严格 JSON。',
+    '你要生成一个可直接玩的浏览器 H5 游戏，优先返回严格 JSON。',
     '目标文件固定为 files.index.html。',
     '要求：单页、原生 HTML/CSS/JS、无第三方依赖、可直接打开 index.html 运行。',
     '默认优先贴近可直接运行的 H5 版本：优先原生 HTML/CSS/JavaScript，不要默认使用 Cocos、TypeScript 或需要额外构建步骤的方案，除非规格或用户说明明确要求。',
-    '这是一个结构完整的 HTML 文档页，可以是说明页、展示页、模板页或整理后的内容页，但不能只是空白骨架。',
-    '页面必须有清晰的信息结构，例如标题区、正文区、模块区或说明区。',
+    '必须输出一个真正可玩的 H5 游戏，而不是说明页、展示页、模板页、概念稿或静态文档。',
+    '页面必须包含开始游戏、游戏循环、操作反馈、分数/生命或状态反馈，以及失败后可重新开始的机制。',
     'index.html 必须包含 id="app" 的挂载节点。',
     'index.html 必须内嵌完整 <style> 和 <script>，不要依赖外部 css/js 文件。',
     '优先返回格式：{"files":{"index.html":"<!doctype html>..."}}。',
@@ -534,6 +564,78 @@ const buildBlueprintOutputArtifacts = (files = {}) => REQUIRED_BLUEPRINT_OUTPUT_
   content: String(files[fileName] || '')
 }));
 
+const buildBlueprintLocalFallbackFiles = ({ gameSpec = {} } = {}) => ({
+  'index.html': buildBlueprintFallbackPlayableGameHtml({
+    title: gameSpec.title || 'Blueprint Fallback Game',
+    description: gameSpec.description || '',
+    theme: gameSpec.theme || '',
+    coreLoop: gameSpec.coreLoop || ''
+  })
+});
+
+const writeBlueprintOutputTempBundle = async (files = {}) => {
+  const bundleDir = await fs.mkdtemp(path.join(os.tmpdir(), 'blueprint-output-'));
+
+  await Promise.all(
+    Object.entries(files || {}).map(([fileName, content]) =>
+      fs.writeFile(path.join(bundleDir, fileName), String(content || ''), 'utf8')
+    )
+  );
+
+  return bundleDir;
+};
+
+const validateBlueprintOutputForMode = async ({
+  files = {},
+  usePlannedPromptDirectly = false,
+  validatePlayableBundleBrowser = null
+} = {}) => {
+  const baseValidation = usePlannedPromptDirectly
+    ? validateBlueprintOutputBundle(files)
+    : validateBlueprintPlayableBundle(files);
+
+  if (usePlannedPromptDirectly || !baseValidation.ok) {
+    return baseValidation;
+  }
+
+  const browserValidator = typeof validatePlayableBundleBrowser === 'function'
+    ? validatePlayableBundleBrowser
+    : validateBlueprintRunBundleBrowser;
+
+  if (typeof browserValidator !== 'function') {
+    return baseValidation;
+  }
+
+  let bundleDir = '';
+
+  try {
+    bundleDir = await writeBlueprintOutputTempBundle(files);
+    const browserValidation = await browserValidator({ bundleDir });
+
+    if (!browserValidation || browserValidation.ok || browserValidation.skipped) {
+      return {
+        ...baseValidation,
+        browserValidation: browserValidation || null
+      };
+    }
+
+    return {
+      ok: false,
+      issues: [
+        ...baseValidation.issues,
+        ...((Array.isArray(browserValidation.issues) && browserValidation.issues.length)
+          ? browserValidation.issues
+          : ['bundle smoke 校验失败'])
+      ],
+      browserValidation
+    };
+  } finally {
+    if (bundleDir) {
+      await fs.rm(bundleDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+};
+
 const executeBlueprintOutputStep = async ({
   step = {},
   node = {},
@@ -546,6 +648,7 @@ const executeBlueprintOutputStep = async ({
   startedAt = new Date().toISOString(),
   maxRepairAttempts = 3,
   rerunInstruction = '',
+  validatePlayableBundleBrowser = null,
   onProgress
 } = {}) => {
   const gameSpec = buildBlueprintGameSpec({ step, node, stepResults, stepsById });
@@ -559,6 +662,67 @@ const executeBlueprintOutputStep = async ({
   let previousFiles = null;
   let previousIssues = [];
   let lastRawReply = '';
+
+  const buildCompletedOutputRuntime = ({
+    files = {},
+    rawReply = '',
+    validation = { ok: true, issues: [] },
+    completedAt = new Date().toISOString(),
+    fallbackUsed = false,
+    fallbackReason = '',
+    repairAttempts = attempt
+  } = {}) => {
+    const artifacts = buildBlueprintOutputArtifacts(files);
+    const normalized = normalizeBlueprintStepResult({
+      summary: fallbackUsed
+        ? '主模型输出失败，已切换为本地保底可玩 H5 游戏。'
+        : '已生成可直接游玩的 H5 游戏。',
+      analysis: fallbackUsed
+        ? `输出节点未能产出稳定结果，系统已自动生成本地保底小游戏。${String(fallbackReason || '').trim()}`.trim()
+        : usePlannedPromptDirectly
+          ? '输出节点已直接根据 planned 模式原始提示词生成单文件 HTML 页面，并通过页面合同校验。'
+          : '输出节点已基于上游规格生成可直接游玩的 H5 游戏，并通过游戏合同校验。',
+      output: REQUIRED_BLUEPRINT_OUTPUT_FILES.join('\n'),
+      rawReply,
+      input: usePlannedPromptDirectly ? normalizedPlannedPrompt : JSON.stringify(gameSpec, null, 2),
+      visibleInputText: usePlannedPromptDirectly
+        ? `plannedPrompt:\n${normalizedPlannedPrompt}`
+        : JSON.stringify(gameSpec, null, 2),
+      artifactType: 'file-bundle',
+      mode: step.mode || 'ai',
+      status: 'completed',
+      nodeId: step.nodeId || node.id || '',
+      nodeTitle: step.title || node.title || '',
+      nodeKind: step.kind || node.kind || '',
+      retryCount: repairAttempts,
+      artifactJson: {
+        type: 'file-bundle',
+        nodeId: step.nodeId || node.id || '',
+        nodeTitle: step.title || node.title || '',
+        nodeKind: step.kind || node.kind || '',
+        status: 'completed',
+        executionMode: normalizedExecutionMode,
+        plannedPrompt: normalizedPlannedPrompt,
+        gameSpec,
+        files,
+        validation,
+        repairAttempts,
+        fallbackUsed,
+        fallbackReason: String(fallbackReason || '').trim()
+      },
+      artifacts
+    }, node);
+
+    return buildBlueprintStepRuntime({
+      step,
+      normalized,
+      model: effectiveOutputModel,
+      status: 'completed',
+      startedAt,
+      completedAt,
+      handlerType: 'output'
+    });
+  };
 
   emitBlueprintStepProgress(onProgress, {
     progress: 0.16,
@@ -586,18 +750,46 @@ const executeBlueprintOutputStep = async ({
         ? `正在根据校验结果修复文件，第 ${attempt} 次重试。`
         : '正在请求模型生成最终输出文件。'
     });
-    const rawReply = await generateAiReply({
-      prompt,
-      builtinModel: effectiveOutputModel,
-      gameTitle: usePlannedPromptDirectly ? normalizedPlannedPrompt : (gameSpec.title || ''),
-      roomMessages: [],
-      roomSummary: null,
-      memoryEntries: [],
-      systemDirective: '你是 DpccGaming BluePrint 的输出节点执行器。优先返回 {"files":{"index.html":"..."}}；如果无法稳定返回 JSON，则直接返回完整可运行的 index.html 文档页，不要附加额外说明。',
-      requestOptions: {
-        promptLimit: 12000
+    let rawReply = '';
+    try {
+      rawReply = await generateAiReply({
+        prompt,
+        builtinModel: effectiveOutputModel,
+        gameTitle: usePlannedPromptDirectly ? normalizedPlannedPrompt : (gameSpec.title || ''),
+        roomMessages: [],
+        roomSummary: null,
+        memoryEntries: [],
+        systemDirective: usePlannedPromptDirectly
+          ? '你是 DpccGaming BluePrint 的输出节点执行器。优先返回 {"files":{"index.html":"..."}}；如果无法稳定返回 JSON，则直接返回完整可运行的 index.html 文档页，不要附加额外说明。'
+          : '你是 DpccGaming BluePrint 的输出节点执行器。必须返回可直接游玩的浏览器 H5 游戏。优先返回 {"files":{"index.html":"..."}}；如果无法稳定返回 JSON，则直接返回完整可运行的 index.html 游戏源码，不要附加额外说明。',
+        requestOptions: {
+          ...BLUEPRINT_EXECUTION_REQUEST_OPTIONS,
+          promptLimit: 12000
+        }
+      });
+    } catch (error) {
+      lastRawReply = String(error?.message || '').trim();
+      previousIssues = [String(error?.message || '模型请求失败').trim()];
+      if (!usePlannedPromptDirectly) {
+        const fallbackFiles = buildBlueprintLocalFallbackFiles({ gameSpec });
+        const fallbackValidation = validateBlueprintPlayableBundle(fallbackFiles);
+        emitBlueprintStepProgress(onProgress, {
+          progress: 1,
+          stage: 'finalize',
+          detail: '主模型请求失败，已切换为本地保底可玩 H5 游戏。'
+        });
+        return buildCompletedOutputRuntime({
+          files: fallbackFiles,
+          rawReply: lastRawReply,
+          validation: fallbackValidation,
+          completedAt: new Date().toISOString(),
+          fallbackUsed: true,
+          fallbackReason: previousIssues.join('；'),
+          repairAttempts: attempt
+        });
       }
-    });
+      throw error;
+    }
     lastRawReply = rawReply;
 
     emitBlueprintStepProgress(onProgress, {
@@ -606,58 +798,26 @@ const executeBlueprintOutputStep = async ({
       detail: '模型已返回，正在解析并校验输出文件。'
     });
     const files = extractBlueprintOutputFiles(rawReply);
-    const validation = validateBlueprintOutputBundle(files);
+    const validation = await validateBlueprintOutputForMode({
+      files,
+      usePlannedPromptDirectly,
+      validatePlayableBundleBrowser
+    });
 
     if (validation.ok) {
-      const completedAt = new Date().toISOString();
-      const artifacts = buildBlueprintOutputArtifacts(files);
       emitBlueprintStepProgress(onProgress, {
         progress: 1,
         stage: 'finalize',
-        detail: '输出文件已整理完成并通过 HTML 页面合同校验。'
+        detail: usePlannedPromptDirectly
+          ? '输出文件已整理完成并通过 HTML 页面合同校验。'
+          : '输出文件已整理完成并通过可玩 H5 游戏合同校验。'
       });
-      const normalized = normalizeBlueprintStepResult({
-        summary: '已生成可直接预览的单页 HTML 文档页。',
-        analysis: usePlannedPromptDirectly
-          ? '输出节点已直接根据 planned 模式原始提示词生成单文件 HTML 页面，并通过页面合同校验。'
-          : '输出节点已基于上游规格生成单文件 HTML 页面，并通过页面合同校验。',
-        output: REQUIRED_BLUEPRINT_OUTPUT_FILES.join('\n'),
+      return buildCompletedOutputRuntime({
+        files,
         rawReply,
-        input: usePlannedPromptDirectly ? normalizedPlannedPrompt : JSON.stringify(gameSpec, null, 2),
-        visibleInputText: usePlannedPromptDirectly
-          ? `plannedPrompt:\n${normalizedPlannedPrompt}`
-          : JSON.stringify(gameSpec, null, 2),
-        artifactType: 'file-bundle',
-        mode: step.mode || 'ai',
-        status: 'completed',
-        nodeId: step.nodeId || node.id || '',
-        nodeTitle: step.title || node.title || '',
-        nodeKind: step.kind || node.kind || '',
-        retryCount: attempt,
-        artifactJson: {
-          type: 'file-bundle',
-          nodeId: step.nodeId || node.id || '',
-          nodeTitle: step.title || node.title || '',
-          nodeKind: step.kind || node.kind || '',
-          status: 'completed',
-          executionMode: normalizedExecutionMode,
-          plannedPrompt: normalizedPlannedPrompt,
-          gameSpec,
-          files,
-          validation,
-          repairAttempts: attempt
-        },
-        artifacts
-      }, node);
-
-      return buildBlueprintStepRuntime({
-        step,
-        normalized,
-        model: effectiveOutputModel,
-        status: 'completed',
-        startedAt,
-        completedAt,
-        handlerType: 'output'
+        validation,
+        completedAt: new Date().toISOString(),
+        repairAttempts: attempt
       });
     }
 
@@ -667,6 +827,24 @@ const executeBlueprintOutputStep = async ({
   }
 
   const completedAt = new Date().toISOString();
+  if (!usePlannedPromptDirectly) {
+    const fallbackFiles = buildBlueprintLocalFallbackFiles({ gameSpec });
+    const fallbackValidation = validateBlueprintPlayableBundle(fallbackFiles);
+    emitBlueprintStepProgress(onProgress, {
+      progress: 1,
+      stage: 'finalize',
+      detail: '模型输出未通过游戏合同校验，已切换为本地保底可玩 H5 游戏。'
+    });
+    return buildCompletedOutputRuntime({
+      files: fallbackFiles,
+      rawReply: lastRawReply,
+      validation: fallbackValidation,
+      completedAt,
+      fallbackUsed: true,
+      fallbackReason: previousIssues.join('；'),
+      repairAttempts: attempt
+    });
+  }
   const errorMessage = `输出节点校验失败：${previousIssues.join('；') || '未生成有效文件。'}`;
   emitBlueprintStepProgress(onProgress, {
     progress: 1,
@@ -918,6 +1096,7 @@ const executeBlueprintAiDomainStep = async ({
       memoryEntries: [],
       systemDirective: preparedPrompt.systemDirective,
       requestOptions: {
+        ...BLUEPRINT_EXECUTION_REQUEST_OPTIONS,
         promptLimit: 12000
       }
     });

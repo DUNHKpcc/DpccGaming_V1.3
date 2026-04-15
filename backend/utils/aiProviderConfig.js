@@ -1,10 +1,10 @@
-const DEFAULT_ARK_MODEL = 'doubao-seed-1-6-251015';
+const DEFAULT_ARK_MODEL = 'doubao-seed-2-0-code-preview-260215';
 const DEFAULT_ARK_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
 const DEFAULT_ARK_REASONING = 'medium';
 const DEFAULT_ARK_API_KEY = '904fb2f6-8bfc-4c0b-baff-41a85380fd9e';
 
 const DEFAULT_GLM_ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const DEFAULT_GLM_API_KEY = '4c41d21037774fe388212b7e705ec6ff.hVqyHfZKejOrzu7Q';
+const DEFAULT_GLM_API_KEY = '4b0eb61753cd4e1fa82e23268a21b2cc.pPZTyUk8K3euihaX';
 const DEFAULT_GLM_MODEL = 'glm-4.5';
 const DEFAULT_GLM_VISION_MODEL = 'glm-4.6v';
 

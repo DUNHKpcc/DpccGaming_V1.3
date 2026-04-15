@@ -10,6 +10,8 @@ const {
 const BLUEPRINT_SEED_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const BLUEPRINT_SEED_PATTERN = /^[A-Z0-9]{8,32}$/;
 const BLUEPRINT_EXECUTION_HEARTBEAT_MS = 15000;
+const BLUEPRINT_EXECUTION_TIMEOUT_MS = 180000;
+const BLUEPRINT_EXECUTION_RETRY_COUNT = 2;
 const DEFAULT_BLUEPRINT_EXECUTION_MODEL = 'GLM-4.5';
 const DEFAULT_BLUEPRINT_VISION_MODEL = DEFAULT_BUILTIN_MODEL;
 
@@ -34,6 +36,18 @@ const normalizeBlueprintRerunInstruction = (value = '') => {
 };
 const buildBlueprintPlannerRequestOptions = () => ({
   ...DEFAULT_AI_REQUEST_OPTIONS
+});
+
+const buildBlueprintExecutionRequestOptions = () => ({
+  ...DEFAULT_AI_REQUEST_OPTIONS,
+  timeoutMs: Math.max(
+    Number(DEFAULT_AI_REQUEST_OPTIONS.timeoutMs || 0),
+    BLUEPRINT_EXECUTION_TIMEOUT_MS
+  ),
+  retryCount: Math.max(
+    Number(DEFAULT_AI_REQUEST_OPTIONS.retryCount || 0),
+    BLUEPRINT_EXECUTION_RETRY_COUNT
+  )
 });
 
 const createHttpError = (status, message) => {
@@ -181,6 +195,7 @@ module.exports = {
   DEFAULT_BLUEPRINT_EXECUTION_MODEL,
   DEFAULT_BLUEPRINT_VISION_MODEL,
   DEFAULT_BUILTIN_MODEL,
+  buildBlueprintExecutionRequestOptions,
   buildBlueprintPlannerRequestOptions,
   buildBlueprintResponse,
   createHttpError,

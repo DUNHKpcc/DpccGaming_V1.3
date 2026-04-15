@@ -424,6 +424,10 @@ const togglePasswordVisibility = () => {
   height: 100%;
   z-index: 1;
   background-image: url('/Ai/LoginBackground.png');
+  background-image: image-set(
+    url('/Ai/LoginBackground.webp') type('image/webp'),
+    url('/Ai/LoginBackground.png') type('image/png')
+  );
   background-repeat: no-repeat;
   background-position: 96% center;
   transform: scale(1.05);
