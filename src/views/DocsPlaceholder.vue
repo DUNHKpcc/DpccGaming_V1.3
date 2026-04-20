@@ -31,14 +31,12 @@
                     <div class="image-loading" v-if="!imagesLoaded[doc.id]">
                       <div class="loading-spinner"></div>
                     </div>
-
-                    <div class="docs-card-title-wrap">
-                      <p class="docs-card-breadcrumb">DpccGaming / AiDocs</p>
-                      <h2 class="docs-card-title">{{ doc.title }}</h2>
-                    </div>
                   </div>
 
                   <div class="docs-card-body">
+                    <div class="docs-card-title-wrap">
+                      <h2 class="docs-card-title" :title="doc.title">{{ truncateCardTitle(doc.title, index === 0 ? 28 : 22) }}</h2>
+                    </div>
                     <p class="docs-card-summary">{{ doc.summary }}</p>
 
                     <div class="docs-card-meta-row">
@@ -129,6 +127,11 @@ const preloadImages = () => {
     img.onerror = () => handleImageError(img, doc.id)
     img.src = doc.cover
   })
+}
+
+const truncateCardTitle = (title = '', maxLength = 24) => {
+  if (title.length <= maxLength) return title
+  return `${title.slice(0, maxLength).trimEnd()}...`
 }
 
 const escapeHtml = (text = '') =>
@@ -428,39 +431,40 @@ onMounted(async () => {
 }
 
 .docs-card-title-wrap {
-  position: absolute;
-  left: 24px;
-  right: 24px;
-  bottom: 26px;
-  z-index: 3;
-}
-
-.docs-card-breadcrumb {
-  margin: 0 0 12px;
-  color: rgba(203, 209, 224, 0.66);
-  font-size: 0.95rem;
-  letter-spacing: 0.01em;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .docs-card-title {
   margin: 0;
   color: #f4f8ff;
-  font-size: clamp(2.05rem, 2.9vw, 3.2rem);
-  line-height: 1.08;
+  font-size: clamp(1.35rem, 1.9vw, 1.9rem);
+  line-height: 1.18;
   font-weight: 700;
   letter-spacing: 0.01em;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-height: calc(1.18em * 2);
+  text-overflow: ellipsis;
 }
 
 .docs-card:not(.docs-card-featured) .docs-card-title {
-  font-size: clamp(1.55rem, 1.9vw, 2.2rem);
-  line-height: 1.14;
+  font-size: clamp(1.12rem, 1.35vw, 1.45rem);
+  line-height: 1.22;
+  max-height: calc(1.22em * 2);
 }
 
 .docs-card-body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   gap: 1rem;
   padding: 1.25rem 1.4rem 1.15rem;
   background: rgb(29, 29, 31);
@@ -474,27 +478,35 @@ onMounted(async () => {
 
 .docs-card-summary {
   margin: 0;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   color: rgba(207, 215, 229, 0.8);
   font-size: 1rem;
   line-height: 1.75;
   letter-spacing: 0.02em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  max-height: calc(1.75em * 4);
+  text-overflow: ellipsis;
 }
 
 .docs-card:not(.docs-card-featured) .docs-card-summary {
   line-height: 1.68;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  max-height: calc(1.68em * 3);
 }
 
 .docs-card-meta-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.85rem;
-}
-
-.docs-card:not(.docs-card-featured) .docs-card-meta-row {
+  flex-shrink: 0;
   margin-top: auto;
-  align-items: flex-end;
+  gap: 0.85rem;
 }
 
 .docs-card-info {
@@ -606,8 +618,8 @@ onMounted(async () => {
   color: rgba(30, 41, 59, 0.92);
 }
 
-[data-theme="light"] .docs-card-breadcrumb {
-  color: rgba(198, 209, 235, 0.82);
+[data-theme="light"] .docs-card-title {
+  color: #000000;
 }
 
 [data-theme="light"] .docs-card-body {
@@ -616,19 +628,19 @@ onMounted(async () => {
 }
 
 [data-theme="light"] .docs-card-summary {
-  color: rgba(30, 41, 59, 0.88);
+  color: #000000;
 }
 
 [data-theme="light"] .docs-card-meta {
-  color: rgba(71, 85, 105, 0.9);
+  color: #000000;
 }
 
 [data-theme="light"] .docs-meta-dot {
-  color: rgba(100, 116, 139, 0.68);
+  color: #000000;
 }
 
 [data-theme="light"] .docs-card-author {
-  color: rgba(30, 41, 59, 0.9);
+  color: #000000;
 }
 
 [data-theme="light"] .docs-author-avatar {
@@ -738,14 +750,6 @@ onMounted(async () => {
   border: 1px solid rgba(148, 163, 184, 0.36);
 }
 
-.docs-card-featured .docs-card-breadcrumb {
-  color: #000;
-}
-
-.docs-card-featured .docs-card-title {
-  color: #000;
-}
-
 @container (max-width: 560px) {
   .docs-cards-grid {
     grid-template-columns: 1fr;
@@ -761,12 +765,15 @@ onMounted(async () => {
   }
 
   .docs-card-title {
-    font-size: clamp(1.65rem, 5.2vw, 2.4rem);
-    line-height: 1.12;
+    font-size: clamp(1.18rem, 4vw, 1.55rem);
+    line-height: 1.2;
+    max-height: calc(1.2em * 2);
   }
 
   .docs-card:not(.docs-card-featured) .docs-card-title {
-    font-size: clamp(1.45rem, 4.8vw, 2rem);
+    font-size: clamp(1.05rem, 3.7vw, 1.3rem);
+    line-height: 1.2;
+    max-height: calc(1.2em * 2);
   }
 }
 
