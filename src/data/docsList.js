@@ -1,5 +1,13 @@
 export const docsList = [
   {
+    id: 'codex-cli',
+    title: 'Codex接入Dpcc API教程',
+    tag: '快速开始',
+    summary: '超快，超详细',
+    cover: '/doc-covers/codex.webp',
+    file: '/doc-files/codex-cli.md'
+  },
+  {
     id: 'blue-print',
     title: '快速搭建你的工作流',
     tag: '快速开始',
