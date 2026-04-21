@@ -28,6 +28,9 @@
           <router-link to="/aidocs" class="nav-link" active-class="nav-link-active">
             AiDocs
           </router-link>
+          <a href="https://api.dpccgaming.xyz"class="nav-link">
+            Dpcc API
+          </a>
         </nav>
       </div>
 
