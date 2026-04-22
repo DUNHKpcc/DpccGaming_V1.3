@@ -13,14 +13,14 @@
           </p>
         </div>
 
-        <a
-          href="/games"
+        <button
+          type="button"
           class="cta-button inline-flex items-center justify-center gap-3 font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+          @click="openDownloadPicker"
         >
-          <i class="fa-brands fa-windows text-xl"/>
-          <span>下载 DpccGaming</span>
+          <span>下载DPCC SWITCH</span>
           <span class="text-2xl leading-none">→</span>
-        </a>
+        </button>
       </div>
 
       <div class="border-t border-gray-800/20 pt-10">
@@ -60,7 +60,6 @@
             </ul>
           </div>
 
-          <!-- Resources -->
           <div class="footer-text-offset">
             <h3 class="font-semibold mb-3 section-subtitle">资源</h3>
             <ul class="space-y-2">
@@ -77,7 +76,10 @@
                 </router-link>
               </li>
               <li>
-                <a href="https://github.com/DUNHKpcc/DpccGaming_V1.3" class="footer-link flex items-center gap-2">
+                <a
+                  href="https://github.com/DUNHKpcc/DpccGaming_V1.3"
+                  class="footer-link flex items-center gap-2"
+                >
                   <i class="fa-brands fa-github text-sm" />
                   <span>GitHub</span>
                 </a>
@@ -89,8 +91,8 @@
             <h3 class="font-semibold mb-3 section-subtitle">联系我们</h3>
             <ul class="space-y-2">
               <li class="section-text">
-                  <i class="fa-regular fa-message text-sm mr-2" />
-                  <span>反馈与建议 邮箱：sjh2329952249@163.com</span>
+                <i class="fa-regular fa-message text-sm mr-2" />
+                <span>反馈与建议 邮箱：sjh2329952249@163.com</span>
               </li>
               <li>
                 <a href="#" class="footer-link flex items-center gap-2">
@@ -99,8 +101,11 @@
                 </a>
               </li>
               <li>
-                <a href="https://space.bilibili.com/397853169?spm_id_from=333.788.upinfo.head.click" class="footer-link flex items-center gap-2">
-                  <img src="/SocialMediaLogo/bilibili.png" alt="Bilibili Logo" class="w-10 h-5"/>
+                <a
+                  href="https://space.bilibili.com/397853169?spm_id_from=333.788.upinfo.head.click"
+                  class="footer-link flex items-center gap-2"
+                >
+                  <img src="/SocialMediaLogo/bilibili.png" alt="Bilibili Logo" class="w-10 h-5" />
                   <span>哔哩哔哩</span>
                 </a>
               </li>
@@ -137,14 +142,89 @@
       </div>
     </div>
   </footer>
+
+  <transition name="download-modal-fade">
+    <div
+      v-if="isDownloadPickerOpen"
+      class="download-modal-backdrop"
+      @click.self="closeDownloadPicker"
+    >
+      <div
+        class="download-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="download-picker-title"
+      >
+        <button
+          type="button"
+          class="download-modal-close"
+          aria-label="关闭下载选择弹窗"
+          @click="closeDownloadPicker"
+        >
+          ×
+        </button>
+
+        <div class="download-modal-copy">
+          <p class="download-modal-eyebrow">Download DPCC SWITCH</p>
+          <h3 id="download-picker-title" class="download-modal-title">
+            选择你的系统版本
+          </h3>
+        </div>
+
+        <div class="download-option-grid">
+          <button
+            type="button"
+            class="download-option-card download-option-card-disabled"
+            disabled
+          >
+            <span class="download-option-icon">
+              <i class="fa-brands fa-windows" />
+            </span>
+            <span class="download-option-system">Windows</span>
+            <span class="download-option-caption">Windows 版本即将提供</span>
+          </button>
+
+          <a
+            :href="downloadTargets.macos"
+            class="download-option-card"
+            @click="closeDownloadPicker"
+          >
+            <span class="download-option-icon">
+              <i class="fa-brands fa-apple" />
+            </span>
+            <span class="download-option-system">macOS ARM版本（M1以上芯片）</span>
+            <span class="download-option-caption">下载 DPCC SWITCH for macOS</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useThemeStore } from '../stores/theme'
 
 const themeStore = useThemeStore()
 const currentLogo = computed(() => (themeStore.isDark ? '/logo.png' : '/logo_light.png'))
+const isDownloadPickerOpen = ref(false)
+const downloadTargets = {
+  macos: '/dpcc-app/DPCC-SWITCH_3.13.0_aarch64.dmg'
+}
+
+const closeDownloadPicker = () => {
+  isDownloadPickerOpen.value = false
+}
+
+const handleEscapeKey = (event) => {
+  if (event.key === 'Escape') {
+    closeDownloadPicker()
+  }
+}
+
+const openDownloadPicker = () => {
+  isDownloadPickerOpen.value = true
+}
 
 const scrollToTop = () => {
   window.scrollTo({
@@ -152,10 +232,30 @@ const scrollToTop = () => {
     behavior: 'smooth'
   })
 }
+
+watch(isDownloadPickerOpen, (isOpen) => {
+  if (typeof document === 'undefined') return
+
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+
+  if (isOpen) {
+    window.addEventListener('keydown', handleEscapeKey)
+    return
+  }
+
+  window.removeEventListener('keydown', handleEscapeKey)
+})
+
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+  }
+
+  window.removeEventListener('keydown', handleEscapeKey)
+})
 </script>
 
 <style scoped>
-
 .bg_footer {
   background-color: #000000;
   color: #ffffff;
@@ -233,6 +333,149 @@ const scrollToTop = () => {
   background-color: rgba(255, 255, 255, 0.9);
 }
 
+.download-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.download-modal-panel {
+  position: relative;
+  width: min(100%, 720px);
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 40%),
+    linear-gradient(180deg, #131313 0%, #060606 100%);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+.download-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.download-modal-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.download-modal-copy {
+  max-width: 30rem;
+  margin-bottom: 1.75rem;
+}
+
+.download-modal-eyebrow {
+  margin: 0 0 0.625rem;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.download-modal-title {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.85rem, 4vw, 2.6rem);
+  line-height: 1.05;
+}
+
+.download-modal-description {
+  margin: 0.85rem 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.download-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.download-option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 220px;
+  padding: 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  color: #ffffff;
+  text-decoration: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.download-option-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+}
+
+.download-option-card-disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.download-option-card-disabled:hover {
+  transform: none;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+}
+
+.download-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 1.6rem;
+}
+
+.download-option-system {
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.download-option-caption {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.download-modal-fade-enter-active,
+.download-modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.download-modal-fade-enter-from,
+.download-modal-fade-leave-to {
+  opacity: 0;
+}
+
 @media (min-width: 768px) {
   .footer-bottom-row {
     min-height: 2.5rem;
@@ -243,6 +486,21 @@ const scrollToTop = () => {
     right: 0;
     top: 50%;
     transform: translateY(-50%) translateX(25px);
+  }
+}
+
+@media (max-width: 767px) {
+  .download-modal-panel {
+    padding: 1.5rem;
+    border-radius: 24px;
+  }
+
+  .download-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .download-option-card {
+    min-height: auto;
   }
 }
 
@@ -279,5 +537,52 @@ const scrollToTop = () => {
 
 [data-theme="light"] .cta-button:hover {
   background-color: rgba(0, 0, 0, 0.85);
+}
+
+[data-theme="light"] .download-modal-panel {
+  border-color: rgba(0, 0, 0, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(0, 0, 0, 0.03), transparent 42%),
+    linear-gradient(180deg, #ffffff 0%, #f3f3f3 100%);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .download-modal-close,
+[data-theme="light"] .download-option-icon {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.04);
+  color: #000000;
+}
+
+[data-theme="light"] .download-modal-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] .download-modal-eyebrow,
+[data-theme="light"] .download-modal-description,
+[data-theme="light"] .download-option-caption {
+  color: rgba(0, 0, 0, 0.62);
+}
+
+[data-theme="light"] .download-modal-title,
+[data-theme="light"] .download-option-system,
+[data-theme="light"] .download-option-card {
+  color: #000000;
+}
+
+[data-theme="light"] .download-option-card {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.015));
+}
+
+[data-theme="light"] .download-option-card:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.02));
+}
+
+[data-theme="light"] .download-option-card-disabled:hover {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.015));
 }
 </style>
