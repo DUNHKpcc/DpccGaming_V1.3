@@ -109,6 +109,7 @@
                 <div
                   v-else-if="renderedMarkdown"
                   class="docs-markdown-content"
+                  @click="handleMarkdownContentClick"
                   v-html="renderedMarkdown"
                 ></div>
                 <template v-else>
@@ -166,6 +167,8 @@
 import { apiCall } from '../../utils/api'
 import { docsList } from '../../data/docsList'
 import { useNotificationStore } from '../../stores/notification'
+import { highlightCodeAsync, warmupCodeHighlighter } from '../../utils/asyncCodeHighlighter'
+import { escapeHtml, renderInlineMarkdown, renderMarkdownToHtml, resolveDocAssetUrl } from '../../utils/markdownRenderer.mjs'
 
 const DOC_DELETE_CONFIRM_WINDOW_MS = 5000
 
@@ -276,6 +279,7 @@ export default {
     }
   },
   mounted() {
+    warmupCodeHighlighter()
     window.addEventListener('discussion-documents-sync', this.handleDocumentsSyncEvent)
     if (this.isActive && this.currentRoomKey) {
       this.ensureCurrentRoomDocuments({ force: true })
@@ -301,149 +305,41 @@ export default {
       }
       this.pendingDeleteDocumentId = null
     },
-    escapeHtml(text = '') {
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-    },
-    resolveDocAssetUrl(url = '', baseUrl = '') {
-      const value = String(url || '').trim()
-      if (!value) return ''
-      if (/^(https?:|data:|blob:)/i.test(value) || value.startsWith('/')) return value
-      if (!baseUrl) return value
-      try {
-        return new URL(value, baseUrl).toString()
-      } catch {
-        return value
-      }
-    },
+    escapeHtml,
+    resolveDocAssetUrl,
     renderInline(text = '', baseUrl = '') {
-      const escaped = this.escapeHtml(text)
-      return escaped
-        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => `<img src="${this.resolveDocAssetUrl(src, baseUrl)}" alt="${this.escapeHtml(alt)}" loading="lazy" />`)
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => `<a href="${this.resolveDocAssetUrl(href, baseUrl)}" target="_blank" rel="noopener noreferrer">${label}</a>`)
+      return renderInlineMarkdown(text, { baseUrl })
     },
-    markdownToHtml(markdown = '', baseUrl = '') {
-      const lines = String(markdown).replace(/\r\n?/g, '\n').split('\n')
-      let html = ''
-      let paragraph = []
-      let inCode = false
-      let codeLang = ''
-      let codeLines = []
-      let inUnorderedList = false
-      let inOrderedList = false
-
-      const flushParagraph = () => {
-        if (!paragraph.length) return
-        html += `<p>${this.renderInline(paragraph.join(' '), baseUrl)}</p>`
-        paragraph = []
+    decodeMarkdownCode(encoded = '') {
+      try {
+        return decodeURIComponent(String(encoded || ''))
+      } catch {
+        return String(encoded || '')
       }
+    },
+    async handleMarkdownContentClick(event) {
+      const button = event.target?.closest?.('[data-action="copy-code"]')
+      if (!button) return
 
-      const closeLists = () => {
-        if (inUnorderedList) {
-          html += '</ul>'
-          inUnorderedList = false
-        }
-        if (inOrderedList) {
-          html += '</ol>'
-          inOrderedList = false
-        }
+      const block = button.closest('.markdown-code-block')
+      const code = this.decodeMarkdownCode(block?.dataset?.code || '')
+      if (!code) return
+
+      try {
+        await navigator.clipboard.writeText(code)
+        this.notificationStore.success('已复制', '代码块内容已复制到剪贴板')
+      } catch (error) {
+        this.notificationStore.error('复制失败', error?.message || '请检查浏览器权限')
       }
-
-      for (const line of lines) {
-        const codeFenceMatch = line.match(/^```(\w+)?/)
-        if (codeFenceMatch) {
-          if (!inCode) {
-            flushParagraph()
-            closeLists()
-            inCode = true
-            codeLang = codeFenceMatch[1] || ''
-            codeLines = []
-          } else {
-            const langClass = codeLang ? ` class="language-${codeLang}"` : ''
-            html += `<pre><code${langClass}>${this.escapeHtml(codeLines.join('\n'))}</code></pre>`
-            inCode = false
-            codeLang = ''
-            codeLines = []
-          }
-          continue
+    },
+    async markdownToHtml(markdown = '', baseUrl = '') {
+      return renderMarkdownToHtml(markdown, {
+        baseUrl,
+        renderCodeBlock: async ({ code, language }) => {
+          const highlighted = await highlightCodeAsync(code, { language })
+          return highlighted
         }
-
-        if (inCode) {
-          codeLines.push(line)
-          continue
-        }
-
-        if (!line.trim()) {
-          flushParagraph()
-          closeLists()
-          continue
-        }
-
-        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
-        if (headingMatch) {
-          flushParagraph()
-          closeLists()
-          const level = headingMatch[1].length
-          html += `<h${level}>${this.renderInline(headingMatch[2], baseUrl)}</h${level}>`
-          continue
-        }
-
-        const unorderedMatch = line.match(/^[-*+]\s+(.+)$/)
-        if (unorderedMatch) {
-          flushParagraph()
-          if (inOrderedList) {
-            html += '</ol>'
-            inOrderedList = false
-          }
-          if (!inUnorderedList) {
-            html += '<ul>'
-            inUnorderedList = true
-          }
-          html += `<li>${this.renderInline(unorderedMatch[1], baseUrl)}</li>`
-          continue
-        }
-
-        const orderedMatch = line.match(/^\d+\.\s+(.+)$/)
-        if (orderedMatch) {
-          flushParagraph()
-          if (inUnorderedList) {
-            html += '</ul>'
-            inUnorderedList = false
-          }
-          if (!inOrderedList) {
-            html += '<ol>'
-            inOrderedList = true
-          }
-          html += `<li>${this.renderInline(orderedMatch[1], baseUrl)}</li>`
-          continue
-        }
-
-        const blockquoteMatch = line.match(/^>\s?(.+)$/)
-        if (blockquoteMatch) {
-          flushParagraph()
-          closeLists()
-          html += `<blockquote>${this.renderInline(blockquoteMatch[1], baseUrl)}</blockquote>`
-          continue
-        }
-
-        paragraph.push(line.trim())
-      }
-
-      if (inCode) {
-        const langClass = codeLang ? ` class="language-${codeLang}"` : ''
-        html += `<pre><code${langClass}>${this.escapeHtml(codeLines.join('\n'))}</code></pre>`
-      }
-
-      flushParagraph()
-      closeLists()
-      return html
+      })
     },
     async loadCurrentDocumentContent(document) {
       if (!document) {
@@ -473,7 +369,7 @@ export default {
         }
 
         const markdown = await response.text()
-        this.renderedMarkdown = this.markdownToHtml(markdown, url)
+        this.renderedMarkdown = await this.markdownToHtml(markdown, url)
       } catch (error) {
         this.renderedMarkdown = ''
         this.docsPreviewError = error.message || '文档内容加载失败'
@@ -1272,7 +1168,7 @@ export default {
 .docs-markdown-content :deep(pre) {
   margin: 0 0 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 0 0 12px 12px;
   background: #111827;
   color: #f9fafb;
   overflow: auto;
@@ -1282,6 +1178,109 @@ export default {
   padding: 0;
   background: transparent;
   color: inherit;
+}
+
+.docs-markdown-content :deep(.markdown-code-block) {
+  margin: 0 0 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #1f2937;
+  background: #111827;
+}
+
+.docs-markdown-content :deep(.markdown-code-toolbar) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #0f172a;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.docs-markdown-content :deep(.markdown-code-language) {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.docs-markdown-content :deep(.markdown-code-copy-btn) {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.docs-markdown-content :deep(.markdown-code-copy-btn:hover) {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.34);
+  transform: translateY(-1px);
+}
+
+.docs-markdown-content :deep(.hljs) {
+  display: block;
+  background: transparent;
+  color: #f9fafb;
+  white-space: pre;
+}
+
+.docs-markdown-content :deep(.hljs-comment),
+.docs-markdown-content :deep(.hljs-quote) {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.docs-markdown-content :deep(.hljs-keyword),
+.docs-markdown-content :deep(.hljs-selector-tag),
+.docs-markdown-content :deep(.hljs-subst) {
+  color: #c084fc;
+}
+
+.docs-markdown-content :deep(.hljs-string),
+.docs-markdown-content :deep(.hljs-doctag),
+.docs-markdown-content :deep(.hljs-regexp),
+.docs-markdown-content :deep(.hljs-template-tag),
+.docs-markdown-content :deep(.hljs-template-variable) {
+  color: #67e8f9;
+}
+
+.docs-markdown-content :deep(.hljs-title),
+.docs-markdown-content :deep(.hljs-title.function_),
+.docs-markdown-content :deep(.hljs-title.class_),
+.docs-markdown-content :deep(.hljs-function .hljs-title) {
+  color: #93c5fd;
+}
+
+.docs-markdown-content :deep(.hljs-number),
+.docs-markdown-content :deep(.hljs-literal),
+.docs-markdown-content :deep(.hljs-symbol),
+.docs-markdown-content :deep(.hljs-bullet) {
+  color: #fbbf24;
+}
+
+.docs-markdown-content :deep(.hljs-type),
+.docs-markdown-content :deep(.hljs-built_in),
+.docs-markdown-content :deep(.hljs-class .hljs-title) {
+  color: #60a5fa;
+}
+
+.docs-markdown-content :deep(.hljs-attr),
+.docs-markdown-content :deep(.hljs-attribute),
+.docs-markdown-content :deep(.hljs-variable),
+.docs-markdown-content :deep(.hljs-property) {
+  color: #f9a8d4;
+}
+
+.docs-markdown-content :deep(.hljs-operator),
+.docs-markdown-content :deep(.hljs-punctuation),
+.docs-markdown-content :deep(.hljs-meta) {
+  color: #cbd5e1;
 }
 
 .docs-markdown-content :deep(blockquote) {

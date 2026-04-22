@@ -1,5 +1,13 @@
 export const docsList = [
   {
+    id: 'dpcc-switch',
+    title: 'claude code接入codex教程',
+    tag: '快速开始',
+    summary: '超快，超详细',
+    cover: '/doc-covers/claude.webp',
+    file: '/doc-files/dpcc-switch.md'
+  },
+  {
     id: 'codex-cli',
     title: 'Codex接入Dpcc API教程',
     tag: '快速开始',

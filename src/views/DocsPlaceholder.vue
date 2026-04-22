@@ -86,6 +86,7 @@
               <div
                 v-else
                 class="markdown-content"
+                @click="handleMarkdownContentClick"
                 v-html="renderedMarkdown"
               ></div>
             </div>
@@ -99,8 +100,12 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { docsList } from '../data/docsList'
+import { useNotificationStore } from '../stores/notification'
+import { highlightCodeAsync, warmupCodeHighlighter } from '../utils/asyncCodeHighlighter'
+import { renderMarkdownToHtml } from '../utils/markdownRenderer.mjs'
 
 const docs = docsList
+const notificationStore = useNotificationStore()
 const selectedDoc = ref(docs[0] || null)
 const renderedMarkdown = ref('')
 const isLoadingDoc = ref(false)
@@ -134,138 +139,28 @@ const truncateCardTitle = (title = '', maxLength = 24) => {
   return `${title.slice(0, maxLength).trimEnd()}...`
 }
 
-const escapeHtml = (text = '') =>
-  text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-
-const renderInline = (text = '') => {
-  const escaped = escapeHtml(text)
-  return escaped
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" />')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+const decodeMarkdownCode = (encoded = '') => {
+  try {
+    return decodeURIComponent(String(encoded || ''))
+  } catch {
+    return String(encoded || '')
+  }
 }
 
-const markdownToHtml = (markdown = '') => {
-  const lines = markdown.replace(/\r\n?/g, '\n').split('\n')
-  let html = ''
-  let paragraph = []
-  let inCode = false
-  let codeLang = ''
-  let codeLines = []
-  let inUnorderedList = false
-  let inOrderedList = false
+const handleMarkdownContentClick = async (event) => {
+  const button = event.target?.closest?.('[data-action="copy-code"]')
+  if (!button) return
 
-  const flushParagraph = () => {
-    if (!paragraph.length) return
-    html += `<p>${renderInline(paragraph.join(' '))}</p>`
-    paragraph = []
+  const block = button.closest('.markdown-code-block')
+  const code = decodeMarkdownCode(block?.dataset?.code || '')
+  if (!code) return
+
+  try {
+    await navigator.clipboard.writeText(code)
+    notificationStore.success('已复制', '代码块内容已复制到剪贴板')
+  } catch (error) {
+    notificationStore.error('复制失败', error?.message || '请检查浏览器权限')
   }
-
-  const closeLists = () => {
-    if (inUnorderedList) {
-      html += '</ul>'
-      inUnorderedList = false
-    }
-    if (inOrderedList) {
-      html += '</ol>'
-      inOrderedList = false
-    }
-  }
-
-  for (const line of lines) {
-    const codeFenceMatch = line.match(/^```(\w+)?/)
-    if (codeFenceMatch) {
-      if (!inCode) {
-        flushParagraph()
-        closeLists()
-        inCode = true
-        codeLang = codeFenceMatch[1] || ''
-        codeLines = []
-      } else {
-        const langClass = codeLang ? ` class="language-${codeLang}"` : ''
-        html += `<pre><code${langClass}>${escapeHtml(codeLines.join('\n'))}</code></pre>`
-        inCode = false
-        codeLang = ''
-        codeLines = []
-      }
-      continue
-    }
-
-    if (inCode) {
-      codeLines.push(line)
-      continue
-    }
-
-    if (!line.trim()) {
-      flushParagraph()
-      closeLists()
-      continue
-    }
-
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      flushParagraph()
-      closeLists()
-      const level = headingMatch[1].length
-      html += `<h${level}>${renderInline(headingMatch[2])}</h${level}>`
-      continue
-    }
-
-    const unorderedMatch = line.match(/^[-*+]\s+(.+)$/)
-    if (unorderedMatch) {
-      flushParagraph()
-      if (inOrderedList) {
-        html += '</ol>'
-        inOrderedList = false
-      }
-      if (!inUnorderedList) {
-        html += '<ul>'
-        inUnorderedList = true
-      }
-      html += `<li>${renderInline(unorderedMatch[1])}</li>`
-      continue
-    }
-
-    const orderedMatch = line.match(/^\d+\.\s+(.+)$/)
-    if (orderedMatch) {
-      flushParagraph()
-      if (inUnorderedList) {
-        html += '</ul>'
-        inUnorderedList = false
-      }
-      if (!inOrderedList) {
-        html += '<ol>'
-        inOrderedList = true
-      }
-      html += `<li>${renderInline(orderedMatch[1])}</li>`
-      continue
-    }
-
-    const blockquoteMatch = line.match(/^>\s?(.+)$/)
-    if (blockquoteMatch) {
-      flushParagraph()
-      closeLists()
-      html += `<blockquote>${renderInline(blockquoteMatch[1])}</blockquote>`
-      continue
-    }
-
-    paragraph.push(line.trim())
-  }
-
-  if (inCode) {
-    const langClass = codeLang ? ` class="language-${codeLang}"` : ''
-    html += `<pre><code${langClass}>${escapeHtml(codeLines.join('\n'))}</code></pre>`
-  }
-  flushParagraph()
-  closeLists()
-  return html
 }
 
 const loadDocContent = async (doc) => {
@@ -278,7 +173,13 @@ const loadDocContent = async (doc) => {
       throw new Error(`无法加载文档：${doc.file}`)
     }
     const markdown = await response.text()
-    renderedMarkdown.value = markdownToHtml(markdown)
+    renderedMarkdown.value = await renderMarkdownToHtml(markdown, {
+      baseUrl: doc.file,
+      renderCodeBlock: async ({ code, language }) => {
+        const highlighted = await highlightCodeAsync(code, { language })
+        return highlighted
+      }
+    })
   } catch (error) {
     renderedMarkdown.value = ''
     docError.value = error instanceof Error ? error.message : '文档加载失败'
@@ -294,6 +195,7 @@ const selectDoc = async (doc) => {
 
 onMounted(async () => {
   preloadImages()
+  warmupCodeHighlighter()
   await loadDocContent(selectedDoc.value)
 })
 </script>
@@ -893,15 +795,118 @@ onMounted(async () => {
 .markdown-content :deep(pre) {
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0.55rem;
+  border-radius: 0 0 0.55rem 0.55rem;
   padding: 0.9rem;
   overflow-x: auto;
-  margin: 0.8rem 0 1rem;
+  margin: 0;
 }
 
 .markdown-content :deep(pre code) {
   background: transparent;
   padding: 0;
+}
+
+.markdown-content :deep(.markdown-code-block) {
+  margin: 0.8rem 0 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.55rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.markdown-content :deep(.markdown-code-toolbar) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  background: rgba(15, 23, 42, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.markdown-content :deep(.markdown-code-language) {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.markdown-content :deep(.markdown-code-copy-btn) {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.markdown-content :deep(.markdown-code-copy-btn:hover) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.markdown-content :deep(.hljs) {
+  display: block;
+  background: transparent;
+  color: #e2e8f0;
+  white-space: pre;
+}
+
+.markdown-content :deep(.hljs-comment),
+.markdown-content :deep(.hljs-quote) {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.markdown-content :deep(.hljs-keyword),
+.markdown-content :deep(.hljs-selector-tag),
+.markdown-content :deep(.hljs-subst) {
+  color: #c084fc;
+}
+
+.markdown-content :deep(.hljs-string),
+.markdown-content :deep(.hljs-doctag),
+.markdown-content :deep(.hljs-regexp),
+.markdown-content :deep(.hljs-template-tag),
+.markdown-content :deep(.hljs-template-variable) {
+  color: #67e8f9;
+}
+
+.markdown-content :deep(.hljs-title),
+.markdown-content :deep(.hljs-title.function_),
+.markdown-content :deep(.hljs-title.class_),
+.markdown-content :deep(.hljs-function .hljs-title) {
+  color: #93c5fd;
+}
+
+.markdown-content :deep(.hljs-number),
+.markdown-content :deep(.hljs-literal),
+.markdown-content :deep(.hljs-symbol),
+.markdown-content :deep(.hljs-bullet) {
+  color: #fbbf24;
+}
+
+.markdown-content :deep(.hljs-type),
+.markdown-content :deep(.hljs-built_in),
+.markdown-content :deep(.hljs-class .hljs-title) {
+  color: #60a5fa;
+}
+
+.markdown-content :deep(.hljs-attr),
+.markdown-content :deep(.hljs-attribute),
+.markdown-content :deep(.hljs-variable),
+.markdown-content :deep(.hljs-property) {
+  color: #f9a8d4;
+}
+
+.markdown-content :deep(.hljs-operator),
+.markdown-content :deep(.hljs-punctuation),
+.markdown-content :deep(.hljs-meta) {
+  color: #cbd5e1;
 }
 
 .markdown-content :deep(blockquote) {

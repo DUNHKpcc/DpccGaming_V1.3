@@ -1,16 +1,32 @@
 #!/usr/bin/env python3
+import sys
 from pathlib import Path
-from typing import Iterable
-from PIL import Image
+from typing import TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff"}
-DEFAULT_SOURCE_DIR = Path("public/Blog")
+DEFAULT_SOURCE_DIR = Path("public/doc-covers")
 DEFAULT_QUALITY = 80
+
+
+def require_pillow():
+    try:
+        from PIL import Image
+    except ModuleNotFoundError:
+        print(
+            "Pillow is required to run this optimizer. Install it with:\n"
+            "python3 -m pip install Pillow",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return Image
 
 def format_filesize(num_bytes: int) -> str:
     return f"{num_bytes / 1024:.1f}KB"
 
-def _prepare_image(image: Image.Image) -> Image.Image:
+def _prepare_image(image: "Image.Image") -> "Image.Image":
     if getattr(image, "is_animated", False):
         try:
             image.seek(0)
@@ -30,6 +46,7 @@ def _iter_images(source_dir: Path) -> Iterable[Path]:
     )
 
 def convert_to_webp_and_delete_original(image_path: Path, destination_root: Path, quality: int) -> None:
+    Image = require_pillow()
     rel_dir = image_path.parent.relative_to(DEFAULT_SOURCE_DIR)
     target_dir = destination_root / rel_dir
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -47,6 +64,7 @@ def convert_to_webp_and_delete_original(image_path: Path, destination_root: Path
     print(f"{image_path.name:35} {format_filesize(original_size):>10} {format_filesize(webp_size):>10} {(1 - (webp_size / original_size)) * 100:>8.1f}%")
 
 def optimize_blog_images(source_dir: Path = DEFAULT_SOURCE_DIR, quality: int = DEFAULT_QUALITY) -> None:
+    require_pillow()
     source_dir = Path(source_dir)
     if not source_dir.exists():
         print(f"Source directory '{source_dir}' not found.")
