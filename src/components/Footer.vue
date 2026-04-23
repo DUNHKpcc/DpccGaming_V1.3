@@ -13,14 +13,66 @@
           </p>
         </div>
 
-        <button
-          type="button"
-          class="cta-button inline-flex items-center justify-center gap-3 font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
-          @click="openDownloadPicker"
-        >
-          <span>下载DPCC SWITCH</span>
-          <span class="text-2xl leading-none">→</span>
-        </button>
+        <div ref="downloadPickerRef" class="download-picker-wrap">
+          <button
+            type="button"
+            class="cta-button inline-flex items-center justify-center gap-3 font-semibold px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+            @click="toggleDownloadPicker"
+          >
+            <span>下载DPCC SWITCH</span>
+            <span class="text-base leading-none">{{ isDownloadPickerOpen ? '↑' : '↓' }}</span>
+          </button>
+
+          <transition name="download-panel-fade">
+            <div
+              v-if="isDownloadPickerOpen"
+              class="download-inline-panel"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="download-picker-title"
+            >
+              <div class="download-inline-head">
+                <div>
+                  <p class="download-inline-eyebrow">DPCC SWITCH</p>
+                  <h3 id="download-picker-title" class="download-inline-title">下载版本</h3>
+                </div>
+                <span class="download-version-chip">3.13 (beta)</span>
+              </div>
+
+              <div class="download-inline-list">
+                <a
+                  :href="downloadTargets.windows"
+                  class="download-inline-item"
+                  @click="closeDownloadPicker"
+                >
+                  <span class="download-inline-icon">
+                    <i class="fa-brands fa-windows" />
+                  </span>
+                  <span class="download-inline-meta">
+                    <span class="download-inline-system">Windows</span>
+                    <span class="download-inline-caption">3.13 (beta) Setup</span>
+                  </span>
+                  <span class="download-inline-arrow">↗</span>
+                </a>
+
+                <a
+                  :href="downloadTargets.macos"
+                  class="download-inline-item"
+                  @click="closeDownloadPicker"
+                >
+                  <span class="download-inline-icon">
+                    <i class="fa-brands fa-apple" />
+                  </span>
+                  <span class="download-inline-meta">
+                    <span class="download-inline-system">macOS ARM</span>
+                    <span class="download-inline-caption">3.13 (beta) DMG</span>
+                  </span>
+                  <span class="download-inline-arrow">↗</span>
+                </a>
+              </div>
+            </div>
+          </transition>
+        </div>
       </div>
 
       <div class="border-t border-gray-800/20 pt-10">
@@ -143,62 +195,6 @@
     </div>
   </footer>
 
-  <transition name="download-modal-fade">
-    <div
-      v-if="isDownloadPickerOpen"
-      class="download-modal-backdrop"
-      @click.self="closeDownloadPicker"
-    >
-      <div
-        class="download-modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="download-picker-title"
-      >
-        <button
-          type="button"
-          class="download-modal-close"
-          aria-label="关闭下载选择弹窗"
-          @click="closeDownloadPicker"
-        >
-          ×
-        </button>
-
-        <div class="download-modal-copy">
-          <p class="download-modal-eyebrow">Download DPCC SWITCH</p>
-          <h3 id="download-picker-title" class="download-modal-title">
-            选择你的系统版本
-          </h3>
-        </div>
-
-        <div class="download-option-grid">
-          <button
-            type="button"
-            class="download-option-card download-option-card-disabled"
-            disabled
-          >
-            <span class="download-option-icon">
-              <i class="fa-brands fa-windows" />
-            </span>
-            <span class="download-option-system">Windows</span>
-            <span class="download-option-caption">Windows 版本即将提供</span>
-          </button>
-
-          <a
-            :href="downloadTargets.macos"
-            class="download-option-card"
-            @click="closeDownloadPicker"
-          >
-            <span class="download-option-icon">
-              <i class="fa-brands fa-apple" />
-            </span>
-            <span class="download-option-system">macOS ARM版本（M1以上芯片）</span>
-            <span class="download-option-caption">下载 DPCC SWITCH for macOS</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </transition>
 </template>
 
 <script setup>
@@ -207,8 +203,10 @@ import { useThemeStore } from '../stores/theme'
 
 const themeStore = useThemeStore()
 const currentLogo = computed(() => (themeStore.isDark ? '/logo.png' : '/logo_light.png'))
+const downloadPickerRef = ref(null)
 const isDownloadPickerOpen = ref(false)
 const downloadTargets = {
+  windows: '/dpcc-app/DPCC-SWITCH-3.13.0-release-setup.exe',
   macos: '/dpcc-app/DPCC-SWITCH_3.13.0_aarch64.dmg'
 }
 
@@ -222,8 +220,14 @@ const handleEscapeKey = (event) => {
   }
 }
 
-const openDownloadPicker = () => {
-  isDownloadPickerOpen.value = true
+const handlePointerDown = (event) => {
+  if (!downloadPickerRef.value?.contains(event.target)) {
+    closeDownloadPicker()
+  }
+}
+
+const toggleDownloadPicker = () => {
+  isDownloadPickerOpen.value = !isDownloadPickerOpen.value
 }
 
 const scrollToTop = () => {
@@ -234,24 +238,21 @@ const scrollToTop = () => {
 }
 
 watch(isDownloadPickerOpen, (isOpen) => {
-  if (typeof document === 'undefined') return
-
-  document.body.style.overflow = isOpen ? 'hidden' : ''
+  if (typeof window === 'undefined') return
 
   if (isOpen) {
     window.addEventListener('keydown', handleEscapeKey)
+    window.addEventListener('pointerdown', handlePointerDown)
     return
   }
 
   window.removeEventListener('keydown', handleEscapeKey)
+  window.removeEventListener('pointerdown', handlePointerDown)
 })
 
 onBeforeUnmount(() => {
-  if (typeof document !== 'undefined') {
-    document.body.style.overflow = ''
-  }
-
   window.removeEventListener('keydown', handleEscapeKey)
+  window.removeEventListener('pointerdown', handlePointerDown)
 })
 </script>
 
@@ -333,147 +334,132 @@ onBeforeUnmount(() => {
   background-color: rgba(255, 255, 255, 0.9);
 }
 
-.download-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(10px);
-}
-
-.download-modal-panel {
+.download-picker-wrap {
   position: relative;
-  width: min(100%, 720px);
-  padding: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 40%),
-    linear-gradient(180deg, #131313 0%, #060606 100%);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
-.download-modal-close {
+.download-inline-panel {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 2.5rem;
-  height: 2.5rem;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  z-index: 40;
+  width: min(92vw, 340px);
+  padding: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
-  font-size: 1.25rem;
-  line-height: 1;
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 45%),
+    linear-gradient(180deg, #121212 0%, #080808 100%);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
 }
 
-.download-modal-close:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.24);
-  transform: translateY(-1px);
+.download-inline-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
-.download-modal-copy {
-  max-width: 30rem;
-  margin-bottom: 1.75rem;
-}
-
-.download-modal-eyebrow {
-  margin: 0 0 0.625rem;
+.download-inline-eyebrow {
+  margin: 0 0 0.3rem;
   color: rgba(255, 255, 255, 0.56);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
-.download-modal-title {
+.download-inline-title {
   margin: 0;
   color: #ffffff;
-  font-size: clamp(1.85rem, 4vw, 2.6rem);
-  line-height: 1.05;
-}
-
-.download-modal-description {
-  margin: 0.85rem 0 0;
-  color: rgba(255, 255, 255, 0.7);
   font-size: 1rem;
-  line-height: 1.65;
+  line-height: 1.2;
 }
 
-.download-option-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+.download-version-chip {
+  flex-shrink: 0;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
+  line-height: 1;
 }
 
-.download-option-card {
+.download-inline-list {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  min-height: 220px;
-  padding: 1.4rem;
+  gap: 0.55rem;
+}
+
+.download-inline-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025));
   color: #ffffff;
   text-decoration: none;
   transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
-.download-option-card:hover {
-  transform: translateY(-3px);
+.download-inline-item:hover {
+  transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.28);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
 }
 
-.download-option-card-disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
-}
-
-.download-option-card-disabled:hover {
-  transform: none;
-  border-color: rgba(255, 255, 255, 0.12);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-}
-
-.download-option-icon {
+.download-inline-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3.6rem;
-  height: 3.6rem;
+  width: 2.2rem;
+  height: 2.2rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.06);
-  font-size: 1.6rem;
+  font-size: 1rem;
 }
 
-.download-option-system {
+.download-inline-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.download-inline-system {
   color: #ffffff;
-  font-size: 1.45rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
-.download-option-caption {
+.download-inline-caption {
   color: rgba(255, 255, 255, 0.65);
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
-.download-modal-fade-enter-active,
-.download-modal-fade-leave-active {
-  transition: opacity 0.2s ease;
+.download-inline-arrow {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
 }
 
-.download-modal-fade-enter-from,
-.download-modal-fade-leave-to {
+.download-panel-fade-enter-active,
+.download-panel-fade-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.download-panel-fade-enter-from,
+.download-panel-fade-leave-to {
   opacity: 0;
+  transform: translateY(-6px);
 }
 
 @media (min-width: 768px) {
@@ -490,17 +476,14 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 767px) {
-  .download-modal-panel {
-    padding: 1.5rem;
-    border-radius: 24px;
+  .download-picker-wrap {
+    width: 100%;
   }
 
-  .download-option-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .download-option-card {
-    min-height: auto;
+  .download-inline-panel {
+    left: 0;
+    right: auto;
+    width: 100%;
   }
 }
 
@@ -539,50 +522,41 @@ onBeforeUnmount(() => {
   background-color: rgba(0, 0, 0, 0.85);
 }
 
-[data-theme="light"] .download-modal-panel {
+[data-theme="light"] .download-inline-panel {
   border-color: rgba(0, 0, 0, 0.1);
   background:
     radial-gradient(circle at top left, rgba(0, 0, 0, 0.03), transparent 42%),
     linear-gradient(180deg, #ffffff 0%, #f3f3f3 100%);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.14);
 }
 
-[data-theme="light"] .download-modal-close,
-[data-theme="light"] .download-option-icon {
+[data-theme="light"] .download-inline-icon,
+[data-theme="light"] .download-version-chip {
   border-color: rgba(0, 0, 0, 0.1);
   background: rgba(0, 0, 0, 0.04);
   color: #000000;
 }
 
-[data-theme="light"] .download-modal-close:hover {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.18);
-}
-
-[data-theme="light"] .download-modal-eyebrow,
-[data-theme="light"] .download-modal-description,
-[data-theme="light"] .download-option-caption {
+[data-theme="light"] .download-inline-eyebrow,
+[data-theme="light"] .download-inline-caption,
+[data-theme="light"] .download-version-chip,
+[data-theme="light"] .download-inline-arrow {
   color: rgba(0, 0, 0, 0.62);
 }
 
-[data-theme="light"] .download-modal-title,
-[data-theme="light"] .download-option-system,
-[data-theme="light"] .download-option-card {
+[data-theme="light"] .download-inline-title,
+[data-theme="light"] .download-inline-system,
+[data-theme="light"] .download-inline-item {
   color: #000000;
 }
 
-[data-theme="light"] .download-option-card {
+[data-theme="light"] .download-inline-item {
   border-color: rgba(0, 0, 0, 0.1);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.015));
 }
 
-[data-theme="light"] .download-option-card:hover {
+[data-theme="light"] .download-inline-item:hover {
   border-color: rgba(0, 0, 0, 0.18);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.02));
-}
-
-[data-theme="light"] .download-option-card-disabled:hover {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.015));
 }
 </style>
