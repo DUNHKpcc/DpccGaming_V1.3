@@ -28,21 +28,20 @@
 ```toml
 profile = "dpcc"
 
-[profiles.dpcc]
-model_provider = "dpcc"
-model = "gpt-5.4"
+  [profiles.dpcc]
+  model_provider = "dpcc"
+  model = "gpt-5.4"
+  model_reasoning_effort = "medium"
 
-[profiles.dpcc.windows]
-sandbox = "elevated"
+  [profiles.dpcc.windows]
+  sandbox = "elevated"
 
-[model_providers.dpcc]
-name = "DPCC new-api"
-base_url = "https://api.dpccgaming.xyz/v1"
-env_key = "OPENAI_API_KEY"
-requires_openai_auth = true
-wire_api = "responses"
-model = "gpt-5.4"
-model_reasoning_effort = "medium"
+  [model_providers.dpcc]
+  name = "DPCC new-api"
+  base_url = "https://api.dpccgaming.xyz/v1"
+  env_key = "OPENAI_API_KEY"
+  requires_openai_auth = false
+  wire_api = "responses"
 ```
 
 ## 3. 设置环境变量
