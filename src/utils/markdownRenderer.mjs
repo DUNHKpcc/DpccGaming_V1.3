@@ -1,3 +1,5 @@
+import { createHeadingIdGenerator } from './docsNavigation.js'
+
 export const escapeHtml = (text = '') =>
   String(text)
     .replace(/&/g, '&amp;')
@@ -91,6 +93,7 @@ export const renderMarkdownToHtml = async (markdown = '', options = {}) => {
   let codeLines = []
   let inUnorderedList = false
   let inOrderedList = false
+  const getHeadingId = createHeadingIdGenerator()
 
   const flushParagraph = () => {
     if (!paragraph.length) return
@@ -171,7 +174,8 @@ export const renderMarkdownToHtml = async (markdown = '', options = {}) => {
       flushParagraph()
       closeLists()
       const level = headingMatch[1].length
-      html += `<h${level}>${renderInlineMarkdown(headingMatch[2], { baseUrl })}</h${level}>`
+      const headingText = headingMatch[2].trim()
+      html += `<h${level} id="${escapeHtml(getHeadingId(headingText))}">${renderInlineMarkdown(headingText, { baseUrl })}</h${level}>`
       continue
     }
 

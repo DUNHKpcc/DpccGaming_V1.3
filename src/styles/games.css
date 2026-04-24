@@ -5,11 +5,9 @@
   --games-text: #f3f4f6;
   --games-text-80: rgba(243, 244, 246, 0.82);
   --games-text-30: rgba(243, 244, 246, 0.34);
-  --games-overlay: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.42),
-    rgba(0, 0, 0, 0.72)
-  );
+  --games-overlay: linear-gradient(180deg,
+      rgba(0, 0, 0, 0.42),
+      rgba(0, 0, 0, 0.72));
   --games-card-bg: linear-gradient(150deg, #151517, #101012 58%, #0b0b0c);
   --games-card-hover-bg: linear-gradient(150deg, #1c1c20, #141418 58%, #101013);
   --games-card-border: rgba(255, 255, 255, 0.12);
@@ -23,7 +21,7 @@
   height: 100vh;
   position: fixed;
   width: 100%;
-  overflow: hidden; 
+  overflow: hidden;
   font-family: 'Quicksand', sans-serif;
   background-color: var(--games-bg);
   color: var(--games-text);
@@ -34,11 +32,9 @@
   --games-text: #111111;
   --games-text-80: rgba(17, 17, 17, 0.8);
   --games-text-30: rgba(17, 17, 17, 0.34);
-  --games-overlay: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.22)
-  );
+  --games-overlay: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.22));
   --games-card-bg: linear-gradient(145deg, #ffffff, #f2f7ff 58%, #fff4e7);
   --games-card-hover-bg: linear-gradient(145deg, #ffffff, #ebf3ff 58%, #ffeccf);
   --games-card-border: rgba(17, 17, 17, 0.12);
@@ -83,7 +79,7 @@
   height: 100%;
   overflow: hidden;
   max-height: 100%;
-} 
+}
 
 .games-header {
   flex-shrink: 0;
@@ -95,21 +91,16 @@
 .games-cards-scroll {
   flex: 1;
   min-height: 0;
-  overflow-y: auto; 
+  overflow-y: auto;
   padding-bottom: 40px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .games-cards-scroll::-webkit-scrollbar {
-  width: 8px;
-}
-
-.games-cards-scroll::-webkit-scrollbar-thumb {
-  background: var(--games-scrollbar);
-  border-radius: 9999px;
-}
-
-.games-cards-scroll::-webkit-scrollbar-track {
-  background: transparent;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .games-grid-anchor {
@@ -232,12 +223,10 @@
   --card-theme-deep: 33, 45, 68;
   --card-theme-edge: 19, 26, 40;
   background:
-    linear-gradient(
-      155deg,
+    linear-gradient(155deg,
       rgba(var(--card-theme-main), 0.34) 0%,
       rgba(var(--card-theme-deep), 0.52) 58%,
-      rgba(var(--card-theme-edge), 0.82) 100%
-    );
+      rgba(var(--card-theme-edge), 0.82) 100%);
 }
 
 .game-card-body::before,
@@ -251,37 +240,29 @@
 
 .game-card-body::before {
   background:
-    radial-gradient(
-      circle at 22% 28%,
+    radial-gradient(circle at 22% 28%,
       rgba(var(--card-theme-bright), 0.34) 0%,
       rgba(var(--card-theme-main), 0.12) 38%,
-      transparent 64%
-    ),
-    radial-gradient(
-      circle at 78% 82%,
+      transparent 64%),
+    radial-gradient(circle at 78% 82%,
       rgba(var(--card-theme-main), 0.22) 0%,
-      transparent 58%
-    );
+      transparent 58%);
   animation: cardThemeFlowA 12s ease-in-out infinite alternate;
 }
 
 .game-card-body::after {
   background:
-    radial-gradient(
-      circle at 82% 18%,
+    radial-gradient(circle at 82% 18%,
       rgba(var(--card-theme-bright), 0.28) 0%,
       rgba(var(--card-theme-main), 0.08) 35%,
-      transparent 62%
-    ),
-    radial-gradient(
-      circle at 16% 74%,
+      transparent 62%),
+    radial-gradient(circle at 16% 74%,
       rgba(var(--card-theme-deep), 0.22) 0%,
-      transparent 56%
-    );
+      transparent 56%);
   animation: cardThemeFlowB 15s ease-in-out infinite;
 }
 
-.game-card-body > * {
+.game-card-body>* {
   position: relative;
   z-index: 1;
 }
@@ -430,7 +411,7 @@
   display: inline-flex;
 }
 
-.engine-type-icon{
+.engine-type-icon {
   width: 30px;
   height: 30px;
   object-fit: contain;
@@ -468,6 +449,7 @@
 }
 
 @keyframes movement {
+
   0%,
   100% {
     background-size:
@@ -483,6 +465,7 @@
       -30vmax -10vmax,
       50vmax 50vmax;
   }
+
   25% {
     background-size:
       100vmax 100vmax,
@@ -497,6 +480,7 @@
       -40vmax -20vmax,
       40vmax 60vmax;
   }
+
   50% {
     background-size:
       80vmax 80vmax,
@@ -511,6 +495,7 @@
       20vmax 10vmax,
       30vmax 70vmax;
   }
+
   75% {
     background-size:
       90vmax 90vmax,
@@ -531,6 +516,7 @@
   0% {
     transform: translate3d(-2%, -1%, 0) scale(0.98) rotate(-3deg);
   }
+
   100% {
     transform: translate3d(2%, 2%, 0) scale(1.06) rotate(3deg);
   }
@@ -540,9 +526,11 @@
   0% {
     transform: translate3d(2%, -2%, 0) scale(1.03) rotate(2deg);
   }
+
   50% {
     transform: translate3d(-2%, 1%, 0) scale(0.97) rotate(-2deg);
   }
+
   100% {
     transform: translate3d(1%, 3%, 0) scale(1.04) rotate(2deg);
   }
