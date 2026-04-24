@@ -3,7 +3,7 @@
     <div class="content-wrapper">
       <div class="container mx-auto px-4 py-8 blog-main">
         <div class="blog-header flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold text-white">开发日志</h1>
+          <h1 class="text-3xl font-bold">开发日志</h1>
         </div>
 
         <!-- Only cards area scrolls -->
@@ -11,19 +11,20 @@
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <article
               v-for="post in posts"
-              :key="post.id"
+              :key="post.cardId"
               class="blog-card glass-card overflow-hidden flex flex-col"
+              :style="getPostThemeStyle(post)"
             >
               <div class="blog-image-wrapper">
                 <img 
                   :src="post.image" 
                   :alt="post.title" 
-                  :class="['blog-image', { loaded: imagesLoaded[post.id] }]"
+                  :class="['blog-image', { loaded: imagesLoaded[post.cardId] }]"
                   loading="lazy"
-                  @error="handleImageError($event, post.id)"
-                  @load="handleImageLoad($event, post.id)"
+                  @error="handleImageError($event, post)"
+                  @load="handleImageLoad($event, post)"
                 />
-                <div class="image-loading" v-if="!imagesLoaded[post.id]">
+                <div class="image-loading" v-if="!imagesLoaded[post.cardId]">
                   <div class="loading-spinner"></div>
                 </div>
               </div>
@@ -51,40 +52,51 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { reactive, onMounted } from 'vue'
 import { blogPosts } from '../data/blogPosts'
+import { createSeedCardThemeStyle, extractCardThemeFromElement } from '../utils/imageTheme'
 
 
 const imagesLoaded = reactive({})
 const imageErrors = reactive({})
+const cardThemeStyles = reactive({})
 
-const handleImageLoad = (event, imageId) => {
-  imagesLoaded[imageId] = true
-  console.log(`Image ${imageId} loaded successfully`)
+const createFallbackTheme = post =>
+  createSeedCardThemeStyle(`${post?.imageName || ''}-${post?.title || ''}`)
+
+const applyPostTheme = (source, post) => {
+  if (!post?.cardId) return
+  cardThemeStyles[post.cardId] = extractCardThemeFromElement(source, {
+    fallbackSeed: `${post?.imageName || ''}-${post?.title || ''}`
+  }) || createFallbackTheme(post)
 }
 
-const handleImageError = (event, imageId) => {
-  imagesLoaded[imageId] = true 
-  imageErrors[imageId] = true
-  console.warn(`Failed to load image for post ${imageId}:`, event.target.src)
+const handleImageLoad = (event, post) => {
+  imagesLoaded[post.cardId] = true
+  applyPostTheme(event?.target, post)
 }
 
-const preloadImages = () => {
+const handleImageError = (event, post) => {
+  imagesLoaded[post.cardId] = true
+  imageErrors[post.cardId] = true
+  cardThemeStyles[post.cardId] = createFallbackTheme(post)
+  console.warn(`Failed to load image for post ${post.cardId}:`, event.target.src)
+}
+
+const initializeCards = () => {
   posts.forEach(post => {
-    const img = new Image()
-    img.onload = () => handleImageLoad(img, post.id)
-    img.onerror = () => handleImageError(img, post.id)
-    img.src = post.image
-    imagesLoaded[post.id] = false 
+    imagesLoaded[post.cardId] = false
+    cardThemeStyles[post.cardId] = createFallbackTheme(post)
   })
 }
 
 onMounted(() => {
-  preloadImages()
+  initializeCards()
 })
 
-const posts = blogPosts.map(p => ({
+const posts = blogPosts.map((p, index) => ({
   ...p,
+  cardId: `${p.imageName || 'blog'}-${index}`,
   image: `/Blog/${p.imageName}`,
   dateLabel: p.date?.includes(' ')
     ? p.date.slice(0, p.date.lastIndexOf(' '))
@@ -93,18 +105,41 @@ const posts = blogPosts.map(p => ({
     ? p.date.slice(p.date.lastIndexOf(' ') + 1)
     : 'SunJiaHao'
 }))
+
+const getPostThemeStyle = post => cardThemeStyles[post.cardId]
 </script>
 
 <style scoped>
 .blog-page {
+  --blog-page-bg: #000000;
+  --blog-page-text: #ffffff;
+  --blog-page-muted: rgba(255, 255, 255, 0.72);
+  --blog-card-surface: rgba(255, 255, 255, 0.06);
+  --blog-card-border: rgba(255, 255, 255, 0.14);
+  --blog-card-shadow: rgba(0, 0, 0, 0.42);
+  --blog-card-hover-border: rgba(255, 255, 255, 0.2);
+  --blog-card-hover-shadow: rgba(0, 0, 0, 0.5);
+  --blog-loading-bg: rgba(0, 0, 0, 0.42);
+  --blog-spinner-track: rgba(255, 255, 255, 0.26);
+  --blog-spinner-head: #ffffff;
   height: 100vh;
   overflow: hidden;
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.1), transparent 55%),
-    radial-gradient(circle at bottom, rgba(0, 0, 0, 0.7), #050509);
+  background: var(--blog-page-bg);
+  color: var(--blog-page-text);
 }
 
-[data-theme="light"] .blog-page {
-  background:rgb(223, 222, 222);
+[data-theme='light'] .blog-page {
+  --blog-page-bg: #ffffff;
+  --blog-page-text: #0f172a;
+  --blog-page-muted: rgba(15, 23, 42, 0.72);
+  --blog-card-surface: #ffffff;
+  --blog-card-border: rgba(148, 163, 184, 0.24);
+  --blog-card-shadow: rgba(148, 163, 184, 0.18);
+  --blog-card-hover-border: rgba(94, 123, 160, 0.3);
+  --blog-card-hover-shadow: rgba(148, 163, 184, 0.24);
+  --blog-loading-bg: rgba(255, 255, 255, 0.78);
+  --blog-spinner-track: rgba(100, 116, 139, 0.25);
+  --blog-spinner-head: #334155;
 }
 
 .content-wrapper {
@@ -122,10 +157,18 @@ const posts = blogPosts.map(p => ({
   flex: 1;
   overflow-y: auto;
   padding-bottom: 2rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.blog-cards-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .blog-card {
-  border-radius: 12px;
+  border-radius: 18px;
 }
 
 .post-meta {
@@ -158,28 +201,8 @@ const posts = blogPosts.map(p => ({
   border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
-[data-theme="light"] .blog-header h1 {
-  color: #0f172a;
-}
-
-[data-theme="light"] .blog-content h2 {
-  color: #0f172a;
-}
-
-[data-theme="light"] .blog-content p {
-  color: rgba(30, 41, 59, 0.86);
-}
-
-[data-theme="light"] .post-meta {
-  color: rgba(71, 85, 105, 0.86);
-}
-
-[data-theme="light"] .post-author {
-  color: rgba(30, 41, 59, 0.86);
-}
-
-[data-theme="light"] .author-avatar {
-  border-color: rgba(100, 116, 139, 0.35);
+.blog-header h1 {
+  color: var(--blog-page-text);
 }
 
 @media (min-width: 1024px) {
@@ -195,31 +218,16 @@ const posts = blogPosts.map(p => ({
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  background: var(--blog-card-surface);
+  border: 1px solid var(--blog-card-border);
+  box-shadow: 0 14px 34px var(--blog-card-shadow);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .glass-card:hover {
   transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-}
-
-[data-theme="light"] .glass-card {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  box-shadow: 0 8px 24px rgba(148, 163, 184, 0.22);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-[data-theme="light"] .glass-card:hover {
-  background: #ffffff;
-  box-shadow: 0 14px 32px rgba(148, 163, 184, 0.3);
+  border-color: var(--blog-card-hover-border);
+  box-shadow: 0 20px 42px var(--blog-card-hover-shadow);
 }
 
 .blog-image-wrapper {
@@ -239,6 +247,20 @@ const posts = blogPosts.map(p => ({
   transition: opacity 0.3s ease;
 }
 
+.blog-content {
+  gap: 0.9rem;
+  color: #ffffff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(var(--blog-card-theme-bright, 120, 150, 187), 0.94) 0%,
+      rgba(var(--blog-card-theme-main, 94, 123, 160), 0.95) 45%,
+      rgba(var(--blog-card-theme-deep, 45, 59, 77), 0.97) 78%,
+      rgba(var(--blog-card-theme-edge, 29, 38, 50), 0.99) 100%
+    );
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+
 .blog-image.loaded {
   opacity: 1;
 }
@@ -249,26 +271,17 @@ const posts = blogPosts.map(p => ({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(8px);
-}
-
-[data-theme="light"] .image-loading {
-  background: rgba(243, 247, 255, 0.72);
+  background: var(--blog-loading-bg);
+  backdrop-filter: blur(6px);
 }
 
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  border: 3px solid var(--blog-spinner-track);
   border-radius: 50%;
-  border-top-color: #fff;
+  border-top-color: var(--blog-spinner-head);
   animation: spin 1s ease-in-out infinite;
-}
-
-[data-theme="light"] .loading-spinner {
-  border: 3px solid rgba(100, 116, 139, 0.3);
-  border-top-color: #334155;
 }
 
 @keyframes spin {

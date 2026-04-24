@@ -65,3 +65,17 @@ test('renderMarkdownToHtml defaults unlabeled fenced code blocks to TEXT', async
   assert.match(html, /class="markdown-code-language">TEXT</)
   assert.match(html, /data-code="plain%20text"/)
 })
+
+test('renderMarkdownToHtml adds stable ids to headings', async () => {
+  const html = await renderMarkdownToHtml(
+    [
+      '# 概述',
+      '## 开始使用',
+      '## 开始使用'
+    ].join('\n')
+  )
+
+  assert.match(html, /<h1 id="概述">概述<\/h1>/)
+  assert.match(html, /<h2 id="开始使用">开始使用<\/h2>/)
+  assert.match(html, /<h2 id="开始使用-2">开始使用<\/h2>/)
+})
