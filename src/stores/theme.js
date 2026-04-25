@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useCookieStore } from './cookie'
 
 export const useThemeStore = defineStore('theme', () => {
-  const isDark = ref(true)
+  const isDark = ref(false)
 
   const toggleTheme = () => {
     isDark.value = !isDark.value

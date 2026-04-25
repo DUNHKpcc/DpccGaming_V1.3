@@ -2,40 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 主题变量 - 暗色模式（默认） */
-:root {
-  --scrollbar-thumb: #1d1d1f;
-  --scrollbar-track: rgba(255, 255, 255, 0.12);
-
-  /* 主题颜色变量 */
-  --bg-primary: #000000;
-  --bg-secondary: #1d1d1f;
-  --bg-tertiary: #2e2e30;
-  --text-primary: #ffffff;
-  --text-secondary: #f3f4f6;
-  --text-tertiary: #d1d5db;
-  --border-primary: rgba(255, 255, 255, 0.08);
-  --border-secondary: rgba(255, 255, 255, 0.16);
-
-  /* 按钮颜色 */
-  --btn-primary-bg: #ffffff;
-  --btn-primary-text: #000000;
-  --btn-primary-hover-bg: #f3f4f6;
-  --btn-secondary-bg: #2e2e30;
-  --btn-secondary-text: #f3f4f6;
-  --btn-secondary-hover-bg: #3a3a3d;
-
-  /* 毛玻璃效果 */
-  --glass-bg: rgba(255, 255, 255, 0.1);
-  --glass-border: rgba(255, 255, 255, 0.2);
-  --glass-backdrop: blur(10px);
-
-  /* 遮罩过渡颜色 */
-  --theme-overlay-dark: #000000;
-  --theme-overlay-light: #ffffff;
-}
-
-/* 亮色模式变量 */
+/* 主题变量 - 亮色模式（默认） */
+:root,
 [data-theme="light"] {
   --scrollbar-thumb: #e2e8f0;
   --scrollbar-track: #f7fafc;
@@ -68,6 +36,39 @@
   --theme-overlay-light: #ffffff;
 }
 
+/* 暗色模式变量 */
+[data-theme="dark"] {
+  --scrollbar-thumb: #1d1d1f;
+  --scrollbar-track: rgba(255, 255, 255, 0.12);
+
+  /* 主题颜色变量 */
+  --bg-primary: #000000;
+  --bg-secondary: #1d1d1f;
+  --bg-tertiary: #2e2e30;
+  --text-primary: #ffffff;
+  --text-secondary: #f3f4f6;
+  --text-tertiary: #d1d5db;
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-secondary: rgba(255, 255, 255, 0.16);
+
+  /* 按钮颜色 */
+  --btn-primary-bg: #ffffff;
+  --btn-primary-text: #000000;
+  --btn-primary-hover-bg: #f3f4f6;
+  --btn-secondary-bg: #2e2e30;
+  --btn-secondary-text: #f3f4f6;
+  --btn-secondary-hover-bg: #3a3a3d;
+
+  /* 毛玻璃效果 */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-backdrop: blur(10px);
+
+  /* 遮罩过渡颜色 */
+  --theme-overlay-dark: #000000;
+  --theme-overlay-light: #ffffff;
+}
+
 /* 主题过渡动画 */
 * {
   transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
@@ -93,6 +94,12 @@ body,
 #app {
   overflow-x: hidden;
   max-width: 100%;
+}
+
+html,
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 html::-webkit-scrollbar,

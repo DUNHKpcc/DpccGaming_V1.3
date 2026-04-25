@@ -5,7 +5,7 @@ const defaultPreferences = () => ({
   analytics: false,
   marketing: false,
   functional: false,
-  theme: 'dark'
+  theme: 'light'
 });
 
 export const useCookieStore = defineStore('cookie', {
