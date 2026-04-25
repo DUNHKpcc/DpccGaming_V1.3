@@ -1,8 +1,16 @@
 export const docsList = [
   {
+    id: 'codex-image',
+    title: '如何使用最新的gpt-image-2模型',
+    tag: 'DPCC API',
+    summary: '目前最强的生图模型',
+    cover: '/docsPhoto/codex-image/example.webp',
+    file: '/doc-files/codex-image.md'
+  },
+  {
     id: 'dpcc-switch',
     title: 'claude code接入codex教程',
-    tag: '快速开始',
+    tag: 'DPCC API',
     summary: '超快，超详细',
     cover: '/doc-covers/claude.webp',
     file: '/doc-files/dpcc-switch.md'
@@ -10,7 +18,7 @@ export const docsList = [
   {
     id: 'codex-cli',
     title: 'Codex接入Dpcc API教程',
-    tag: '快速开始',
+    tag: 'DPCC API',
     summary: '超快，超详细',
     cover: '/doc-covers/codex.webp',
     file: '/doc-files/codex-cli.md'
@@ -26,7 +34,7 @@ export const docsList = [
   {
     id: 'custom',
     title: '云端OpenClaw部署教程',
-    tag: '🦞',
+    tag: '🦞龙虾',
     summary: '超快，超详细',
     cover: '/docsPhoto/OpenClaw/OpenClaw.webp',
     file: '/doc-files/openclaw.md'

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from PIL import Image
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff"}
-DEFAULT_SOURCE_DIR = Path("public/doc-covers")
+DEFAULT_SOURCE_DIR = Path("public/docsPhoto/codex-image")
 DEFAULT_QUALITY = 80
 
 
