@@ -13,7 +13,6 @@
               v-for="post in posts"
               :key="post.cardId"
               class="blog-card glass-card overflow-hidden flex flex-col"
-              :style="getPostThemeStyle(post)"
             >
               <div class="blog-image-wrapper">
                 <img 
@@ -29,7 +28,7 @@
                 </div>
               </div>
               <div class="blog-content p-5 flex-1 flex flex-col">
-                <h2 class="text-xl font-bold text-white mb-2">
+                <h2 class="blog-card-title text-xl font-bold mb-2">
                   {{ post.title }}
                 </h2>
                 <div class="post-meta mb-3">
@@ -39,7 +38,7 @@
                     <span>{{ post.author }}</span>
                   </span>
                 </div>
-                <p class="text-sm text-white/80 leading-relaxed flex-1">
+                <p class="blog-card-summary text-sm leading-relaxed flex-1">
                   {{ post.summary }}
                 </p>
               </div>
@@ -54,39 +53,23 @@
 <script setup>
 import { reactive, onMounted } from 'vue'
 import { blogPosts } from '../data/blogPosts'
-import { createSeedCardThemeStyle, extractCardThemeFromElement } from '../utils/imageTheme'
-
 
 const imagesLoaded = reactive({})
 const imageErrors = reactive({})
-const cardThemeStyles = reactive({})
-
-const createFallbackTheme = post =>
-  createSeedCardThemeStyle(`${post?.imageName || ''}-${post?.title || ''}`)
-
-const applyPostTheme = (source, post) => {
-  if (!post?.cardId) return
-  cardThemeStyles[post.cardId] = extractCardThemeFromElement(source, {
-    fallbackSeed: `${post?.imageName || ''}-${post?.title || ''}`
-  }) || createFallbackTheme(post)
-}
 
 const handleImageLoad = (event, post) => {
   imagesLoaded[post.cardId] = true
-  applyPostTheme(event?.target, post)
 }
 
 const handleImageError = (event, post) => {
   imagesLoaded[post.cardId] = true
   imageErrors[post.cardId] = true
-  cardThemeStyles[post.cardId] = createFallbackTheme(post)
   console.warn(`Failed to load image for post ${post.cardId}:`, event.target.src)
 }
 
 const initializeCards = () => {
   posts.forEach(post => {
     imagesLoaded[post.cardId] = false
-    cardThemeStyles[post.cardId] = createFallbackTheme(post)
   })
 }
 
@@ -105,8 +88,6 @@ const posts = blogPosts.map((p, index) => ({
     ? p.date.slice(p.date.lastIndexOf(' ') + 1)
     : 'SunJiaHao'
 }))
-
-const getPostThemeStyle = post => cardThemeStyles[post.cardId]
 </script>
 
 <style scoped>
@@ -119,6 +100,11 @@ const getPostThemeStyle = post => cardThemeStyles[post.cardId]
   --blog-card-shadow: rgba(0, 0, 0, 0.42);
   --blog-card-hover-border: rgba(255, 255, 255, 0.2);
   --blog-card-hover-shadow: rgba(0, 0, 0, 0.5);
+  --blog-content-bg: #161b22;
+  --blog-content-text: #f8fafc;
+  --blog-content-muted: rgba(226, 232, 240, 0.7);
+  --blog-content-border: rgba(255, 255, 255, 0.08);
+  --blog-avatar-border: rgba(255, 255, 255, 0.2);
   --blog-loading-bg: rgba(0, 0, 0, 0.42);
   --blog-spinner-track: rgba(255, 255, 255, 0.26);
   --blog-spinner-head: #ffffff;
@@ -137,6 +123,11 @@ const getPostThemeStyle = post => cardThemeStyles[post.cardId]
   --blog-card-shadow: rgba(148, 163, 184, 0.18);
   --blog-card-hover-border: rgba(94, 123, 160, 0.3);
   --blog-card-hover-shadow: rgba(148, 163, 184, 0.24);
+  --blog-content-bg: #f3f6fa;
+  --blog-content-text: #111827;
+  --blog-content-muted: rgba(17, 24, 39, 0.64);
+  --blog-content-border: rgba(15, 23, 42, 0.08);
+  --blog-avatar-border: rgba(15, 23, 42, 0.16);
   --blog-loading-bg: rgba(255, 255, 255, 0.78);
   --blog-spinner-track: rgba(100, 116, 139, 0.25);
   --blog-spinner-head: #334155;
@@ -177,7 +168,7 @@ const getPostThemeStyle = post => cardThemeStyles[post.cardId]
   justify-content: space-between;
   gap: 0.75rem;
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--blog-content-muted);
 }
 
 .post-date {
@@ -189,7 +180,7 @@ const getPostThemeStyle = post => cardThemeStyles[post.cardId]
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--blog-content-muted);
   white-space: nowrap;
 }
 
@@ -198,7 +189,7 @@ const getPostThemeStyle = post => cardThemeStyles[post.cardId]
   height: 20px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid var(--blog-avatar-border);
 }
 
 .blog-header h1 {
@@ -249,16 +240,17 @@ const getPostThemeStyle = post => cardThemeStyles[post.cardId]
 
 .blog-content {
   gap: 0.9rem;
-  color: #ffffff;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(var(--blog-card-theme-bright, 120, 150, 187), 0.94) 0%,
-      rgba(var(--blog-card-theme-main, 94, 123, 160), 0.95) 45%,
-      rgba(var(--blog-card-theme-deep, 45, 59, 77), 0.97) 78%,
-      rgba(var(--blog-card-theme-edge, 29, 38, 50), 0.99) 100%
-    );
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--blog-content-text);
+  background: var(--blog-content-bg);
+  border-top: 1px solid var(--blog-content-border);
+}
+
+.blog-card-title {
+  color: var(--blog-content-text);
+}
+
+.blog-card-summary {
+  color: var(--blog-content-muted);
 }
 
 .blog-image.loaded {
