@@ -122,7 +122,7 @@
                   <i :class="collapsedReplies.has(comment.id) ? 'fa fa-chevron-down' : 'fa fa-chevron-up'"></i>
                   {{ collapsedReplies.has(comment.id) ? '展开' : '折叠' }}回复 ({{ comment.replies.length }})
                 </button>
-                <button @click="showReplyForm(comment.id)" class="text-xs text-white/80 hover:text-white transition-colors duration-300">
+                <button @click="showReplyForm(comment.id, comment.user_id)" class="text-xs text-white/80 hover:text-white transition-colors duration-300">
                   回复
                 </button>
               </div>

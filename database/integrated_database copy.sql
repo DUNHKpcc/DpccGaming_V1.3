@@ -51,7 +51,26 @@ CREATE TABLE IF NOT EXISTS comments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (game_id) REFERENCES games(game_id) ON DELETE CASCADE,
-    UNIQUE KEY unique_user_game (user_id, game_id)
+    INDEX idx_comments_user_game (user_id, game_id)
+);
+
+-- 创建文档评论表
+CREATE TABLE IF NOT EXISTS doc_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    doc_id VARCHAR(120) NOT NULL,
+    rating INT NULL,
+    comment_text TEXT NOT NULL,
+    parent_id INT NULL,
+    reply_to_user_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES doc_comments(id) ON DELETE CASCADE,
+    FOREIGN KEY (reply_to_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_doc_comments_doc_id (doc_id),
+    INDEX idx_doc_comments_user_id (user_id),
+    INDEX idx_doc_comments_parent_id (parent_id),
+    INDEX idx_doc_comments_reply_to_user_id (reply_to_user_id)
 );
 
 -- ===========================================
@@ -253,6 +272,31 @@ DEALLOCATE PREPARE stmt;
 -- ===========================================
 -- 4. 评论回复功能
 -- ===========================================
+
+-- 移除旧版「每个用户每个游戏只能评论一次」唯一约束
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+     AND TABLE_NAME = 'comments'
+     AND INDEX_NAME = 'unique_user_game') > 0,
+    'ALTER TABLE comments DROP INDEX unique_user_game',
+    'SELECT "unique_user_game index already absent" as message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = 'dpccgaming'
+     AND TABLE_NAME = 'comments'
+     AND INDEX_NAME = 'idx_comments_user_game') = 0,
+    'CREATE INDEX idx_comments_user_game ON comments(user_id, game_id)',
+    'SELECT "idx_comments_user_game index already exists" as message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 添加 parent_id 字段
 SET @sql = IF(

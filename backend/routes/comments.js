@@ -14,4 +14,9 @@ router.post('/games/:gameId/comments', authenticateToken, commentController.subm
 // 认证路由 - 回复评论（需要登录）
 router.post('/games/:gameId/comments/:commentId/reply', authenticateToken, commentController.replyToComment);
 
+// 文档评论区
+router.get('/docs/:docId/comments', commentController.getDocComments);
+router.post('/docs/:docId/comments', authenticateToken, commentController.submitDocComment);
+router.post('/docs/:docId/comments/:commentId/reply', authenticateToken, commentController.replyToDocComment);
+
 module.exports = router;
