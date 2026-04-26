@@ -70,26 +70,51 @@
                 </div>
               </div>
 
-              <header class="docs-hero">
-                <span class="docs-hero-tag">{{ selectedDoc?.tag }}</span>
-                <h1 class="docs-hero-title">{{ heroTitle }}</h1>
-                <p class="docs-hero-summary">{{ selectedDoc?.summary }}</p>
-              </header>
+              <div class="docs-article-content">
+                <header class="docs-hero">
+                  <div class="docs-hero-meta">
+                    <span class="docs-hero-tag">{{ selectedDoc?.tag }}</span>
+                    <div v-if="selectedDoc?.publisher" class="docs-publisher">
+                      <span class="docs-publisher-label">发布用户</span>
+                      <img
+                        class="docs-publisher-avatar"
+                        :src="selectedDoc?.publisher?.avatar"
+                        :alt="selectedDoc?.publisher?.username"
+                        loading="lazy"
+                      />
+                      <span class="docs-publisher-name">{{ selectedDoc?.publisher?.username }}</span>
+                    </div>
+                  </div>
+                  <h1 class="docs-hero-title">{{ heroTitle }}</h1>
+                  <p class="docs-hero-summary">{{ selectedDoc?.summary }}</p>
+                </header>
 
-              <div class="docs-body-shell">
-                <div v-if="isLoadingDoc" class="docs-loading">
-                  正在加载文档...
+                <div class="docs-body-shell">
+                  <div v-if="isLoadingDoc" class="docs-loading">
+                    正在加载文档...
+                  </div>
+                  <div v-else-if="docError" class="docs-error">
+                    {{ docError }}
+                  </div>
+                  <div
+                    v-else
+                    ref="markdownContentRef"
+                    class="markdown-content docs-markdown"
+                    @click="handleMarkdownContentClick"
+                    v-html="renderedMarkdown"
+                  ></div>
                 </div>
-                <div v-else-if="docError" class="docs-error">
-                  {{ docError }}
-                </div>
-                <div
-                  v-else
-                  ref="markdownContentRef"
-                  class="markdown-content docs-markdown"
-                  @click="handleMarkdownContentClick"
-                  v-html="renderedMarkdown"
-                ></div>
+
+                <CommentSection
+                  v-if="selectedDoc"
+                  class="docs-comments"
+                  target-type="doc"
+                  :target-id="selectedDoc.id"
+                  title="讨论区"
+                  mode-label="讨论"
+                  :enable-rating="false"
+                  compact
+                />
               </div>
             </article>
           </div>
@@ -124,6 +149,7 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import { docsList } from '../data/docsList'
 import { useNotificationStore } from '../stores/notification'
+import CommentSection from '../components/CommentSection.vue'
 import { highlightCodeAsync, warmupCodeHighlighter } from '../utils/asyncCodeHighlighter'
 import { buildDocsCatalog } from '../utils/docsCatalog.js'
 import { extractMarkdownHeadings } from '../utils/docsNavigation.js'
@@ -547,6 +573,11 @@ onBeforeUnmount(() => {
 }
 
 .docs-article {
+  max-width: none;
+  margin: 0;
+}
+
+.docs-article-content {
   max-width: 860px;
   margin: 0 auto;
 }
@@ -610,6 +641,13 @@ onBeforeUnmount(() => {
   margin-bottom: 1.3rem;
 }
 
+.docs-hero-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .docs-hero-tag {
   display: inline-flex;
   align-items: center;
@@ -638,8 +676,46 @@ onBeforeUnmount(() => {
   color: var(--docs-muted);
 }
 
+.docs-publisher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.75rem;
+  padding: 0;
+  color: var(--docs-text);
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.12));
+}
+
+.docs-publisher-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--docs-muted);
+}
+
+.docs-publisher-avatar {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--docs-bg);
+  background: var(--docs-soft);
+}
+
+.docs-publisher-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--docs-text);
+}
+
 .docs-body-shell {
   min-height: 320px;
+}
+
+.docs-comments {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--docs-soft);
 }
 
 .docs-loading,
@@ -878,13 +954,13 @@ onBeforeUnmount(() => {
 
 @media (min-width: 1024px) {
   .docs-page .content-wrapper {
-    padding-left: 80px;
+    padding-left: 100px;
   }
 }
 
 @media (min-width: 1536px) {
   .docs-page .content-wrapper {
-    padding-left: 100px;
+    padding-left: 110px;
   }
 }
 
@@ -951,6 +1027,18 @@ onBeforeUnmount(() => {
   .docs-markdown :deep(p),
   .docs-markdown :deep(li) {
     font-size: 1rem;
+  }
+
+  .docs-publisher {
+    gap: 0.5rem;
+    max-width: 100%;
+  }
+
+  .docs-publisher-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
