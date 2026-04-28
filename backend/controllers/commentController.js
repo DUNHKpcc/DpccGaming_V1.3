@@ -70,6 +70,44 @@ const ensureDocCommentsTable = async (pool) => {
   `);
 };
 
+const ensureDocStarsTable = async (pool) => {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS doc_stars (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      doc_id VARCHAR(120) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_doc_stars_user_doc (user_id, doc_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_doc_stars_doc_id (doc_id),
+      INDEX idx_doc_stars_user_id (user_id)
+    )
+  `);
+};
+
+const getDocStarCount = async (pool, docId) => {
+  const [rows] = await pool.execute(
+    'SELECT COUNT(*) AS count FROM doc_stars WHERE doc_id = ?',
+    [docId]
+  );
+  return Number(rows?.[0]?.count || 0);
+};
+
+const getDocStarPayload = async (pool, docId, userId = null) => {
+  const count = await getDocStarCount(pool, docId);
+  let starred = false;
+
+  if (userId) {
+    const [rows] = await pool.execute(
+      'SELECT id FROM doc_stars WHERE doc_id = ? AND user_id = ? LIMIT 1',
+      [docId, userId]
+    );
+    starred = rows.length > 0;
+  }
+
+  return { docId, starred, count };
+};
+
 // 获取游戏评论（包含回复）
 const getGameComments = async (req, res) => {
   try {
@@ -446,11 +484,100 @@ const replyToDocComment = async (req, res) => {
   }
 };
 
+const getDocStarStatus = async (req, res) => {
+  try {
+    const docId = normalizeCommentTargetId(req.params.docId);
+    const userId = normalizeOptionalUserId(req.user?.userId);
+    const pool = getPool();
+    await ensureDocStarsTable(pool);
+
+    res.json(await getDocStarPayload(pool, docId, userId));
+  } catch (error) {
+    console.error('获取文档Star状态错误:', error);
+    res.status(500).json({ error: error.message || '服务器内部错误' });
+  }
+};
+
+const starDoc = async (req, res) => {
+  try {
+    const docId = normalizeCommentTargetId(req.params.docId);
+    const userId = req.user.userId;
+    const pool = getPool();
+    await ensureDocStarsTable(pool);
+
+    const [users] = await pool.execute('SELECT id FROM users WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      return res.status(400).json({ error: '用户不存在' });
+    }
+
+    await pool.execute(
+      'INSERT IGNORE INTO doc_stars (user_id, doc_id) VALUES (?, ?)',
+      [userId, docId]
+    );
+
+    const payload = await getDocStarPayload(pool, docId, userId);
+    res.json({ ...payload, starred: true, message: 'Star成功' });
+  } catch (error) {
+    console.error('文档Star错误:', error);
+    res.status(500).json({ error: error.message || '服务器内部错误' });
+  }
+};
+
+const unstarDoc = async (req, res) => {
+  try {
+    const docId = normalizeCommentTargetId(req.params.docId);
+    const userId = req.user.userId;
+    const pool = getPool();
+    await ensureDocStarsTable(pool);
+
+    await pool.execute(
+      'DELETE FROM doc_stars WHERE user_id = ? AND doc_id = ?',
+      [userId, docId]
+    );
+
+    const payload = await getDocStarPayload(pool, docId, userId);
+    res.json({ ...payload, starred: false, message: '取消Star成功' });
+  } catch (error) {
+    console.error('取消文档Star错误:', error);
+    res.status(500).json({ error: error.message || '服务器内部错误' });
+  }
+};
+
+const getUserDocStars = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const pool = getPool();
+    await ensureDocStarsTable(pool);
+
+    const [rows] = await pool.execute(
+      `SELECT doc_id, created_at
+       FROM doc_stars
+       WHERE user_id = ?
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const stars = rows.map((row) => ({
+      docId: row.doc_id,
+      starredAt: row.created_at
+    }));
+
+    res.json({ stars, count: stars.length });
+  } catch (error) {
+    console.error('获取用户文档Star列表错误:', error);
+    res.status(500).json({ error: error.message || '服务器内部错误' });
+  }
+};
+
 module.exports = {
   getGameComments,
   submitComment,
   replyToComment,
   getDocComments,
   submitDocComment,
-  replyToDocComment
+  replyToDocComment,
+  getDocStarStatus,
+  starDoc,
+  unstarDoc,
+  getUserDocStars
 };

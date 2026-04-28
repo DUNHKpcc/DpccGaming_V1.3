@@ -87,6 +87,20 @@
                   </div>
                   <h1 class="docs-hero-title">{{ heroTitle }}</h1>
                   <p class="docs-hero-summary">{{ selectedDoc?.summary }}</p>
+                  <div class="docs-star-row" v-if="selectedDoc">
+                    <button
+                      type="button"
+                      class="docs-star-button"
+                      :class="{ active: docStarred }"
+                      :aria-pressed="docStarred"
+                      :disabled="isLoadingDocStar"
+                      @click="toggleDocStar"
+                    >
+                      <span class="docs-star-icon">{{ docStarred ? '★' : '☆' }}</span>
+                      <span>{{ docStarred ? 'Starred' : 'Star' }}</span>
+                      <span class="docs-star-count">{{ docStarCount }}</span>
+                    </button>
+                  </div>
                 </header>
 
                 <div class="docs-body-shell">
@@ -146,21 +160,32 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { docsList } from '../data/docsList'
+import { useAuthStore } from '../stores/auth'
+import { useModalStore } from '../stores/modal'
 import { useNotificationStore } from '../stores/notification'
 import CommentSection from '../components/CommentSection.vue'
 import { highlightCodeAsync, warmupCodeHighlighter } from '../utils/asyncCodeHighlighter'
+import { apiCall } from '../utils/api'
 import { buildDocsCatalog } from '../utils/docsCatalog.js'
 import { extractMarkdownHeadings } from '../utils/docsNavigation.js'
 import { renderMarkdownToHtml } from '../utils/markdownRenderer.mjs'
 
 const docs = docsList
+const route = useRoute()
+const authStore = useAuthStore()
+const modalStore = useModalStore()
 const notificationStore = useNotificationStore()
-const selectedDoc = ref(docs[0] || null)
+const getDocById = docId => docs.find(doc => doc.id === String(docId || '').trim()) || null
+const selectedDoc = ref(getDocById(route.query.doc) || docs[0] || null)
 const renderedMarkdown = ref('')
 const isLoadingDoc = ref(false)
 const docError = ref('')
+const docStarred = ref(false)
+const docStarCount = ref(0)
+const isLoadingDocStar = ref(false)
 const imagesLoaded = reactive({})
 const imageErrors = reactive({})
 const readerScrollRef = ref(null)
@@ -262,6 +287,52 @@ const stripLeadingHeadingFromHtml = (html = '', firstHeading = null) => {
   return String(html).replace(/^<h1 id="[^"]+">.*?<\/h1>/, '')
 }
 
+const loadDocStarStatus = async (doc = selectedDoc.value) => {
+  if (!doc) return
+  isLoadingDocStar.value = true
+
+  try {
+    const data = await apiCall(`/docs/${doc.id}/star`, {
+      suppressErrorLogging: true
+    })
+    if (selectedDoc.value?.id !== doc.id) return
+    docStarred.value = !!data.starred
+    docStarCount.value = Number(data.count) || 0
+  } catch (error) {
+    if (selectedDoc.value?.id !== doc.id) return
+    docStarred.value = false
+    docStarCount.value = 0
+  } finally {
+    if (selectedDoc.value?.id === doc.id) {
+      isLoadingDocStar.value = false
+    }
+  }
+}
+
+const toggleDocStar = async () => {
+  if (!selectedDoc.value || isLoadingDocStar.value) return
+
+  if (!authStore.isLoggedIn) {
+    notificationStore.info('请先登录', '登录后即可 Star 文档')
+    modalStore.openModal('login')
+    return
+  }
+
+  isLoadingDocStar.value = true
+
+  try {
+    const data = await apiCall(`/docs/${selectedDoc.value.id}/star`, {
+      method: docStarred.value ? 'DELETE' : 'PUT'
+    })
+    docStarred.value = !!data.starred
+    docStarCount.value = Number(data.count) || 0
+  } catch (error) {
+    notificationStore.error('操作失败', error.message || '文档 Star 状态更新失败')
+  } finally {
+    isLoadingDocStar.value = false
+  }
+}
+
 const loadDocContent = async (doc) => {
   if (!doc) return
   isLoadingDoc.value = true
@@ -306,10 +377,15 @@ const loadDocContent = async (doc) => {
 const selectDoc = async (doc) => {
   if (!doc || doc.id === selectedDoc.value?.id) return
   selectedDoc.value = doc
+  docStarred.value = false
+  docStarCount.value = 0
   if (!(doc.id in imagesLoaded)) {
     imagesLoaded[doc.id] = false
   }
-  await loadDocContent(doc)
+  await Promise.all([
+    loadDocContent(doc),
+    loadDocStarStatus(doc)
+  ])
 }
 
 const scrollToHeading = (id) => {
@@ -340,7 +416,20 @@ onMounted(async () => {
     imagesLoaded[doc.id] = false
   })
   warmupCodeHighlighter()
-  await loadDocContent(selectedDoc.value)
+  await Promise.all([
+    loadDocContent(selectedDoc.value),
+    loadDocStarStatus(selectedDoc.value)
+  ])
+})
+
+watch(() => authStore.isLoggedIn, () => {
+  loadDocStarStatus(selectedDoc.value)
+})
+
+watch(() => route.query.doc, async (docId) => {
+  const doc = getDocById(docId)
+  if (!doc || doc.id === selectedDoc.value?.id) return
+  await selectDoc(doc)
 })
 
 onBeforeUnmount(() => {
@@ -350,701 +439,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
-.docs-page {
-  --docs-bg: #ffffff;
-  --docs-text: #000000;
-  --docs-muted: rgba(0, 0, 0, 0.62);
-  --docs-soft: rgba(0, 0, 0, 0.08);
-  --docs-soft-strong: rgba(0, 0, 0, 0.14);
-  --docs-panel: rgba(255, 255, 255, 0.92);
-  --docs-panel-muted: rgba(255, 255, 255, 0.7);
-  --docs-code-bg: rgba(0, 0, 0, 0.05);
-  --docs-code-panel: rgba(0, 0, 0, 0.04);
-  --docs-link: #000000;
-  --docs-hl-comment: #6b7280;
-  --docs-hl-keyword: #7c3aed;
-  --docs-hl-string: #0f766e;
-  --docs-hl-title: #1d4ed8;
-  --docs-hl-number: #b45309;
-  --docs-hl-type: #2563eb;
-  --docs-hl-attr: #be185d;
-  --docs-hl-meta: #475569;
-  height: calc(100vh - 4rem);
-  max-height: calc(100vh - 4rem);
-  min-height: 0;
-  overflow: hidden;
-  background: var(--docs-bg);
-  color: var(--docs-text);
-}
-
-[data-theme='dark'] .docs-page {
-  --docs-bg: #000000;
-  --docs-text: #ffffff;
-  --docs-muted: rgba(255, 255, 255, 0.68);
-  --docs-soft: rgba(255, 255, 255, 0.08);
-  --docs-soft-strong: rgba(255, 255, 255, 0.14);
-  --docs-panel: rgba(0, 0, 0, 0.92);
-  --docs-panel-muted: rgba(0, 0, 0, 0.7);
-  --docs-code-bg: rgba(255, 255, 255, 0.09);
-  --docs-code-panel: rgba(255, 255, 255, 0.06);
-  --docs-link: #ffffff;
-  --docs-hl-comment: #94a3b8;
-  --docs-hl-keyword: #c084fc;
-  --docs-hl-string: #67e8f9;
-  --docs-hl-title: #93c5fd;
-  --docs-hl-number: #fbbf24;
-  --docs-hl-type: #60a5fa;
-  --docs-hl-attr: #f9a8d4;
-  --docs-hl-meta: #cbd5e1;
-}
-
-.content-wrapper {
-  height: 100%;
-  overflow: hidden;
-}
-
-.docs-shell {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 220px;
-  height: 100%;
-  min-height: 0;
-}
-
-.docs-sidebar,
-.docs-outline {
-  min-height: 0;
-  background: var(--docs-panel-muted);
-}
-
-.docs-sidebar {
-  border-right: 1px solid var(--docs-soft);
-}
-
-.docs-outline {
-  border-left: 1px solid var(--docs-soft);
-}
-
-.docs-sidebar-scroll,
-.docs-outline-scroll,
-.docs-reader-scroll {
-  height: 100%;
-  overflow-y: auto;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.docs-sidebar-scroll::-webkit-scrollbar,
-.docs-outline-scroll::-webkit-scrollbar,
-.docs-reader-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-.docs-sidebar-scroll,
-.docs-outline-scroll {
-  padding: 2rem 1.2rem;
-}
-
-.docs-sidebar-brand {
-  margin-bottom: 1.75rem;
-}
-
-.docs-sidebar-kicker,
-.docs-outline-title {
-  display: block;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--docs-muted);
-}
-
-.docs-sidebar-title {
-  margin: 0.5rem 0 0;
-  font-size: 2rem;
-  line-height: 1;
-  font-weight: 700;
-  color: var(--docs-text);
-}
-
-.docs-nav {
-  display: grid;
-  gap: 1.1rem;
-}
-
-.docs-search {
-  display: grid;
-  gap: 0.45rem;
-  margin-bottom: 1.1rem;
-}
-
-.docs-search-label {
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--docs-muted);
-}
-
-.docs-search-input {
-  width: 100%;
-  height: 2.6rem;
-  padding: 0 0.9rem;
-  border-radius: 14px;
-  border: 1px solid var(--docs-soft);
-  background: transparent;
-  color: var(--docs-text);
-  outline: none;
-  transition: border-color 0.2s ease, background 0.2s ease;
-}
-
-.docs-search-input::placeholder {
-  color: var(--docs-muted);
-}
-
-.docs-search-input:focus {
-  border-color: var(--docs-soft-strong);
-  background: var(--docs-soft);
-}
-
-.docs-nav-group {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.docs-nav-group-title {
-  margin: 0 0 0.05rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--docs-text);
-}
-
-.docs-nav-item {
-  display: grid;
-  gap: 0.14rem;
-  width: 100%;
-  padding: 0.62rem 0.75rem;
-  text-align: left;
-  border-radius: 16px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease;
-}
-
-.docs-nav-item:hover {
-  background: var(--docs-soft);
-}
-
-.docs-nav-item.active {
-  background: var(--docs-soft);
-  border-color: var(--docs-soft-strong);
-}
-
-.docs-nav-item-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--docs-text);
-}
-
-.docs-nav-item-summary {
-  font-size: 0.84rem;
-  line-height: 1.45;
-  color: var(--docs-muted);
-}
-
-.docs-nav-empty {
-  padding: 0.5rem 0.15rem 0;
-  color: var(--docs-muted);
-  font-size: 0.92rem;
-}
-
-.docs-reader-panel {
-  min-width: 0;
-  min-height: 0;
-  background: var(--docs-bg);
-}
-
-.docs-reader-scroll {
-  padding: 0 2.5rem 4rem;
-}
-
-.docs-article {
-  max-width: none;
-  margin: 0;
-}
-
-.docs-article-content {
-  max-width: 860px;
-  margin: 0 auto;
-}
-
-.docs-cover-shell {
-  position: relative;
-  height: 320px;
-  margin: 0 -2.5rem 0.5rem;
-  overflow: hidden;
-}
-
-.docs-cover-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  opacity: 0;
-  transform: scale(1.02);
-  transition: opacity 0.35s ease, transform 0.45s ease;
-}
-
-.docs-cover-image.loaded {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.docs-cover-fade {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0.02) 0%,
-      rgba(0, 0, 0, 0.08) 40%,
-      rgba(255, 255, 255, 0) 70%,
-      var(--docs-bg) 100%
-    );
-  pointer-events: none;
-}
-
-[data-theme='dark'] .docs-cover-fade {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.02) 0%,
-      rgba(255, 255, 255, 0.08) 40%,
-      rgba(0, 0, 0, 0) 70%,
-      var(--docs-bg) 100%
-    );
-}
-
-.docs-cover-loading {
-  background: rgba(255, 255, 255, 0.7);
-}
-
-[data-theme='dark'] .docs-cover-loading {
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.docs-hero {
-  margin-bottom: 1.3rem;
-}
-
-.docs-hero-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.docs-hero-tag {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0 0.85rem;
-  border-radius: 999px;
-  background: var(--docs-soft);
-  color: var(--docs-text);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.docs-hero-title {
-  margin: 0.55rem 0 0.85rem;
-  font-size: clamp(2.5rem, 4vw, 4rem);
-  line-height: 0.98;
-  letter-spacing: -0.04em;
-  color: var(--docs-text);
-}
-
-.docs-hero-summary {
-  margin: 0;
-  max-width: 760px;
-  font-size: 1.15rem;
-  line-height: 1.8;
-  color: var(--docs-muted);
-}
-
-.docs-publisher {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-height: 1.75rem;
-  padding: 0;
-  color: var(--docs-text);
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.12));
-}
-
-.docs-publisher-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--docs-muted);
-}
-
-.docs-publisher-avatar {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--docs-bg);
-  background: var(--docs-soft);
-}
-
-.docs-publisher-name {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--docs-text);
-}
-
-.docs-body-shell {
-  min-height: 320px;
-}
-
-.docs-comments {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--docs-soft);
-}
-
-.docs-loading,
-.docs-error {
-  padding: 1.5rem 0;
-  color: var(--docs-muted);
-  font-size: 0.95rem;
-}
-
-.docs-error {
-  color: #dc2626;
-}
-
-.docs-outline-title {
-  margin-bottom: 1rem;
-}
-
-.docs-outline-nav {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.docs-outline-item {
-  display: block;
-  padding: 0.35rem 0;
-  color: var(--docs-muted);
-  text-decoration: none;
-  transition: color 0.2s ease, transform 0.2s ease;
-}
-
-.docs-outline-item.level-3,
-.docs-outline-item.level-4 {
-  padding-left: 0.85rem;
-  font-size: 0.92rem;
-}
-
-.docs-outline-item.active {
-  color: var(--docs-text);
-  transform: translateX(4px);
-}
-
-.image-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(100, 116, 139, 0.25);
-  border-radius: 50%;
-  border-top-color: #334155;
-  animation: spin 1s ease-in-out infinite;
-}
-
-[data-theme='dark'] .loading-spinner {
-  border-color: rgba(255, 255, 255, 0.22);
-  border-top-color: #ffffff;
-}
-
-.docs-markdown :deep(h1),
-.docs-markdown :deep(h2),
-.docs-markdown :deep(h3),
-.docs-markdown :deep(h4),
-.docs-markdown :deep(h5),
-.docs-markdown :deep(h6) {
-  margin-top: 2.4rem;
-  margin-bottom: 0.85rem;
-  line-height: 1.15;
-  font-weight: 700;
-  color: var(--docs-text);
-  scroll-margin-top: 2rem;
-}
-
-.docs-markdown :deep(h1) {
-  font-size: 2.4rem;
-}
-
-.docs-markdown :deep(h2) {
-  font-size: 2rem;
-}
-
-.docs-markdown :deep(h3) {
-  font-size: 1.5rem;
-}
-
-.docs-markdown :deep(p),
-.docs-markdown :deep(li) {
-  color: var(--docs-text);
-  opacity: 0.9;
-  line-height: 1.9;
-  font-size: 1.04rem;
-}
-
-.docs-markdown :deep(ul),
-.docs-markdown :deep(ol) {
-  margin: 0.8rem 0 1.25rem;
-  padding-left: 1.4rem;
-}
-
-.docs-markdown :deep(code) {
-  background: var(--docs-code-bg);
-  color: var(--docs-text);
-  padding: 0.1rem 0.36rem;
-  border-radius: 0.35rem;
-}
-
-.docs-markdown :deep(pre) {
-  margin: 0;
-  background: transparent;
-  overflow-x: auto;
-}
-
-.docs-markdown :deep(pre code) {
-  background: transparent;
-  padding: 0;
-}
-
-.docs-markdown :deep(.markdown-code-block) {
-  margin: 1rem 0 1.4rem;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid var(--docs-soft);
-  background: var(--docs-code-panel);
-}
-
-.docs-markdown :deep(.markdown-code-toolbar) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid var(--docs-soft);
-}
-
-.docs-markdown :deep(.markdown-code-language) {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--docs-muted);
-}
-
-.docs-markdown :deep(.markdown-code-copy-btn) {
-  border: 1px solid var(--docs-soft);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--docs-text);
-  font-size: 0.74rem;
-  font-weight: 600;
-  padding: 0.34rem 0.75rem;
-  cursor: pointer;
-}
-
-.docs-markdown :deep(.hljs) {
-  display: block;
-  padding: 1rem;
-  background: transparent;
-  color: var(--docs-text);
-  white-space: pre;
-}
-
-.docs-markdown :deep(.hljs-comment),
-.docs-markdown :deep(.hljs-quote) {
-  color: var(--docs-hl-comment);
-  font-style: italic;
-}
-
-.docs-markdown :deep(.hljs-keyword),
-.docs-markdown :deep(.hljs-selector-tag),
-.docs-markdown :deep(.hljs-subst) {
-  color: var(--docs-hl-keyword);
-}
-
-.docs-markdown :deep(.hljs-string),
-.docs-markdown :deep(.hljs-doctag),
-.docs-markdown :deep(.hljs-regexp),
-.docs-markdown :deep(.hljs-template-tag),
-.docs-markdown :deep(.hljs-template-variable) {
-  color: var(--docs-hl-string);
-}
-
-.docs-markdown :deep(.hljs-title),
-.docs-markdown :deep(.hljs-title.function_),
-.docs-markdown :deep(.hljs-title.class_),
-.docs-markdown :deep(.hljs-function .hljs-title) {
-  color: var(--docs-hl-title);
-}
-
-.docs-markdown :deep(.hljs-number),
-.docs-markdown :deep(.hljs-literal),
-.docs-markdown :deep(.hljs-symbol),
-.docs-markdown :deep(.hljs-bullet) {
-  color: var(--docs-hl-number);
-}
-
-.docs-markdown :deep(.hljs-type),
-.docs-markdown :deep(.hljs-built_in),
-.docs-markdown :deep(.hljs-class .hljs-title) {
-  color: var(--docs-hl-type);
-}
-
-.docs-markdown :deep(.hljs-attr),
-.docs-markdown :deep(.hljs-attribute),
-.docs-markdown :deep(.hljs-variable),
-.docs-markdown :deep(.hljs-property) {
-  color: var(--docs-hl-attr);
-}
-
-.docs-markdown :deep(.hljs-operator),
-.docs-markdown :deep(.hljs-punctuation),
-.docs-markdown :deep(.hljs-meta) {
-  color: var(--docs-hl-meta);
-}
-
-.docs-markdown :deep(blockquote) {
-  margin: 1rem 0;
-  padding-left: 1rem;
-  border-left: 3px solid var(--docs-soft-strong);
-  color: var(--docs-muted);
-}
-
-.docs-markdown :deep(a) {
-  color: var(--docs-link);
-  text-underline-offset: 0.16em;
-}
-
-.docs-markdown :deep(img) {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 1rem 0 1.25rem;
-}
-
-@media (min-width: 1024px) {
-  .docs-page .content-wrapper {
-    padding-left: 100px;
-  }
-}
-
-@media (min-width: 1536px) {
-  .docs-page .content-wrapper {
-    padding-left: 110px;
-  }
-}
-
-@media (max-width: 1279px) {
-  .docs-shell {
-    grid-template-columns: 250px minmax(0, 1fr);
-  }
-
-  .docs-outline {
-    display: none;
-  }
-}
-
-@media (max-width: 1023px) {
-  .docs-page {
-    height: calc(100vh - 3.5rem);
-    max-height: calc(100vh - 3.5rem);
-  }
-
-  .docs-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .docs-sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--docs-soft);
-  }
-
-  .docs-sidebar-scroll {
-    padding: 1rem 1rem 0.75rem;
-  }
-
-  .docs-sidebar-brand {
-    margin-bottom: 1rem;
-  }
-
-  .docs-nav {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(220px, 1fr);
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-  }
-
-  .docs-nav-group {
-    min-width: 220px;
-  }
-
-  .docs-reader-scroll {
-    padding: 0 1.2rem 3rem;
-  }
-
-  .docs-cover-shell {
-    height: 220px;
-    margin: 0 -1.2rem 1.25rem;
-  }
-}
-
-@media (max-width: 640px) {
-  .docs-hero-title {
-    font-size: 2.35rem;
-  }
-
-  .docs-hero-summary,
-  .docs-markdown :deep(p),
-  .docs-markdown :deep(li) {
-    font-size: 1rem;
-  }
-
-  .docs-publisher {
-    gap: 0.5rem;
-    max-width: 100%;
-  }
-
-  .docs-publisher-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-</style>
+<style scoped src="../styles/docs.css"></style>

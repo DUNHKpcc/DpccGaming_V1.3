@@ -116,6 +116,45 @@
                 </div>
               </section>
 
+              <section class="glass-card widget widget-doc-stars p-6">
+                <div class="widget-title-row">
+                  <h3 class="text-xl font-bold text-white">Star 文档</h3>
+                  <span class="text-xs text-white/80">{{ starredDocs.length }} 个</span>
+                </div>
+
+                <div class="doc-stars-scroll">
+                  <div v-if="docStarsLoading" class="text-sm text-white/80 py-3">加载中...</div>
+                  <div v-else-if="!starredDocs.length" class="text-sm text-white/80 py-3">还没有 Star 文档</div>
+                  <div v-else class="space-y-2">
+                    <div
+                      v-for="doc in starredDocs"
+                      :key="`doc-star-${doc.id}`"
+                      class="doc-star-row"
+                      role="button"
+                      tabindex="0"
+                      @click="openStarDoc(doc)"
+                      @keyup.enter="openStarDoc(doc)"
+                      @keyup.space.prevent="openStarDoc(doc)"
+                    >
+                      <img
+                        v-if="doc.cover"
+                        :src="doc.cover"
+                        :alt="doc.title"
+                        class="doc-star-cover"
+                        loading="lazy"
+                      />
+                      <div v-else class="doc-star-cover doc-star-cover-fallback">
+                        <i class="fa fa-file-lines account-icon-glyph"></i>
+                      </div>
+                      <div class="doc-star-meta">
+                        <strong>{{ doc.title }}</strong>
+                        <small>{{ doc.tag }} · {{ doc.summary }}</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <section class="glass-card widget widget-library p-6">
                 <div class="widget-title-row">
                   <h3 class="text-xl font-bold text-white">游戏库</h3>
@@ -526,12 +565,13 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGameStore } from '../stores/game'
 import { useModalStore } from '../stores/modal'
 import { useNotificationStore } from '../stores/notification'
+import { docsList } from '../data/docsList'
 import NotificationsSection from '../components/NotificationsSection.vue'
 import PlayerDataPanel from '../components/PlayerDataPanel.vue'
 import UserLevelBadge from '../components/UserLevelBadge.vue'
@@ -540,6 +580,7 @@ import AccountUserIdentity from '../components/account/AccountUserIdentity.vue'
 import { useAccountFriends } from '../composables/useAccountFriends'
 import { useAccountProfile } from '../composables/useAccountProfile'
 import { categoryToZh } from '../utils/category'
+import { apiCall } from '../utils/api'
 import { getAvatarUrl, handleAvatarError } from '../utils/avatar'
 import { getGameCodeTypeIcon, getGameEngineIcon } from '../utils/gameMetadata.js'
 
@@ -552,6 +593,16 @@ const router = useRouter()
 
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
+const docStars = ref([])
+const docStarsLoading = ref(false)
+const docsById = new Map(docsList.map(doc => [doc.id, doc]))
+
+const starredDocs = computed(() => docStars.value
+  .map((star) => {
+    const doc = docsById.get(star.docId)
+    return doc ? { ...doc, starredAt: star.starredAt } : null
+  })
+  .filter(Boolean))
 
 const openLoginModal = () => {
   modalStore.openModal('login')
@@ -559,6 +610,32 @@ const openLoginModal = () => {
 
 const openRegisterModal = () => {
   modalStore.openModal('register')
+}
+
+const loadAccountDocStars = async () => {
+  if (!isLoggedIn.value) {
+    docStars.value = []
+    return
+  }
+
+  docStarsLoading.value = true
+
+  try {
+    const data = await apiCall('/user/doc-stars')
+    docStars.value = Array.isArray(data.stars) ? data.stars : []
+  } catch (error) {
+    docStars.value = []
+    notificationStore.error('加载失败', error.message || 'Star 文档加载失败')
+  } finally {
+    docStarsLoading.value = false
+  }
+}
+
+const openStarDoc = (doc) => {
+  router.push({
+    name: 'AiDocs',
+    query: { doc: doc.id }
+  })
 }
 
 const {
@@ -646,6 +723,10 @@ const {
   notificationStore,
   openLoginModal
 })
+
+watch(isLoggedIn, () => {
+  loadAccountDocStars()
+}, { immediate: true })
 </script>
 
 <style scoped src="../styles/account.css"></style>

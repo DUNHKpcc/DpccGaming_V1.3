@@ -60,6 +60,22 @@ function authenticateToken(req, res, next) {
   });
 }
 
+function optionalAuthenticateToken(req, res, next) {
+  const token = extractToken(req);
+
+  if (!token) {
+    next();
+    return;
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (!err && user) {
+      req.user = user;
+    }
+    next();
+  });
+}
+
 async function checkAdminPermission(req, res, next) {
   if (!req.user) {
     return res.status(401).json({
@@ -153,6 +169,7 @@ function errorHandler(err, req, res, next) {
 
 module.exports = {
   authenticateToken,
+  optionalAuthenticateToken,
   checkAdminPermission,
   generateToken,
   verifyToken,
