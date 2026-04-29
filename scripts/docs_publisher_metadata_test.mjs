@@ -12,6 +12,7 @@ const docsList = new Function(
   docsListSource.replace('export const docsList =', 'return')
 )()
 const docsPageSource = fs.readFileSync(path.join(projectRoot, 'src/views/DocsPlaceholder.vue'), 'utf8')
+const docsStylesSource = fs.readFileSync(path.join(projectRoot, 'src/styles/docs.css'), 'utf8')
 const publicRoot = path.join(projectRoot, 'public')
 
 for (const doc of docsList) {
@@ -29,7 +30,8 @@ assert.match(docsPageSource, /class="docs-publisher"/)
 assert.match(docsPageSource, /selectedDoc\?\.publisher\?\.avatar/)
 assert.match(docsPageSource, /selectedDoc\?\.publisher\?\.username/)
 assert.match(docsPageSource, /<div class="docs-article-content">\s*<header class="docs-hero">/)
-assert.match(docsPageSource, /\.docs-article\s*{[^}]*max-width:\s*none;/s)
-assert.match(docsPageSource, /\.docs-article-content\s*{[^}]*max-width:\s*860px;/s)
+assert.match(docsPageSource, /<style scoped src="\.\.\/styles\/docs\.css"><\/style>/)
+assert.match(docsStylesSource, /\.docs-article\s*{[^}]*max-width:\s*none;/s)
+assert.match(docsStylesSource, /\.docs-article-content\s*{[^}]*max-width:\s*860px;/s)
 
 console.log(`Validated publisher metadata for ${docsList.length} docs.`)
