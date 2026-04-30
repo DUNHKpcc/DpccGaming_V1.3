@@ -1,6 +1,13 @@
 export const blogPosts = [
   {
     id: 1,
+    title: '新的文档布局，更多的教程',
+    date: '2026-4-30 SunJiaHao',
+    imageName: 'docs-renew.webp',
+    summary: '提问系统，STAR系统'
+  },
+  {
+    id: 1,
     title: '蓝图模式现已可用',
     date: '2026-4-1 SunJiaHao',
     imageName: 'BluePrint1.webp',
