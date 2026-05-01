@@ -5,7 +5,7 @@ import {
   getEffectiveTheme,
   getNextThemeMode,
   normalizeThemeMode
-} from '../utils/themeMode.mjs'
+} from '../utils/themeMode.js'
 
 export const useThemeStore = defineStore('theme', () => {
   const isDark = ref(false)

@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
-import {
+const source = await readFile(new URL('./themeMode.js', import.meta.url), 'utf8');
+const {
   getEffectiveTheme,
   getNextThemeMode,
   normalizeThemeMode
-} from './themeMode.mjs';
+} = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('normalizes unsupported theme modes to system', () => {
   assert.equal(normalizeThemeMode('light'), 'light');
