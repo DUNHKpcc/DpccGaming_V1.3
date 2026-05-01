@@ -5,8 +5,12 @@ const defaultPreferences = () => ({
   analytics: false,
   marketing: false,
   functional: false,
-  theme: 'light'
+  theme: 'system'
 });
+
+const normalizeThemePreference = (theme) => (
+  ['system', 'light', 'dark'].includes(theme) ? theme : 'system'
+);
 
 export const useCookieStore = defineStore('cookie', {
   state: () => ({
@@ -153,7 +157,7 @@ export const useCookieStore = defineStore('cookie', {
       localStorage.setItem('cookiePreferences', JSON.stringify(snapshot));
     },
     async setThemePreference(theme, options = {}) {
-      const normalized = theme === 'light' ? 'light' : 'dark';
+      const normalized = normalizeThemePreference(theme);
       this.preferences = { ...this.preferences, theme: normalized };
       const shouldSync =
         options.sync !== false && this.consentStatus && this.preferences.functional;

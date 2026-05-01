@@ -38,9 +38,10 @@
         <button
           @click="toggleTheme"
           class="theme-toggle-btn"
-          :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'"
+          :aria-label="themeToggleLabel"
+          :title="themeToggleLabel"
         >
-          <i class="fa fa-adjust" aria-hidden="true"></i>
+          <i :class="themeToggleIcon" aria-hidden="true"></i>
         </button>
 
         <div v-if="!isLoggedIn" class="auth-buttons">
@@ -112,8 +113,19 @@ const isAdmin = ref(false)
 const currentUser = computed(() => authStore.currentUser)
 const isLoggedIn = computed(() => authStore.isLoggedIn)
 const isDark = computed(() => themeStore.isDark)
+const themeMode = computed(() => themeStore.themeMode)
 
 const currentLogo = computed(() => (isDark.value ? '/logo.png' : '/logo_light.png'))
+const themeToggleLabel = computed(() => {
+  if (themeMode.value === 'system') return '当前跟随系统，点击切换到亮色模式'
+  if (themeMode.value === 'light') return '当前亮色模式，点击切换到暗色模式'
+  return '当前暗色模式，点击切换到跟随系统'
+})
+const themeToggleIcon = computed(() => {
+  if (themeMode.value === 'system') return 'fa fa-desktop'
+  if (themeMode.value === 'light') return 'fa fa-sun'
+  return 'fa fa-moon'
+})
 
 const checkAdminPermission = async () => {
   const token = localStorage.getItem('token')

@@ -8,10 +8,12 @@ const defaultPreferences = {
   analytics: false,
   marketing: false,
   functional: false,
-  theme: 'dark'
+  theme: 'system'
 };
 
-const normalizeTheme = (value) => (value === 'light' ? 'light' : 'dark');
+const normalizeTheme = (value) => (
+  ['system', 'light', 'dark'].includes(value) ? value : 'system'
+);
 
 const sanitizePreferences = (preferences = {}) => {
   const normalized = { ...defaultPreferences };

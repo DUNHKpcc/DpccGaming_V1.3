@@ -1,22 +1,35 @@
 ﻿import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useCookieStore } from './cookie'
+import {
+  getEffectiveTheme,
+  getNextThemeMode,
+  normalizeThemeMode
+} from '../utils/themeMode.mjs'
 
 export const useThemeStore = defineStore('theme', () => {
   const isDark = ref(false)
+  const themeMode = ref('system')
+  let systemThemeQuery = null
 
   const toggleTheme = () => {
-    isDark.value = !isDark.value
+    themeMode.value = getNextThemeMode(themeMode.value)
     applyTheme()
   }
 
   const setTheme = (dark) => {
-    isDark.value = dark
+    themeMode.value = dark ? 'dark' : 'light'
+    applyTheme()
+  }
+
+  const setThemeMode = (mode) => {
+    themeMode.value = normalizeThemeMode(mode)
     applyTheme()
   }
 
   const applyTheme = (options = {}) => {
     const root = document.documentElement
+    syncEffectiveTheme()
     if (isDark.value) {
       root.setAttribute('data-theme', 'dark')
       removeThemeOverlay()
@@ -28,6 +41,18 @@ export const useThemeStore = defineStore('theme', () => {
     if (options.persist !== false) {
       syncThemePreference()
     }
+  }
+
+  const syncEffectiveTheme = () => {
+    const systemPrefersDark = getSystemPrefersDark()
+    isDark.value = getEffectiveTheme(themeMode.value, systemPrefersDark) === 'dark'
+  }
+
+  const getSystemPrefersDark = () => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
   }
 
   const addThemeOverlay = () => {
@@ -83,8 +108,28 @@ export const useThemeStore = defineStore('theme', () => {
     if (!cookieStore.initialized) {
       cookieStore.init()
     }
-    const themeValue = isDark.value ? 'dark' : 'light'
-    cookieStore.setThemePreference(themeValue)
+    cookieStore.setThemePreference(themeMode.value)
+  }
+
+  const handleSystemThemeChange = () => {
+    if (themeMode.value === 'system') {
+      applyTheme({ persist: false })
+    }
+  }
+
+  const watchSystemTheme = () => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+    if (systemThemeQuery) {
+      return
+    }
+    systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    if (typeof systemThemeQuery.addEventListener === 'function') {
+      systemThemeQuery.addEventListener('change', handleSystemThemeChange)
+    } else if (typeof systemThemeQuery.addListener === 'function') {
+      systemThemeQuery.addListener(handleSystemThemeChange)
+    }
   }
 
   const initTheme = () => {
@@ -93,16 +138,19 @@ export const useThemeStore = defineStore('theme', () => {
     const storedTheme = cookieStore.preferences?.theme
     const canUse =
       cookieStore.consentStatus && cookieStore.preferences?.functional
-    if (canUse && (storedTheme === 'dark' || storedTheme === 'light')) {
-      isDark.value = storedTheme === 'dark'
+    if (canUse) {
+      themeMode.value = normalizeThemeMode(storedTheme)
     }
+    watchSystemTheme()
     applyTheme({ persist: false })
   }
 
   return {
     isDark,
+    themeMode,
     toggleTheme,
     setTheme,
+    setThemeMode,
     initTheme
   }
 })
