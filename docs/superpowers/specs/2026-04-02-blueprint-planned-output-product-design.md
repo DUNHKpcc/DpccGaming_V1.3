@@ -87,7 +87,7 @@ The execution flow should therefore stop after contract validation and bundle wr
 ### Output Prompt Contract
 
 File:
-[backend/utils/blueprintNodeHandlers.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/utils/blueprintNodeHandlers.js)
+[backend/utils/blueprintNodeHandlers.js](backend/utils/blueprintNodeHandlers.js)
 
 The output-node prompt must shift from “generate four files” to “generate a playable browser mini-game with a complete loop.”
 
@@ -113,7 +113,7 @@ The prompt should also forbid:
 ### Contract Validation Becomes Product Validation
 
 File:
-[backend/utils/blueprintNodeHandlers.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/utils/blueprintNodeHandlers.js)
+[backend/utils/blueprintNodeHandlers.js](backend/utils/blueprintNodeHandlers.js)
 
 The current file-bundle validation should be tightened into a finished-product validator.
 
@@ -135,7 +135,7 @@ This validation is intentionally heuristic. It does not need to prove perfect ga
 ### Repair Loop Gets More Specific
 
 File:
-[backend/utils/blueprintNodeHandlers.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/utils/blueprintNodeHandlers.js)
+[backend/utils/blueprintNodeHandlers.js](backend/utils/blueprintNodeHandlers.js)
 
 The repair loop should continue to reuse previous files, but the retry instructions need to include the failed product checks in plain language.
 
@@ -149,7 +149,7 @@ Recommended behavior:
 ### Bundle Writing Must Reject Fallback Templates
 
 File:
-[backend/utils/blueprintArtifacts.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/utils/blueprintArtifacts.js)
+[backend/utils/blueprintArtifacts.js](backend/utils/blueprintArtifacts.js)
 
 `writeBlueprintRunBundle` should only write files that were actually generated and validated.
 
@@ -164,7 +164,7 @@ New behavior:
 ### Execution Flow No Longer Runs Browser Smoke Checks
 
 File:
-[backend/controllers/blueprintController.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/controllers/blueprintController.js)
+[backend/controllers/blueprintController.js](backend/controllers/blueprintController.js)
 
 After the output bundle is validated and written:
 

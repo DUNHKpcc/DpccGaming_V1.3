@@ -92,8 +92,8 @@ Required invariant:
 ### Introduce A Single Persistence Gate
 
 Files:
-[backend/services/blueprint/blueprintRunService.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/services/blueprint/blueprintRunService.js)
-[backend/repositories/blueprintRepository.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/repositories/blueprintRepository.js)
+[backend/services/blueprint/blueprintRunService.js](backend/services/blueprint/blueprintRunService.js)
+[backend/repositories/blueprintRepository.js](backend/repositories/blueprintRepository.js)
 
 Run persistence should be decided once near the beginning of execution, before any run record is created.
 
@@ -122,7 +122,7 @@ That helper becomes the single policy source for:
 ### Keep Execution Logic Shared Across Persistent And Ephemeral Runs
 
 File:
-[backend/services/blueprint/blueprintRunService.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/services/blueprint/blueprintRunService.js)
+[backend/services/blueprint/blueprintRunService.js](backend/services/blueprint/blueprintRunService.js)
 
 The core execution loop should still run for both cases. The difference is whether persistence side effects are enabled.
 
@@ -144,9 +144,9 @@ This avoids duplicating execution logic while making persistence policy explicit
 ### Make Cancellation Logic Persistence-Aware
 
 Files:
-[backend/services/blueprint/blueprintRunService.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/services/blueprint/blueprintRunService.js)
-[src/composables/blueprint/useBlueprintExecution.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/src/composables/blueprint/useBlueprintExecution.js)
-[src/views/BlueprintMode.vue](/Users/dpccskisw/Documents/DpccProject/DpccGaming/src/views/BlueprintMode.vue)
+[backend/services/blueprint/blueprintRunService.js](backend/services/blueprint/blueprintRunService.js)
+[src/composables/blueprint/useBlueprintExecution.js](src/composables/blueprint/useBlueprintExecution.js)
+[src/views/BlueprintMode.vue](src/views/BlueprintMode.vue)
 
 Current leave/cancel behavior assumes every active run has a durable `runId`. That assumption must stop.
 
@@ -164,8 +164,8 @@ The UI should still surface that execution stopped; it just should not attempt p
 ### Clean Historical Invalid Runs Automatically
 
 Files:
-[backend/repositories/blueprintRepository.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/repositories/blueprintRepository.js)
-[backend/services/blueprint/blueprintCommon.js](/Users/dpccskisw/Documents/DpccProject/DpccGaming/backend/services/blueprint/blueprintCommon.js)
+[backend/repositories/blueprintRepository.js](backend/repositories/blueprintRepository.js)
+[backend/services/blueprint/blueprintCommon.js](backend/services/blueprint/blueprintCommon.js)
 
 The backend needs an idempotent cleanup pass for historical invalid data.
 

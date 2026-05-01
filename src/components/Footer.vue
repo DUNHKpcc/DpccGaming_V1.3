@@ -144,7 +144,7 @@
             <ul class="space-y-2">
               <li class="section-text">
                 <i class="fa-regular fa-message text-sm mr-2" />
-                <span>反馈与建议 邮箱：sjh2329952249@163.com</span>
+                <span>反馈与建议：请通过官方渠道联系</span>
               </li>
               <li>
                 <a href="#" class="footer-link flex items-center gap-2">

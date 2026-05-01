@@ -150,7 +150,7 @@ npm start
 在项目根目录创建或更新 `.env` 文件，新增以下键值（可根据需要覆盖默认值）：
 
 ```bash
-ARK_API_KEY=904fb2f6-8bfc-4c0b-baff-41a85380fd9e
+ARK_API_KEY=replace_with_your_ark_api_key
 # ARK_API_URL=https://ark.cn-beijing.volces.com/api/v3/chat/completions
 # ARK_MODEL_ID=doubao-seed-1-6-251015
 # ARK_MAX_TOKENS=2048

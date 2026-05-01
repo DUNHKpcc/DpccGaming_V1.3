@@ -1,15 +1,15 @@
 const DEFAULT_ARK_MODEL = 'doubao-seed-2-0-code-preview-260215';
 const DEFAULT_ARK_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
 const DEFAULT_ARK_REASONING = 'medium';
-const DEFAULT_ARK_API_KEY = '904fb2f6-8bfc-4c0b-baff-41a85380fd9e';
+const DEFAULT_ARK_API_KEY = '';
 
 const DEFAULT_GLM_ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const DEFAULT_GLM_API_KEY = '4b0eb61753cd4e1fa82e23268a21b2cc.pPZTyUk8K3euihaX';
+const DEFAULT_GLM_API_KEY = '';
 const DEFAULT_GLM_MODEL = 'glm-4.5-air';
 const DEFAULT_GLM_VISION_MODEL = 'glm-4.6v';
 
 const DEFAULT_QWEN_CODEMAX_ENDPOINT = 'https://coding.dashscope.aliyuncs.com/v1/chat/completions';
-const DEFAULT_QWEN_CODEMAX_API_KEY = 'sk-sp-9a16d7d7aa4740b7aeffccaeb07a80ce';
+const DEFAULT_QWEN_CODEMAX_API_KEY = '';
 const DEFAULT_QWEN_CODEMAX_MODEL = 'qwen3.5-plus';
 
 const DEFAULT_BUILTIN_MODEL = 'DouBaoSeed';

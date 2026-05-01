@@ -54,8 +54,7 @@
       <article class="glass-card">
         <h2>4. 联系方式</h2>
         <p>
-          如果您对 Cookie 或数据存储方式有任何疑问，可以通过页脚的联系方式与我们联络，或发送邮件至
-          <a class="underline decoration-dotted" href="sjh2329952249@163.com">sjh2329952249@163.com</a>。
+          如果您对 Cookie 或数据存储方式有任何疑问，可以通过页脚的联系方式与我们联络。
         </p>
       </article>
     </section>
