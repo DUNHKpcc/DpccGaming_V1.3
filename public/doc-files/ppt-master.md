@@ -1,6 +1,6 @@
 # PPT Master 使用简明指南
 
-[![GitHub](/docsPhoto/ppt-master/github.svg)](https://github.com/hugohe3/ppt-master/blob/main/README_CN.md) 原文来源：[hugohe3/ppt-master README_CN.md](https://github.com/hugohe3/ppt-master/blob/main/README_CN.md)可点击跳转
+![GitHub](/docsPhoto/ppt-master/github.svg)原文来源：[hugohe3/ppt-master README_CN.md](https://github.com/hugohe3/ppt-master/blob/main/README_CN.md)（可点击跳转）
 
 ![PPT Master 示例](/docsPhoto/ppt-master/ppt-example.webp)
 

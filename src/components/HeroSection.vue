@@ -45,7 +45,7 @@
     <div class="new-year-widget">
       <div class="widget-content">
         <div class="widget-text">
-          <span class="greeting">蓝图模式正在完善中....</span>
+          <span class="greeting">DPCC-API稳定的中转体验</span>
         </div>
       </div>
     </div>
