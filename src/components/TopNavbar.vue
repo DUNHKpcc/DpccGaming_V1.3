@@ -22,15 +22,18 @@
         </div>
 
         <nav class="main-nav-links">
-          <router-link to="/blog" class="nav-link" active-class="nav-link-active">
+          <router-link to="/blog" class="nav-link nav-link--optional" active-class="nav-link-active">
             Blog
           </router-link>
-          <router-link to="/aidocs" class="nav-link" active-class="nav-link-active">
+          <router-link to="/aidocs" class="nav-link nav-link--optional" active-class="nav-link-active">
             AiDocs
           </router-link>
-          <a href="https://api.dpccgaming.xyz"class="nav-link">
-            Dpcc API
+          <a href="https://api.dpccgaming.xyz" class="nav-link nav-link--api">
+            DPCC API
           </a>
+          <router-link to="/payment" class="nav-link nav-link--payment" active-class="nav-link-active">
+            支付
+          </router-link>
         </nav>
       </div>
 
@@ -567,7 +570,23 @@ onUnmounted(() => {
   }
 
   .navbar-left {
-    gap: 0.75rem;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .main-nav-links {
+    gap: 0.35rem;
+    margin-left: 0.25rem;
+  }
+
+  .nav-link {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+
+  .nav-link--optional {
+    display: none;
   }
 
   .menu-button {
@@ -626,14 +645,19 @@ onUnmounted(() => {
     font-size: 1rem;
   }
 
-  .title-link i {
-    display: none;
+  .title-link {
+    max-width: 1.5rem;
+    overflow: hidden;
+    font-size: 0;
+  }
+
+  .logo-image {
+    margin-right: 0 !important;
   }
 
   .btn-primary,
   .btn-secondary {
-    padding: 0.375rem 0.5rem;
-    font-size: 0.8rem;
+    display: none;
   }
 
   .username-row {

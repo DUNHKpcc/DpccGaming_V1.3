@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" role="img" aria-labelledby="title">
+  <title id="title">WeChat Pay</title>
+  <g transform="translate(2 9)">
+    <ellipse cx="16" cy="12" rx="15" ry="11" fill="#07c160"/>
+    <circle cx="10" cy="10" r="1.8" fill="#fff"/>
+    <circle cx="21" cy="10" r="1.8" fill="#fff"/>
+    <path d="M8 21l-4 5 9-3z" fill="#07c160"/>
+    <ellipse cx="27" cy="18" rx="12" ry="9" fill="#19d26b"/>
+    <circle cx="23" cy="16" r="1.5" fill="#fff"/>
+    <circle cx="31" cy="16" r="1.5" fill="#fff"/>
+    <path d="M31 25l6 3-3-5z" fill="#19d26b"/>
+  </g>
+</svg>

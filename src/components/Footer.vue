@@ -136,6 +136,15 @@
                   <span>GitHub</span>
                 </a>
               </li>
+              <li>
+                <a
+                  href="https://api.dpccgaming.xyz"
+                  class="footer-link flex items-center gap-2"
+                >
+                  <i class="fa-brands fa-github text-sm" />
+                  <span>DPCC API</span>
+                </a>
+              </li>
             </ul>
           </div>
 

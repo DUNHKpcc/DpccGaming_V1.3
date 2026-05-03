@@ -12,6 +12,7 @@ const CodingMode = () => import('../views/CodingMode.vue')
 const DocsPlaceholder = () => import('../views/DocsPlaceholder.vue')
 const DiscussionMode = () => import('../views/DiscussionMode.vue')
 const CookiePolicy = () => import('../views/CookiePolicy.vue')
+const Payment = () => import('../views/Payment.vue')
 
 const routes = [
   {
@@ -85,6 +86,12 @@ const routes = [
     path: '/cookie-policy',
     name: 'CookiePolicy',
     component: CookiePolicy,
+    meta: { hideSidebar: true }
+  },
+  {
+    path: '/payment',
+    name: 'Payment',
+    component: Payment,
     meta: { hideSidebar: true }
   },
   {
