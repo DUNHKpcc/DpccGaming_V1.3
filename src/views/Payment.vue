@@ -58,7 +58,8 @@
               type="button"
               class="plan-card"
               :class="{ selected: plan.id === selectedPlanId }"
-              @click="selectedPlanId = plan.id"
+              :aria-pressed="plan.id === selectedPlanId"
+              @click="selectPlan(plan.id)"
             >
               <span v-if="plan.recommended" class="recommend-badge">推荐款项</span>
               <span class="plan-name">{{ plan.name }}</span>
@@ -231,6 +232,10 @@ const checklist = [
 const selectedPlanId = ref('gold')
 const selectedDurationId = ref('1m')
 
+const selectPlan = (planId) => {
+  selectedPlanId.value = planId
+}
+
 const selectedPlan = computed(() => plans.find((plan) => plan.id === selectedPlanId.value) || plans[1])
 const selectedDuration = computed(() => durations.find((duration) => duration.id === selectedDurationId.value) || durations[0])
 const orderAmount = computed(() => selectedPlan.value.price * selectedDuration.value.multiplier)
@@ -313,6 +318,7 @@ const redirectToAlipay = () => {
 
 .payment-brand h1 {
   font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 900;
   line-height: 1.12;
 }
 
@@ -453,11 +459,28 @@ const redirectToAlipay = () => {
   background: var(--bg-secondary);
   color: var(--text-primary);
   text-align: left;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .plan-card.selected {
+  background: var(--text-primary);
   border-color: var(--text-primary);
+  color: var(--bg-primary);
   box-shadow: inset 0 0 0 1px var(--text-primary);
+}
+
+.plan-card.selected .daily-quota,
+.plan-card.selected .plan-feature {
+  color: var(--bg-primary);
+}
+
+.plan-card.selected .plan-divider {
+  background: var(--bg-primary);
+}
+
+.plan-card.selected .recommend-badge {
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .recommend-badge {
@@ -639,7 +662,7 @@ const redirectToAlipay = () => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1.5rem;
+  padding: 1.5rem 1.5rem 0.8125rem;
 }
 
 .amount-box,

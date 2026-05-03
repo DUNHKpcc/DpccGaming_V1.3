@@ -32,7 +32,7 @@
             DPCC API
           </a>
           <router-link to="/payment" class="nav-link nav-link--payment" active-class="nav-link-active">
-            支付
+            CDK
           </router-link>
         </nav>
       </div>
