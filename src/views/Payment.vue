@@ -18,15 +18,22 @@
           <div class="theme-segment" aria-label="主题切换">
             <button
               type="button"
-              :class="{ active: isDark }"
-              @click="themeStore.setTheme(true)"
+              :class="{ active: themeMode === 'system' }"
+              @click="themeStore.setThemeMode('system')"
+            >
+              系统
+            </button>
+            <button
+              type="button"
+              :class="{ active: themeMode === 'dark' }"
+              @click="themeStore.setThemeMode('dark')"
             >
               深色
             </button>
             <button
               type="button"
-              :class="{ active: !isDark }"
-              @click="themeStore.setTheme(false)"
+              :class="{ active: themeMode === 'light' }"
+              @click="themeStore.setThemeMode('light')"
             >
               浅色
             </button>
@@ -89,7 +96,7 @@
                   aria-label="微信支付"
                   title="微信支付"
                 >
-                  <img src="/Ai/WeChatPay.svg" alt="" class="payment-brand-icon" />
+                  <i class="fa-brands fa-weixin wechat-icon" aria-hidden="true"></i>
                   <span class="method-label">微信支付</span>
                 </button>
                 <button
@@ -172,7 +179,7 @@ import { computed, ref } from 'vue'
 import { useThemeStore } from '../stores/theme'
 
 const themeStore = useThemeStore()
-const isDark = computed(() => themeStore.isDark)
+const themeMode = computed(() => themeStore.themeMode)
 
 const plans = [
   {
@@ -561,18 +568,18 @@ const redirectToAlipay = () => {
   box-shadow: inset 0 0 0 1px var(--text-primary);
 }
 
-.payment-brand-icon {
-  display: block;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: 0 0 auto;
-  object-fit: contain;
+.wechat-icon,
+.alipay-icon {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.wechat-icon {
+  color: #07c160;
 }
 
 .alipay-icon {
   color: #1677ff;
-  font-size: 2.25rem;
-  line-height: 1;
 }
 
 .method-label {
