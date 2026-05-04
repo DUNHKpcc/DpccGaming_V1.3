@@ -89,7 +89,8 @@ watch(showSidebar, (visible) => {
 .app-layout {
   display: flex;
   min-height: 100vh;
-  background: #000000;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .main-content {

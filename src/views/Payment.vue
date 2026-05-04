@@ -12,31 +12,9 @@
 
         <div class="payment-header-actions">
           <div class="payment-secure-pill">
+            <i class="fa-solid fa-lock secure-icon" aria-hidden="true"></i>
             <span class="status-dot"></span>
             HTTPS + 服务端签名
-          </div>
-          <div class="theme-segment" aria-label="主题切换">
-            <button
-              type="button"
-              :class="{ active: themeMode === 'system' }"
-              @click="themeStore.setThemeMode('system')"
-            >
-              系统
-            </button>
-            <button
-              type="button"
-              :class="{ active: themeMode === 'dark' }"
-              @click="themeStore.setThemeMode('dark')"
-            >
-              深色
-            </button>
-            <button
-              type="button"
-              :class="{ active: themeMode === 'light' }"
-              @click="themeStore.setThemeMode('light')"
-            >
-              浅色
-            </button>
           </div>
         </div>
       </header>
@@ -93,16 +71,8 @@
               <div class="payment-method-icons">
                 <button
                   type="button"
-                  class="method-tile"
-                  aria-label="微信支付"
-                  title="微信支付"
-                >
-                  <i class="fa-brands fa-weixin wechat-icon" aria-hidden="true"></i>
-                  <span class="method-label">微信支付</span>
-                </button>
-                <button
-                  type="button"
                   class="method-tile active"
+                  aria-pressed="true"
                   aria-label="支付宝支付"
                   title="支付宝支付"
                 >
@@ -166,9 +136,15 @@
             <p v-for="item in checklist" :key="item">{{ item }}</p>
           </section>
 
-          <button type="button" class="pay-button" @click="redirectToAlipay">
-            跳转支付宝支付 {{ orderAmountText }}
+          <button
+            type="button"
+            class="pay-button"
+            :disabled="isCreatingOrder || !selectedPlan.id || !selectedDuration.id"
+            @click="redirectToAlipay"
+          >
+            {{ isCreatingOrder ? '正在创建订单...' : `跳转支付宝支付 ${orderAmountText}` }}
           </button>
+          <p v-if="paymentError" class="payment-error">{{ paymentError }}</p>
         </aside>
       </main>
     </div>
@@ -176,45 +152,31 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { useThemeStore } from '../stores/theme'
+import { computed, onMounted, ref } from 'vue'
+import { apiCall } from '../utils/api'
 
-const themeStore = useThemeStore()
-const themeMode = computed(() => themeStore.themeMode)
-
-const plans = [
-  {
-    id: 'bronze',
-    name: '青铜月卡',
-    price: 29.9,
-    priceText: '¥29.90',
-    dailyQuota: '每日 $5 免费额度',
+const planPresentation = {
+  bronze: {
     features: ['适合轻量试用', '每日凌晨自动发放', '额度用完后按余额扣费']
   },
-  {
-    id: 'gold',
-    name: '黄金月卡',
-    price: 69.9,
-    priceText: '¥69.90',
-    dailyQuota: '每日 $15 免费额度',
+  gold: {
     recommended: true,
     features: ['多数用户选择', '支付后自动发放', '订单金额不可被前端改写']
   },
-  {
-    id: 'platinum',
-    name: '白金月卡',
-    price: 199.9,
-    priceText: '¥199.90',
-    dailyQuota: '每日 $50 免费额度',
+  platinum: {
     features: ['高频调用与团队共享', 'VIP 支付通道', '到账状态实时回写']
   }
-]
+}
 
-const durations = [
-  { id: '1m', label: '1个月', multiplier: 1 },
-  { id: '3m', label: '3个月', multiplier: 3 },
-  { id: '12m', label: '12个月', multiplier: 12 }
-]
+const formatMoney = (amount) => `¥${Number(amount || 0).toFixed(2)}`
+const formatQuota = (quota) => `每日 $${Number(quota || 0).toFixed(0)} 免费额度`
+
+const plans = ref([])
+const durations = ref([])
+const paymentError = ref('')
+const isCreatingOrder = ref(false)
+const emptyPlan = { name: '加载中', price: 0, dailyQuota: '正在加载额度' }
+const emptyDuration = { label: '加载中', months: 1 }
 
 const securitySteps = [
   { title: '1 创建订单', description: '服务端生成订单号与签名' },
@@ -236,23 +198,64 @@ const selectPlan = (planId) => {
   selectedPlanId.value = planId
 }
 
-const selectedPlan = computed(() => plans.find((plan) => plan.id === selectedPlanId.value) || plans[1])
-const selectedDuration = computed(() => durations.find((duration) => duration.id === selectedDurationId.value) || durations[0])
-const orderAmount = computed(() => selectedPlan.value.price * selectedDuration.value.multiplier)
-const orderAmountText = computed(() => `¥${orderAmount.value.toFixed(2)}`)
-const orderToken = computed(() => `dpcc_${selectedPlan.value.id}_monthly_${selectedDuration.value.id}_server_signed_order`)
-const orderId = computed(() => `DPCC-20260503-${selectedPlan.value.id.toUpperCase()}-${selectedDuration.value.id.toUpperCase()}`)
-const alipayUrl = computed(() => {
-  const params = new URLSearchParams({
-    appId: '20000125',
-    orderSuffix: orderToken.value
-  })
-  return `alipays://platformapi/startapp?${params.toString()}`
-})
+const selectedPlan = computed(() => plans.value.find((plan) => plan.id === selectedPlanId.value) || plans.value[0] || emptyPlan)
+const selectedDuration = computed(() => durations.value.find((duration) => duration.id === selectedDurationId.value) || durations.value[0] || emptyDuration)
+const orderAmount = computed(() => Number(selectedPlan.value.price || 0) * Number(selectedDuration.value.months || 1))
+const orderAmountText = computed(() => formatMoney(orderAmount.value))
+const orderId = computed(() => `服务端创建后锁定`)
 
-const redirectToAlipay = () => {
-  window.location.href = alipayUrl.value
+const loadPaymentCatalog = async () => {
+  try {
+    const catalog = await apiCall('/payments/catalog', {
+      method: 'GET',
+      suppressErrorLogging: true
+    })
+    plans.value = (catalog.plans || []).map((plan) => ({
+      ...plan,
+      ...planPresentation[plan.id],
+      priceText: formatMoney(plan.price),
+      dailyQuota: formatQuota(plan.dailyQuotaUsd),
+      features: planPresentation[plan.id]?.features || []
+    }))
+    durations.value = catalog.durations || []
+  } catch (error) {
+    paymentError.value = error.message || '支付款项加载失败'
+  }
 }
+
+const submitAlipayForm = (formHtml) => {
+  const wrapper = document.createElement('div')
+  wrapper.style.display = 'none'
+  wrapper.innerHTML = formHtml
+  const form = wrapper.querySelector('form')
+  if (!form) {
+    throw new Error('支付宝支付表单无效')
+  }
+  document.body.appendChild(wrapper)
+  form.submit()
+}
+
+const redirectToAlipay = async () => {
+  if (isCreatingOrder.value) return
+  paymentError.value = ''
+  isCreatingOrder.value = true
+
+  try {
+    const result = await apiCall('/payments/alipay/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        planId: selectedPlanId.value,
+        durationId: selectedDurationId.value
+      })
+    })
+    submitAlipayForm(result.formHtml)
+  } catch (error) {
+    paymentError.value = error.message || '创建支付订单失败'
+    isCreatingOrder.value = false
+  }
+}
+
+onMounted(loadPaymentCatalog)
 </script>
 
 <style scoped>
@@ -260,7 +263,11 @@ const redirectToAlipay = () => {
   min-height: calc(100vh - 4rem);
   background: var(--bg-primary);
   color: var(--text-primary);
-  padding: 2.5rem;
+  padding: 4rem 2.5rem 2.5rem;
+}
+
+:global([data-theme="light"]) .payment-page {
+  --text-primary: #000000;
 }
 
 .payment-shell {
@@ -277,7 +284,6 @@ const redirectToAlipay = () => {
 .flow-heading,
 .order-head,
 .payment-method-icons,
-.theme-segment,
 .payment-secure-pill {
   display: flex;
 }
@@ -336,8 +342,7 @@ const redirectToAlipay = () => {
   justify-content: flex-end;
 }
 
-.payment-secure-pill,
-.theme-segment {
+.payment-secure-pill {
   align-items: center;
   border: 1px solid var(--border-primary);
   background: var(--bg-secondary);
@@ -352,6 +357,12 @@ const redirectToAlipay = () => {
   font-weight: 800;
 }
 
+.secure-icon {
+  color: #4aed33;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
 .status-dot {
   width: 0.45rem;
   height: 0.45rem;
@@ -359,12 +370,6 @@ const redirectToAlipay = () => {
   background: #4aed33;
 }
 
-.theme-segment {
-  padding: 0.25rem;
-  gap: 0.25rem;
-}
-
-.theme-segment button,
 .duration-options button,
 .plan-card,
 .method-tile,
@@ -372,7 +377,6 @@ const redirectToAlipay = () => {
   cursor: pointer;
 }
 
-.theme-segment button,
 .duration-options button {
   border: 0;
   border-radius: 999px;
@@ -381,12 +385,6 @@ const redirectToAlipay = () => {
   font-weight: 800;
 }
 
-.theme-segment button {
-  padding: 0.45rem 0.75rem;
-  font-size: 0.82rem;
-}
-
-.theme-segment button.active,
 .duration-options button.active {
   background: var(--text-primary);
   color: var(--bg-primary);
@@ -591,14 +589,9 @@ const redirectToAlipay = () => {
   box-shadow: inset 0 0 0 1px var(--text-primary);
 }
 
-.wechat-icon,
 .alipay-icon {
-  font-size: 2.25rem;
+  font-size: 1.9rem;
   line-height: 1;
-}
-
-.wechat-icon {
-  color: #07c160;
 }
 
 .alipay-icon {
@@ -607,10 +600,14 @@ const redirectToAlipay = () => {
 
 .method-label {
   color: #111111;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   font-weight: 900;
   line-height: 1;
   white-space: nowrap;
+}
+
+:global([data-theme="light"]) .payment-page .method-label {
+  color: #000000;
 }
 
 .security-flow {
@@ -750,9 +747,22 @@ const redirectToAlipay = () => {
   font-weight: 900;
 }
 
+.pay-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.payment-error {
+  margin: -0.35rem 0 0;
+  color: #ef4444;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 @media (max-width: 1080px) {
   .payment-page {
-    padding: 1.5rem;
+    padding: 3rem 1.5rem 1.5rem;
   }
 
   .payment-workspace {
@@ -766,7 +776,7 @@ const redirectToAlipay = () => {
 
 @media (max-width: 760px) {
   .payment-page {
-    padding: 1rem;
+    padding: 2rem 1rem 1rem;
   }
 
   .payment-header,
