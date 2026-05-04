@@ -26,6 +26,7 @@ const debugRoutes = require('./backend/routes/debug');
 const cookieRoutes = require('./backend/routes/cookies');
 const discussionRoutes = require('./backend/routes/discussion');
 const blueprintRoutes = require('./backend/routes/blueprints');
+const paymentRoutes = require('./backend/routes/payments');
 const { initDiscussionRealtime } = require('./backend/utils/discussionRealtime');
 
 const app = express();
@@ -148,6 +149,7 @@ app.use('/api/debug', debugRoutes);
 app.use('/api/cookies', cookieRoutes);
 app.use('/api/discussion', discussionRoutes);
 app.use('/api/blueprints', blueprintRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.use(errorHandler);
 
@@ -189,6 +191,7 @@ async function startServer() {
       console.log('   - /api/debug/* (调试工具)');
       console.log('   - /api/discussion/* (讨论模式/好友/匹配)');
       console.log('   - /api/blueprints/* (蓝图种子/副本持久化)');
+      console.log('   - /api/payments/* (支付订单与支付宝回调)');
       console.log('   - /uploads/* (静态文件)');
       console.log('   - /games/* (游戏文件)');
       console.log('='.repeat(50));
